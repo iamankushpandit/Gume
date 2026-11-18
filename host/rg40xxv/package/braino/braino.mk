@@ -20,8 +20,10 @@ BRAINO_SITE_METHOD = local
 # git in WSL cannot follow) and passes it down.
 BRAINO_VERSION = $(or $(BRAINO_GIT_COMMIT),local)
 BRAINO_SUBDIR = host
-BRAINO_LICENSE = GPL-3.0-or-later
-BRAINO_LICENSE_FILES = LICENSE NOTICE.md
+# The font compiled into the binary is GPL-3.0-or-later with the font
+# exception (host/fonts/README.md); stb_truetype is public domain or MIT.
+BRAINO_LICENSE = GPL-3.0-or-later, GPL-3.0-or-later WITH Font-exception-2.0 (FreeSans), Unlicense or MIT (stb_truetype)
+BRAINO_LICENSE_FILES = LICENSE NOTICE.md host/fonts/COPYING host/third_party/stb/stb_truetype.h
 # The three libraries are packages of their own (package/braino-*), so they
 # are fetched and listed in legal-info like everything else.
 BRAINO_DEPENDENCIES = sdl2 libcurl braino-tft-espi braino-arduinojson braino-map-n-flag
@@ -34,7 +36,8 @@ BRAINO_CONF_OPTS = \
 	-DBRAINO_HOST_DRM=ON \
 	-DBRAINO_HOST_BATTERY=ON \
 	-DBRAINO_HOST_STRICT_SECRETS=ON \
-	-DBRAINO_HOST_SCREEN_POWER=ON
+	-DBRAINO_HOST_SCREEN_POWER=ON \
+	-DBRAINO_VERSION_TAG=h700
 
 # The copied tree has no .git, so the build stamp is told which commit it is.
 BRAINO_MAKE_ENV = BRAINO_BUILD_COMMIT=$(or $(BRAINO_GIT_COMMIT),unknown) \

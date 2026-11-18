@@ -15,9 +15,18 @@
  * TftRenderer, the HAL and every screen above them run unchanged. Only the
  * calls the firmware makes are here.
  *
- * The pixels live in ONE frame, 320x240 RGB565, in the landscape orientation
- * of rotation 1 -- the way the host board's panel is "mounted" -- and the host
- * window shows that frame as it stands. setRotation() changes how logical
+ * The pixels live in ONE frame of RGB565, in the landscape orientation of
+ * rotation 1 -- the way the host board's panel is "mounted" -- and the host
+ * window shows that frame as it stands. Its size is the panel HostPlatform
+ * found at start-up (640x480 on the RG40XX V), set when begin() runs; before
+ * begin() it is empty and nothing drawn lands anywhere. Coordinates are the
+ * firmware's -- the panel over the UI scale, 320x240 on that console -- and
+ * every logical pixel is stored as scale x scale real ones, so the frame is at
+ * the panel's own resolution.
+ *
+ * Text is not TFT_eSPI's bitmaps here: it is GNU FreeSans, anti-aliased at
+ * the real resolution (src/HostText.h), placed and measured in the bitmap
+ * fonts' cells so every screen's layout holds. setRotation() changes how logical
  * coordinates land in it, with the same four transforms Board::pollTouch()
  * undoes for touch, so a portrait screen appears turned on a landscape window
  * exactly as it would on a landscape device.
@@ -31,6 +40,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "WString.h"
 
 #define TFT_BLACK       0x0000
@@ -74,11 +84,13 @@
 #define C_BASELINE 10
 #define R_BASELINE 11
 
+/* This panel keeps a paint clip of its own (setPaintClip() below), which the
+ * driver it stands in for does not. Ui::TftRenderer reads this to know which
+ * of the two it is drawing through. */
+#define TFT_ESPI_PAINT_CLIP 1
+
 class TFT_eSPI {
 public:
-    static constexpr int16_t FRAME_W = 320;
-    static constexpr int16_t FRAME_H = 240;
-
     TFT_eSPI(int16_t w = 240, int16_t h = 320) { (void)w; (void)h; }
 
     void init(uint8_t tc = 0) { (void)tc; begin(); }
@@ -140,6 +152,26 @@ public:
     void setViewport(int32_t x, int32_t y, int32_t w, int32_t h, bool vpDatum = true);
     void resetViewport();
 
+    /* A paint clip laid over the viewport, in absolute logical coordinates:
+     * no pixel lands outside it. The runtime sets one through
+     * Ui::TftRenderer while a notice is up, to keep every painter out of the
+     * notice's strip, and once more with the strip alone to redraw what the
+     * notice covered.
+     *
+     * It is kept apart from the viewport on purpose. The controls the d-pad's
+     * selector stops on are read off what a screen draws, clipped to the
+     * viewport the SCREEN set (a row half scrolled out of its list is pressed
+     * where it can be seen). A clip laid over the top for a notice has to
+     * hide pixels and nothing else, or redrawing the strip under a notice
+     * would leave the selector with only the controls inside that strip.
+     *
+     * paintClipFrame() gives it in the rotation-1 frame, corners inclusive,
+     * for the selector itself, which HostPlatform draws over the frame and
+     * keeps inside the clip. False when there is none. */
+    void setPaintClip(int32_t x, int32_t y, int32_t w, int32_t h);
+    void clearPaintClip();
+    bool paintClipFrame(int16_t& x0, int16_t& y0, int16_t& x1, int16_t& y1) const;
+
     void startWrite() {}
     void endWrite() {}
     void setAddrWindow(int32_t x, int32_t y, int32_t w, int32_t h);
@@ -148,8 +180,26 @@ public:
     void pushPixels(const void* data, uint32_t len);
     void pushColor(uint16_t color);
 
-    /* What the host window shows. */
-    const uint16_t* frame() const { return frame_; }
+    /* What the host window shows: (frameWidth() x frameHeight()) times
+     * frameScale() each way, row-major, at the panel's real resolution. */
+    const uint16_t* frame() const { return frame_.data(); }
+    int16_t frameWidth() const { return frameW_; }
+    int16_t frameHeight() const { return frameH_; }
+    int16_t frameScale() const { return scale_; }
+
+    /* Coverage drawn at the real resolution: `w` x `h` real pixels of alpha,
+     * with its top-left at logical (x, y) -- viewport datum and all, as any
+     * primitive -- moved by (dx, dy) real pixels. Clipped to the viewport and
+     * the paint clip like every other pixel. The product mark
+     * (HostLogoArt.cpp) is drawn with it. */
+    void blendArt(int32_t x, int32_t y, int32_t dx, int32_t dy, const uint8_t* alpha,
+                  int32_t w, int32_t h, uint16_t color);
+
+    /* An arc one logical pixel thick at the real resolution, centred on
+     * logical pixel (cx, cy) from `fromDeg` to `toDeg` (0 right, clockwise):
+     * PanelArt::drawArc() on the host (HostLogoArt.cpp). */
+    void drawArcReal(int32_t cx, int32_t cy, int32_t radius, int32_t fromDeg, int32_t toDeg,
+                     uint16_t color);
     /* Moves whenever a pixel is written, so the window is shown again only
      * when there is something new to show. */
     uint32_t frameGeneration() const { return frameGen_; }
@@ -208,7 +258,8 @@ public:
         int16_t x0, y0, x1, y1;   // inclusive
         bool header;              // a header icon rather than part of the screen
     };
-    static constexpr int MAX_FOCUS = 100;
+    /* The periodic table is 118 squares, and its tabs and header besides. */
+    static constexpr int MAX_FOCUS = 160;
     int focusTargets(FocusBox* out, int max) const;
     bool displayOn() const { return displayOn_ && !sleeping_; }
     bool asleep() const { return sleeping_; }
@@ -227,9 +278,25 @@ private:
     void fillCircleHalves(int32_t x0, int32_t y0, int32_t r, uint8_t sides, int32_t stretch,
                           uint16_t color);
     int16_t drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font);
+    /* Round and slanted shapes at the real resolution (HostTftShapes.cpp). */
+    bool realShapes() const;
+    void realCircle(int32_t ax, int32_t ay, int32_t r, bool filled, uint8_t quarters,
+                    uint16_t color);
+    void realLine(int32_t ax0, int32_t ay0, int32_t ax1, int32_t ay1, uint16_t color);
+    void realTriangle(int32_t ax0, int32_t ay0, int32_t ax1, int32_t ay1, int32_t ax2,
+                      int32_t ay2, uint16_t color);
+    void blockRect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t color);
+    int32_t ttCapPx(uint8_t font) const;
+    int32_t ttWidthPermille(uint8_t font) const;
+    int32_t ttAdvance(const char* text, uint8_t font) const;
+    int32_t ttDraw(const char* text, int32_t x, int32_t y, uint8_t font, int32_t w, int32_t h);
+    void blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a);
     void notePagerLabel(const char* text, int32_t x, int32_t y, int32_t w, int32_t h);
     void forgetMarks();
     void forgetMarksUnder(int32_t x, int32_t y, int32_t w, int32_t h);
+    /* fillRect() without noting a control: what the shim's own primitives use
+     * underneath, so a rounded fill or a glyph's pixels are not a second fill. */
+    void fillRectQuiet(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
 
     /* A pager label's centre: logical and absolute (for fills, which arrive
      * in logical coordinates) and in the frame (for the tap). */
@@ -309,7 +376,22 @@ private:
     void forgetFocusUnder(int32_t x, int32_t y, int32_t w, int32_t h);
     void forgetFocus();
 
-    uint16_t frame_[FRAME_W * FRAME_H] = {0};
+    int16_t frameW_ = 0;
+    int16_t frameH_ = 0;
+    int16_t scale_ = 1;   // real pixels per logical one, each way
+    std::vector<uint16_t> frame_;
+    /* Per real pixel, for one left partly covered: what it was blended
+     * over, in what colour and how much (blendReal()). 0 alpha: solid. */
+    std::vector<uint16_t> edgeUnder_;
+    std::vector<uint16_t> edgeColour_;
+    std::vector<uint8_t> edgeAlpha_;
+    std::vector<uint16_t> edgeShape_;   // which shape left it: shape_ when it was drawn
+    /* The shape now being drawn, as a hash of what it is and where: the same
+     * shape drawn again is a redraw, another shape of the same colour is a
+     * neighbour (blendReal()). */
+    uint16_t shape_ = 0;
+    void beginShape(uint32_t a, int32_t b, int32_t c, int32_t d, int32_t e, int32_t f = 0,
+                    int32_t g = 0);
     uint32_t frameGen_ = 0;
     uint8_t rotation_ = 1;
     bool inverted_ = false;
@@ -317,9 +399,12 @@ private:
     bool displayOn_ = true;
     bool swapBytes_ = false;
 
-    int32_t vpX_ = 0, vpY_ = 0, vpW_ = FRAME_W, vpH_ = FRAME_H;
+    int32_t vpX_ = 0, vpY_ = 0, vpW_ = 0, vpH_ = 0;
     bool vpDatum_ = false;
     bool vpActive_ = false;
+
+    int32_t clipX_ = 0, clipY_ = 0, clipW_ = 0, clipH_ = 0;
+    bool clipOn_ = false;
 
     int32_t winX_ = 0, winY_ = 0, winW_ = 0, winH_ = 0, winAt_ = 0;
 

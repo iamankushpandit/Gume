@@ -364,7 +364,8 @@ def check_update_channel_is_anonymous():
     if "?" in url or "&" in url:
         found.append("the update URL carries a query string (%s): the request "
                      "must say nothing about this device" % url)
-    for token in ("BOARD_NAME", "BRAINO_VERSION", "%s", "%d"):
+    for token in ("BOARD_NAME", "BRAINO_VERSION", "GUME_VERSION_TAG",
+                  "FIRMWARE_VERSION", "%s", "%d"):
         if token in url:
             found.append("the update URL is parameterised with '%s': it must "
                          "be one static path, byte-identical from every board"
@@ -454,6 +455,192 @@ def check_host_network_identity():
     return found
 
 
+# The standalone bench probes: each is built alone by its own diagnostic
+# environment, has no Board to call, and none of them joins a network -- they
+# scan, and a scan sends no DHCP request, so no name is given to any router.
+# The WiFi.begin() rule below still covers them, so a probe that learns to
+# join fails this check until the question has been answered for it.
+_PROBE_SOURCES = {
+    "src/audiodiag.cpp",
+    "src/battery_diag.cpp",
+    "src/diag4.cpp",
+    "src/s3_diag.cpp",
+    "src/wifi_diag.cpp",
+}
+
+# Every way this core has of giving an interface a name.
+_HOSTNAME_SETTERS = re.compile(
+    r"\bsetHostname\s*\(|\.hostname\s*\(|esp_netif_set_hostname\s*\("
+    r"|tcpip_adapter_set_hostname\s*\(")
+
+# How many lines of code may sit between naming the station and starting it.
+_HOSTNAME_LOOKBACK = 6
+
+
+def _code_lines(path: Path) -> list:
+    """(line number, text) for every line that is code rather than comment."""
+    out = []
+    in_block = False
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if in_block:
+            if "*/" in stripped:
+                in_block = False
+            continue
+        if stripped.startswith("/*"):
+            if "*/" not in stripped:
+                in_block = True
+            continue
+        if not stripped or stripped.startswith("//") or stripped.startswith("*"):
+            continue
+        out.append((number, line.split("//")[0]))
+    return out
+
+
+def check_station_hostname_is_fixed():
+    """The name given to the router must be one fixed word, never the MAC.
+
+    Left alone, the Arduino core names the station "esp32-" plus the low three
+    bytes of the Wi-Fi MAC and lwIP sends that to the router as DHCP option
+    12. Nothing in the firmware asked for it, which is how it went unnoticed:
+    the leak was an absence, a call that was never made, and no pattern over
+    the source finds a line that is not there. So this asserts the call.
+
+    Three properties, each one edit away from being lost:
+
+      - the name is a string literal -- not formatted, and so not formatted
+        from a MAC, a device id or a profile name;
+      - nothing else in src/ names an interface, so there is no second
+        setter for a later change to make clever;
+      - the station is named at boot, and again immediately before every
+        call that can start it. The core applies the name on the transition
+        into station mode and at no other time, so a start with no name in
+        force is the MAC form going back on the air.
+    """
+    found = []
+
+    header = REPO_ROOT / "src" / "hal" / "Board.h"
+    text = header.read_text(encoding="utf-8", errors="replace") if header.exists() else ""
+    match = re.search(r'\bWIFI_HOSTNAME\b[^=;]*=\s*([^;]+);', text)
+    if not match:
+        return ["src/hal/Board.h no longer defines Board::WIFI_HOSTNAME: the "
+                "name given to the router has no single definition"]
+    literal = re.fullmatch(r'"([^"]*)"', match.group(1).strip())
+    if not literal:
+        return ["Board::WIFI_HOSTNAME is not a plain string literal (%s): the "
+                "name given to the router must be the same fixed word from "
+                "every console" % match.group(1).strip()]
+    name = literal.group(1)
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,30}", name):
+        found.append("Board::WIFI_HOSTNAME is '%s': it must be one lowercase "
+                     "word a router will accept as a host name" % name)
+    if "%" in name or re.search(r"[0-9a-f]{6}", name):
+        found.append("Board::WIFI_HOSTNAME is '%s': it looks formatted, or "
+                     "carries hex that could be part of a MAC" % name)
+
+    setters = 0
+    for path in sorted((REPO_ROOT / "src").rglob("*")):
+        if path.suffix not in (".cpp", ".h"):
+            continue
+        rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        lines = _code_lines(path)
+
+        for number, line in lines:
+            if not _HOSTNAME_SETTERS.search(line):
+                continue
+            if (rel == "src/hal/BoardNetwork.cpp"
+                    and re.search(r"WiFi\.setHostname\(\s*WIFI_HOSTNAME\s*\)", line)):
+                setters += 1
+                continue
+            found.append("%s: Line %d: names a network interface itself (%s) "
+                         "-- the only setter is Board::applyWifiHostname(), "
+                         "and it takes Board::WIFI_HOSTNAME"
+                         % (rel, number, line.strip()[:60]))
+
+        for index, (number, line) in enumerate(lines):
+            starts = "WiFi.begin(" in line
+            if rel not in _PROBE_SOURCES and "WiFi.mode(WIFI_STA" in line:
+                starts = True
+            if not starts:
+                continue
+            before = lines[max(0, index - _HOSTNAME_LOOKBACK):index]
+            if not any("applyWifiHostname()" in prior for _, prior in before):
+                found.append("%s: Line %d: starts the Wi-Fi station without "
+                             "calling applyWifiHostname() just before it -- "
+                             "the core would name it from the MAC"
+                             % (rel, number))
+
+    if setters != 1:
+        found.append("src/hal/BoardNetwork.cpp: expected exactly one "
+                     "WiFi.setHostname(WIFI_HOSTNAME), found %d" % setters)
+
+    boot = REPO_ROOT / "src" / "hal" / "Board.cpp"
+    if boot.exists() and not any(
+            "applyWifiHostname()" in line for _, line in _code_lines(boot)):
+        found.append("src/hal/Board.cpp: Board::begin() no longer names the "
+                     "station before any radio code runs")
+    return found
+
+
+# The closed list itself. Every rulebook that counts it has to agree with
+# this, and adding a fifth entry here is the maintainer's decision, recorded
+# in an issue first -- see "No data collection" in CLAUDE.md.
+AUTHORIZED_FLOWS = (
+    "NTP time synchronization",
+    "One-time timezone lookup (ip-api.com)",
+    "BLE beacon (opt-in: device ID, game, score, and the turns\n"
+    "             of games between consoles -- no names, no profiles)",
+    "Update-availability manifest (anonymous GET, no device data)",
+)
+
+# Where the list is counted in prose. AGENTS.md went on saying three for
+# releases after CLAUDE.md said four, and the pull-request template asked
+# every contributor to tick a box against three.
+RULEBOOKS = ("CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md",
+             ".github/pull_request_template.md", "README.md",
+             "host/CLAUDE.md", "src/hal/CLAUDE.md", "src/engine/CLAUDE.md",
+             "src/games/CLAUDE.md", "src/ui/CLAUDE.md", "docs/PORTING.md")
+_CARDINALS = ("zero", "one", "two", "three", "four", "five", "six", "seven",
+              "eight", "nine", "ten")
+_ORDINALS = ("zeroth", "first", "second", "third", "fourth", "fifth", "sixth",
+             "seventh", "eighth", "ninth", "tenth")
+
+
+def check_stated_flow_count() -> list:
+    """Every rulebook that counts the outbound flows counts them right.
+
+    Two phrasings carry the number: "N things leave the device" and "a
+    <next> outbound flow needs the maintainer's agreement". Either one
+    disagreeing with AUTHORIZED_FLOWS is a rulebook telling its reader the
+    product promises something it does not.
+    """
+    issues = []
+    count = len(AUTHORIZED_FLOWS)
+    leave = re.compile(r"\b(\w+)\s+things\s+leave\s+the\s+device", re.I)
+    nth = re.compile(r"\b[Aa]\s+(\w+)\s+outbound\s+flow\s+needs", re.I)
+    for rel in RULEBOOKS:
+        path = REPO_ROOT / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for m in leave.finditer(text):
+            word = m.group(1).lower()
+            if word in _CARDINALS and _CARDINALS.index(word) != count:
+                line = text.count("\n", 0, m.start()) + 1
+                issues.append("%s:%d says %s things leave the device; the "
+                              "closed list has %s" % (rel, line, word,
+                                                      _CARDINALS[count]))
+        for m in nth.finditer(text):
+            word = m.group(1).lower()
+            if word in _ORDINALS and _ORDINALS.index(word) != count + 1:
+                line = text.count("\n", 0, m.start()) + 1
+                issues.append("%s:%d calls the next outbound flow the %s; with "
+                              "%d on the list it is the %s" %
+                              (rel, line, word, count, _ORDINALS[count + 1]))
+    return issues
+
+
 def main():
     """Run the privacy audit on all source files."""
     print("=" * 70)
@@ -499,6 +686,11 @@ def main():
     # What a Linux build could add underneath the firmware's own requests:
     # an address made from the MAC, and a DHCP client that introduces itself.
     all_issues.extend(check_host_network_identity())
+    # The name the router is given. The leak this guards against was a call
+    # that was never made, which no pattern over the source can find.
+    all_issues.extend(check_station_hostname_is_fixed())
+    # The rulebooks' count of the closed list.
+    all_issues.extend(check_stated_flow_count())
 
     # Print results
     if all_issues:
@@ -513,15 +705,14 @@ def main():
         print("\n[PASSED] PRIVACY AUDIT PASSED\n")
         print("No unauthorized data transmission patterns detected.")
         print("Authorized flows verified:")
-        print("  1. NTP time synchronization")
-        print("  2. One-time timezone lookup (ip-api.com)")
-        print("  3. BLE beacon (opt-in: device ID, game, score, and the turns\n             of games between consoles -- no names, no profiles)")
-        print("  4. Update-availability manifest (anonymous GET, no device data)")
+        for n, flow in enumerate(AUTHORIZED_FLOWS, 1):
+            print("  %d. %s" % (n, flow))
         if (REPO_ROOT / "host").exists():
             print("Linux builds: requests are IPv4 only, DHCP sends no client")
             print("  identifier, vendor string or hostname, and the card image's")
             print("  kernel has no IPv6.")
         print("Public privacy wording: no absolute network-silence claims.")
+        print("Router host name: one fixed word, set before every station start.")
         print("\n" + "=" * 70)
         return 0
 

@@ -213,6 +213,7 @@ void LetterTracer::updateGuide() {
     /* Nowhere clear beside the line: better nothing than an arrow over the
      * dots. The dots themselves still say where to go. */
     if (bestClear < GUIDE_CLEAR) guideShown_ = false;
+    if (aids_ >= 1) guideShown_ = false;   // a stage without arrows
 }
 
 void LetterTracer::planArrows() {

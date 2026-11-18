@@ -12,6 +12,7 @@
 #include <stdio.h>
 
 #include "engine/NearbyPlay.h"
+#include "ui/Stops.h"
 
 /* See NearbyWatch.h. The thresholds are the service's, not this file's:
  * NearbyPlay::PEER_QUIET_MS and the scanner's SIGHTING_TTL_MS decide when a
@@ -24,6 +25,8 @@ constexpr int16_t CARD_H = 100;    // title, seconds, one row of two buttons
 constexpr int16_t EXTRA_H = 30;    // the third button, when there is one
 constexpr int16_t PAD = 8;
 constexpr int16_t BUTTON_H = 26;
+constexpr int16_t BUTTON_MARGIN = 6;   // the two buttons' side margins
+constexpr int16_t BUTTON_GAP = 4;      // and the gap between them
 constexpr int16_t TITLE_H = 18;
 constexpr int16_t LINE_H = 14;
 
@@ -35,6 +38,8 @@ void NearbyWatch::reset() {
     who_ = 0;
     seconds_ = 0;
     resumed_ = false;
+    graceArmed_ = true;
+    Ui::clearOverlayStops();
 }
 
 NearbyWatch::State NearbyWatch::stateFor(uint32_t silentMs) {
@@ -51,7 +56,11 @@ bool NearbyWatch::tick(AppContext& host, const char* peerId, uint32_t now) {
 
 bool NearbyWatch::tickTable(AppContext& host, const char (*ids)[5], uint8_t count,
                             uint8_t skip, uint8_t dropped, uint32_t now) {
-    (void)now;
+    if (graceArmed_) {
+        graceArmed_ = false;
+        graceFromMs_ = now;
+    }
+    const bool inGrace = now - graceFromMs_ < NearbyPlay::PEER_QUIET_MS;
     /* The worst peer decides. Present beats nothing; Gone beats Quiet. A peer
      * no longer at the table is not waited for -- that is what dropping one
      * is for. */
@@ -60,8 +69,16 @@ bool NearbyWatch::tickTable(AppContext& host, const char (*ids)[5], uint8_t coun
     uint8_t worstWho = who_;
     for (uint8_t i = 0; i < count; ++i) {
         if (i == skip || (dropped & (1U << i)) != 0) continue;
-        const uint32_t ms = host.nearbyPeerSilentMs(ids[i]);
-        const State s = stateFor(ms);
+        uint32_t ms = host.nearbyPeerSilentMs(ids[i]);
+        State s = stateFor(ms);
+        if (s == State::Present) {
+            /* Heard -- but is it still in this game? */
+            const uint32_t away = host.nearbyPeerAwayMs(ids[i]);
+            if (away >= NearbyPlay::PEER_AWAY_MS) {
+                s = State::Away;
+                ms = away;
+            }
+        }
         if (s > worst || (s == worst && s != State::Present && ms > worstMs)) {
             worst = s;
             worstMs = ms;
@@ -74,6 +91,10 @@ bool NearbyWatch::tickTable(AppContext& host, const char (*ids)[5], uint8_t coun
     const uint16_t secondsBefore = seconds_;
 
     resumed_ = false;
+    /* Just reset, and not heard at all: a console just switched on, or a
+     * game just restored, has not had a scan yet. Not yet anything to wait
+     * for. Quiet and Away are things actually heard, and are not graced. */
+    if (inGrace && before == State::Present && worst == State::Gone) worst = State::Present;
     if (worst == State::Present) {
         if (before != State::Present) {
             resumed_ = true;
@@ -81,12 +102,16 @@ bool NearbyWatch::tickTable(AppContext& host, const char (*ids)[5], uint8_t coun
         }
         state_ = State::Present;
         seconds_ = 0;
+        Ui::clearOverlayStops();
         return resumed_;
     }
 
     state_ = worst;
     who_ = worstWho;
     seconds_ = worst == State::Gone ? 0 : static_cast<uint16_t>(worstMs / 1000);
+    /* Set again by draw() when the card is painted; taken down here on the
+     * frame after Keep waiting. */
+    if (!cardShown()) Ui::clearOverlayStops();
     /* Report a change the screen would draw: the state, the card coming up,
      * or the seconds line while the card is up. A dismissed card counting in
      * the background is not a repaint. */
@@ -111,21 +136,24 @@ Rect NearbyWatch::secondsRect(const Rect& area, bool hasExtra) const {
 
 Rect NearbyWatch::waitRect(const Rect& area, bool hasExtra) const {
     const Rect c = cardRect(area, hasExtra);
-    const int16_t w = static_cast<int16_t>((c.w - 3 * PAD) / 2);
-    return Rect{static_cast<int16_t>(c.x + PAD),
+    /* Tighter at the sides and between than the card's own padding: on
+     * Ludo's board the card is 188 wide, and "Keep waiting" needs 72px of
+     * font 1 inside a button's 12px of margin. */
+    const int16_t w = static_cast<int16_t>((c.w - 2 * BUTTON_MARGIN - BUTTON_GAP) / 2);
+    return Rect{static_cast<int16_t>(c.x + BUTTON_MARGIN),
                 static_cast<int16_t>(c.y + PAD + TITLE_H + LINE_H + PAD), w, BUTTON_H};
 }
 
 Rect NearbyWatch::endRect(const Rect& area, bool hasExtra) const {
     const Rect w = waitRect(area, hasExtra);
-    return Rect{static_cast<int16_t>(w.x + w.w + PAD), w.y, w.w, w.h};
+    return Rect{static_cast<int16_t>(w.x + w.w + BUTTON_GAP), w.y, w.w, w.h};
 }
 
 Rect NearbyWatch::extraRect(const Rect& area) const {
     const Rect c = cardRect(area, true);
     const Rect w = waitRect(area, true);
     return Rect{w.x, static_cast<int16_t>(w.y + BUTTON_H + 4),
-                static_cast<int16_t>(c.w - 2 * PAD), BUTTON_H};
+                static_cast<int16_t>(c.w - 2 * BUTTON_MARGIN), BUTTON_H};
 }
 
 void NearbyWatch::draw(Ui::Renderer& tft, const Rect& area, const char* who,
@@ -133,9 +161,15 @@ void NearbyWatch::draw(Ui::Renderer& tft, const Rect& area, const char* who,
     const bool hasExtra = extra != nullptr;
     const Rect c = cardRect(area, hasExtra);
     tft.fillRoundRect(c.x + 2, c.y + Ui::BUTTON_SHADOW_DY, c.w, c.h, 8, Ui::shade(Ui::bg(), 60));
-    tft.fillRoundRect(c.x, c.y, c.w, c.h, 8, Ui::surface());
-    tft.drawRoundRect(c.x, c.y, c.w, c.h, 8,
+    /* The border is a fill under the face, not an outline over it: a fill
+     * and an outline of one rectangle is what the d-pad's selector takes for
+     * a control, and the card as a whole is not one -- A on its middle
+     * landed between the buttons and counted as Keep waiting. */
+    tft.fillRoundRect(c.x, c.y, c.w, c.h, 8,
                       state_ == State::Gone ? Ui::error() : Ui::warning());
+    tft.fillRoundRect(c.x + 1, c.y + 1, c.w - 2, c.h - 2, 7, Ui::surface());
+    /* While the card is up, only its buttons take a press. */
+    Ui::setOverlayStops(c);
 
     char line[40];
     snprintf(line, sizeof(line), "Waiting for %s", who != nullptr ? who : "");
@@ -145,10 +179,15 @@ void NearbyWatch::draw(Ui::Renderer& tft, const Rect& area, const char* who,
                   Align::Center);
     drawSeconds(tft, area, hasExtra);
 
-    Ui::drawButton(tft, waitRect(area, hasExtra), "Keep waiting", Ui::panel(), Ui::outline(),
-                   Ui::text(), false, 2);
+    /* Measured, never trusted: on a board 200px wide the card is 192 and
+     * each button 84, which cuts "Keep waiting" at font 2 to "Keep waiti.".
+     * Both buttons take the smaller font together, so they read as a pair. */
+    const Rect wait = waitRect(area, hasExtra);
+    const uint8_t font = tft.textWidth("Keep waiting", 2) <= wait.w - 12 ? 2 : 1;
+    Ui::drawButton(tft, wait, "Keep waiting", Ui::panel(), Ui::outline(), Ui::text(), false,
+                   font);
     Ui::drawButton(tft, endRect(area, hasExtra), "End game", Ui::panel(), Ui::outline(),
-                   Ui::text(), false, 2);
+                   Ui::text(), false, font);
     if (hasExtra) {
         Ui::drawButton(tft, extraRect(area), extra, Ui::panel(), Ui::outline(), Ui::text(),
                        false, 2);
@@ -163,6 +202,8 @@ void NearbyWatch::drawSeconds(Ui::Renderer& tft, const Rect& area, bool hasExtra
     char line[40];
     if (state_ == State::Gone) {
         snprintf(line, sizeof(line), "Out of range, or switched off");
+    } else if (state_ == State::Away) {
+        snprintf(line, sizeof(line), "Not in this game for %us", static_cast<unsigned>(seconds_));
     } else {
         snprintf(line, sizeof(line), "Nothing heard for %us", static_cast<unsigned>(seconds_));
     }

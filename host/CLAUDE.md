@@ -4,8 +4,8 @@ Braino! as a desktop program. The firmware under `src/` is compiled
 **unchanged** against small stand-ins for the ESP32 libraries, and an SDL
 window plays the part of the panel, the touch controller, the BOOT key and
 the speaker. The first use is seeing and playing the real screens on a PC;
-the target it is building towards is the Anbernic RG40XXV (Linux, 640x480,
-gamepad), where it would ship as a PortMaster port.
+the other is the Anbernic RG40XX V (Linux, 640x480, gamepad), where it is the
+whole device (`rg40xxv/`, below).
 
 ```bash
 # In Linux or WSL, with build-essential, cmake, pkg-config, libsdl2-dev
@@ -14,6 +14,21 @@ cmake -S host -B build/host -DCMAKE_BUILD_TYPE=Release
 cmake --build build/host -j
 ./build/host/braino
 ```
+
+CI does the same on every pull request that touches source (`ci.yml`'s
+`host` job, with `verify` waiting on it), and runs every test in
+`test/host/` beside it on every pull request through
+`tools/run_host_tests.py` -- the same command, from Linux or WSL:
+
+```bash
+python3 tools/run_host_tests.py               # every test
+python3 tools/run_host_tests.py go_rules_test # one
+```
+
+The runner builds each test with the `g++` line written in its own header,
+so a new test states that line or fails. The card image is
+`.github/workflows/card-image.yml`: on changes under `host/`, `src/` or
+`include/`, on a `card-rg40xxv-*` tag, and in full every Monday.
 
 A mouse click is a finger on the glass. With a gamepad, the left stick moves a
 crosshair, the d-pad (the arrow keys) moves a selector from control to control,
@@ -47,10 +62,122 @@ nothing maps is logged once (`[host] button N is not mapped`), which is how to
 map a handheld whose M is not Guide. Holding Select + Start for three seconds quits -- long, so that nobody
 leaves by accident on a handheld where Braino is all there is. F10 or closing
 the window quits at once. `BRAINO_FULLSCREEN=1` fills
-the screen. Settings and scores go in `$BRAINO_DATA_DIR`, or
-`~/.local/share/braino`.
+the screen. Settings and scores go in `$BRAINO_DATA_DIR`, else
+`$XDG_DATA_HOME/braino`, else `~/.local/share/braino`.
+
+## Standing rules for the Linux platform
+
+*Moved here from the root `CLAUDE.md`, which keeps only the two rules that
+bind every change to `src/`. The sections after this one are the detail.*
+
+`host/` compiles `src/` unchanged into a desktop program with SDL2, in Linux
+or WSL (`cmake -S host -B build/host && cmake --build build/host -j`). It is
+what the Anbernic RG40XX V runs, and the quickest way to see a real screen
+without a board. These hold it together:
+
+- **Every platform draws at its own resolution, found at run time.** The
+  panel's size is `PanelSize` (`src/hal/PanelSize.h`), one implementation per
+  platform: a board answers from its profile (`hal/PanelSizeEsp32.cpp`), the
+  host from the display it found when it started -- 640x480 on the RG40XX V,
+  or `BRAINO_PANEL=WxH` -- divided by a whole-number UI scale, 2 there, so
+  text and controls keep the 2.8-inch board's proportions
+  (`host/src/HostPanelSize.cpp`). Every pixel is still drawn at the panel's
+  own resolution: nothing draws a 320x240 picture to be stretched by somebody
+  else, and on Linux text is GNU FreeSans, anti-aliased at that resolution,
+  measured with the advances that draw it, in the bitmap fonts' cells, and
+  narrowed where its widest word would outrun the bitmap font's
+  (`host/src/HostText.cpp`). Circles, rounded corners, slanted lines and
+  triangles are drawn at the real resolution with smooth edges too, and a
+  redraw stays a no-op (`host/src/HostTftShapes.cpp`). The product mark and
+  the few arcs plotted pixel by pixel are offered to the platform through
+  `PanelArt` (`src/ui/PanelArt.h`): a board's answer declines, and the
+  one-bit `LogoMask` and the plotted pixels stay the art, one pixel to one. Anything that means "the
+  panel in front of the player" -- the canvas fit, touch mapping, the boot
+  banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
+  are the profile's compile-time panel and on the host only the floor the
+  static_asserts check. System screens read `tft.width()` / `tft.height()`,
+  which is the same size turned to their rotation. Games keep their 320x240
+  canvas and `ScaledRenderer` fits it: the largest whole scale, centred, with
+  text at that scale, on a panel at least twice the canvas both ways (640x480
+  is exactly 2x); the fractional fill below that (the 4-inch board's
+  480x320). **A new platform implements `PanelSize` and gets the rest.**
+- **`host/` adapts to `src/`, never the reverse.** There is no host `#ifdef`
+  under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
+  answered by `host/src/`. It is deliberately outside `include/boards/`,
+  because a header there is a claim of support. Only the hardware watchdog and
+  the codec/DAC backend are replaced, and `CMakeLists.txt` names them; the
+  radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
+  through `host/shim/NimBLEDevice.h` on a raw HCI socket).
+- **A new platform call in `src/` breaks the host build until `host/shim/`
+  answers it.** The shims hold only what `src/` calls. CI builds the host
+  on every pull request that touches source (`ci.yml`'s `host` job, which
+  `verify` waits for), so a missing shim is a red pull request; building it
+  yourself first is still quicker than waiting for CI to say so.
+- **The host's network is the firmware's, and nothing more.** Wi-Fi is the
+  computer's own radio, driven through NetworkManager or wpa_supplicant
+  (`host/src/HostWifiOs.cpp`), and UDP and HTTP are real sockets. But the
+  shims only answer: every packet that leaves is one the firmware's own code
+  chose to send, behind its own `WL_CONNECTED` checks, so the closed list of
+  outbound flows holds for this program unchanged. A shim must never add a
+  request, a header or a field. `esp_read_mac()` returns random bytes rather
+  than the PC's MAC, and `WiFi.macAddress()` answers `--`.
+- **On a handheld the settings file is on a card any laptop reads, so the
+  Wi-Fi name and password and the admin PIN are sealed in it**
+  (`host/src/HostSecret.h`), with a key derived from the processor serial and
+  never stored. With no processor-bound key, a handheld build keeps the
+  network in memory rather than write it readably. muOS's
+  `wpa_supplicant.conf` is never given a copy. A new secret setting in `src/`
+  belongs in `SECRET_KEYS` in `host/src/HostNvs.cpp` in the same commit.
+- **Sleep must switch the real lamp off.** The backlight PWM is only a
+  brightness multiplier on the window here, so `host/src/HostScreenPower.cpp`
+  follows the panel's Sleep In and Sleep Out and switches the handheld's own
+  backlight. While the panel sleeps, any button press becomes a BOOT press
+  that wakes it and reaches nothing else. Sleep also takes the Wi-Fi
+  interface and three of the four cores down and slows polled input such as
+  the joypad (`host/src/HostSleep.cpp`), and a run that ends asleep leaves
+  markers in `/run/braino` so the next start puts them back. **Never the
+  display output under muOS**: re-enabling its vendor driver's output woke the
+  RG40XXV mirrored with inverted colours, and muOS ships that toggle off. The
+  whole-device image's mainline DRM driver is a different driver, and there
+  sleep does switch the output off (`HostDrm::setPower()`).
+- **The RG40XX V has a whole-device image that is nothing but Braino**
+  (`host/rg40xxv/`, a Buildroot external tree; its README is the guide).
+  Mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A built from
+  source, the whole system in RAM, no GPU driver: `BRAINO_HOST_DRM` draws
+  through the kernel's DRM driver (`host/src/HostDrm.cpp`) and keeps SDL for
+  the gamepad and sound only. Four rules hold it together. **Nothing but
+  Braino draws on the panel** -- no text console, boot messages on the serial
+  port only -- so the screen is dark until the splash. **No service, login or
+  shell exists**: init runs the scripts in `board/overlay/etc/init.d` and
+  Braino, and the closed list of outbound flows covers the whole device.
+  **`host/rg40xxv/rocknix/` is ROCKNIX's, verbatim** (fetched by `fetch.sh`
+  from one pinned commit, recorded in `PROVENANCE.txt`), applied in ROCKNIX's
+  order with patch's default fuzz, and stops the build on any hunk that does
+  not apply. **The image is a release asset, never in git**, and it ships
+  with Buildroot's `legal-info` as its source offer.
+  **A television on HDMI takes the picture from the panel, and headphones
+  take the sound from the speaker** -- both RG40XX V only, so nothing else
+  changes. The TV shows the panel's frame at a whole scale and the layout
+  never moves to the TV's size; the panel's lamp follows the picture; sleep
+  turns off whichever output shows. The jack is the kernel's and the image's
+  init scripts' (`acpid` switching the codec's `Speaker` pin), so no line of
+  `src/` knows about it. There is no HDMI sound: the H700's audio hub has no
+  mainline driver. See `host/CLAUDE.md` and `host/rg40xxv/README.md`.
+
+`BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
+replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,
+overdraw and partial-repaint mistakes.
 
 ## The d-pad's selector
+
+**Its arithmetic and its job table are shared with the firmware.**
+`src/ui/FocusMath.h` and `src/hal/ControlJobs.h` are the one copy; the
+`HostFocus.h` and `HostControls.h` here are forwarders that keep the old names
+(by relative path, so the controls test still builds with `-Ihost/src`
+alone). The Attaky Core's selector (`src/engine/AppRuntimeSelector.cpp`)
+moves and assigns jobs with them, so a change to either is a change to both
+consoles. `ControlJobs::maskOf()` was `bit()`, which Arduino defines as a
+macro.
 
 The firmware has no idea what a selected control is: every screen takes one
 touch point. So the selector is the host's, and pressing A is an ordinary touch
@@ -58,9 +185,19 @@ at the middle of the selected control. No screen changed for it.
 
 `src/HostTftFocus.cpp` reads the controls off the panel as they are drawn: a
 round fill and an outline of the same rectangle, which is how `Ui::drawButton()`
-ends and so every button, launcher tile and keyboard key. `src/HostFocus.h` is
-where the selector goes next, and is pure arithmetic. It is drawn over the
+ends and so every button, launcher tile and keyboard key. `src/ui/FocusMath.h` (through
+`HostFocus.h`) is where the selector goes next, and is pure arithmetic. It is drawn over the
 window like the crosshair, never into the panel's frame.
+
+**It is drawn only inside the panel's paint clip** (`selectorField()`). While
+a notice is up the runtime keeps every painter out of the notice's strip
+through `Ui::TftRenderer::setPaintClip()`, and the selector is the one thing
+not painted through the panel, so it asks the shim (`paintClipFrame()`) and
+stops at the strip's edge. The shim keeps that clip apart from the viewport:
+controls are read off what a screen draws against the viewport the *screen*
+set, and a clip laid over it for a notice has to hide pixels and nothing else.
+A control whose middle the notice covers drops out of the list like any
+control painted over, and comes back when the strip is redrawn.
 
 - **A button has a shadow; a card does not, and that is the whole test for what
   gets a stop.** A fill and outline with no shadow might be a control (Memory's
@@ -70,11 +207,30 @@ window like the crosshair, never into the panel's frame.
   a grid of controls. That is measured off every screen by opening each with a
   d-pad press and photographing it (`BRAINO_SHOTS` logs how many controls it
   found), so a new screen needs the same look.
-- **A board drawn as one picture has nothing to select.** Tic-Tac-Toe, Whack A
-  Mole, Piano, Maze, the Elements table, the squares in Chess, Go, Sea Battle
-  and Backgammon, Microku's cells and the tracing games work the square out from
-  where the finger landed, so nothing marks a cell, and the stick's crosshair is
-  the way onto them. The buttons around them still take the selector.
+- **Every board is drawn as stops.** A fill and an outline of one rectangle
+  is noted whether its corners are square or rounded -- `fillRect()` and
+  `drawRect()` as well as the rounded pair, as the firmware's own recorder
+  does -- and the shim's own primitives fill through `fillRectQuiet()` so a
+  rounded fill or a glyph's pixels are not a second fill. Each game draws its
+  squares that way, the outline in the fill's own colour or the pair under
+  what sits on it, so the panel is unchanged (`src/games/CLAUDE.md` has the
+  rule). The tracing games' stop is a square round the next dot, moved as the
+  dot is claimed. `MAX_FOCUS` is 160 because the Elements table is 118
+  squares. Go's 19x19 board, on a 480px panel only, has 10px points, under
+  `SMALLEST_CONTROL`, so it is the one board the selector cannot cross.
+- **A screen says when its board takes a press.** What is drawn stays drawn
+  while the other player thinks, so `focusTargets()` asks `Ui::stopRuleAt()`
+  (`src/ui/Stops.h`) about each mark's middle: *Quiet* drops it, *Live* keeps
+  a plain square as a control however few there are (the count that decides
+  whether cards are controls left a Ludo endgame with a die and two tokens
+  unplayable), and a card put up over the board makes everything outside it
+  Quiet. The header's controls are never asked about. The firmware says it;
+  the host only obeys, so there is nothing here to keep in step.
+- **Up and down reach a control off to one side.** Within a cone first, so
+  a press does not slide sideways; then, when nothing is there and no list
+  scrolls that way, the nearest control wholly above or below
+  (`stepBeyond()`). Left and right never fall back: nothing in the cone
+  there is the next page.
 - **The first press only brings it up**, on the control nearest the crosshair,
   because nobody has seen where it is yet. Pushing the stick puts it away.
 - **Past the end of a row is the next page and past the end of a column is the
@@ -128,13 +284,10 @@ no job -- X and Y on the RG40XX V. The log says both, once
   and is missing on the next console.
 - **Pairs go together or not at all.** A page-back button with no page-forward
   is half a control, and the restart hold needs both of its buttons free.
-- **The crosshair has no stand-in, on purpose.** A board drawn as one picture
-  has no stop for the selector (see "The d-pad's selector"), so on a console
-  with no stick those boards cannot be played: Tic-Tac-Toe, Whack A Mole,
-  Piano, Maze, the Elements table, Microku, both tracing games, and the
-  boards of Chess, Go, Sea Battle and Backgammon. The maintainer's decision
-  is to say so and leave it: the README says it to owners, and nothing here
-  hides those games or steers the crosshair from the d-pad.
+- **The crosshair has no stand-in, and needs none.** Every board is drawn as
+  stops for the selector (see "The d-pad's selector"), so a console with no
+  stick plays every game. The maintainer once decided to leave those boards
+  stick-only, and reversed it on 2026-11-13: every game playable from keys.
 - **Adding a console is a profile, and a profile is a claim.** Write
   `controls` from the console's device tree or from the console itself,
   never from a product page, and say in the file which it was.
@@ -152,8 +305,144 @@ synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
 What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
-regex: the hardware watchdog, the codec/DAC backend, and the two per-platform
-interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Host*.cpp`, and each says why.
+filters: the hardware watchdog, the codec/DAC backend, and the per-platform
+interfaces, `PowerProbe`, `SystemSuspend`, `PanelSize`, `PanelArt` and `SleepPower` (which
+answers no to everything here: `HostSleep` already slows the cores and takes
+the Wi-Fi interface down). Their host versions are in `src/Host*.cpp`, and
+each says why. `tools/check_platforms.py` fails if an ESP32 implementation
+of an interface has no host version, or if the filters leave out anything
+else.
+
+## The panel is the console's own size, found when Braino starts
+
+Every pixel on the screen is drawn at the resolution of the display in front
+of the player -- 640x480 on the RG40XX V -- and nothing is stretched after
+the fact. Nothing about the size is compiled in; `HostPlatform::begin()`
+finds it before `setup()` runs and it is fixed for the run:
+
+1. `BRAINO_PANEL=WxH`, if set, on any build -- the way to see another
+   console's screen on a PC (`BRAINO_PANEL=320x240`, `800x480`, `1280x720`).
+2. Otherwise the display mode: the built-in panel's DRM mode on the
+   whole-device image -- the panel's even when a television on HDMI is
+   showing at start, so unplugging it never leaves a frame bigger than the
+   panel (`HostDrm::panelWidth()`) -- or the desktop's with
+   `BRAINO_FULLSCREEN=1`.
+3. Otherwise 640x480, the RG40XX V's, so a PC window shows what the handheld
+   will.
+
+It is taken as landscape (a size reported the other way up is turned), and
+clamped up to the 320x240 game canvas.
+
+**The firmware lays out on the panel over a UI scale.** The scale is the
+largest whole number that still leaves the 320x240 canvas -- 2 on 640x480, 3
+on 1280x720, 1 on 320x240 -- so the firmware sees a 320x240 panel on the
+RG40XX V and every logical pixel is a 2x2 block of real ones. That was not
+the first answer. 5.14.0's first cut laid the screens out at the full
+640x480, and the owner, on the device, found the top bar and the player
+picker's buttons too small to read and the tiles too big: the screens size
+their boxes in pixels for the 2.8-inch panel's text, so on a panel with
+twice the pixels the text cannot grow without leaving its box. The scale is
+what lets text be the right size for the panel. `BRAINO_UI_SCALE=n` asks for
+less, down to 1 (the full-resolution layout, as the 4-inch board has).
+`[host] panel 640x480 (display mode), ui scale 2: laid out on 320x240` in
+the log says what was found.
+
+**Text is not the ESP32's bitmaps here.** `src/HostText.cpp` draws GNU
+FreeSans (`fonts/`, compiled in by `cmake/EmbedFont.cmake`) with
+stb_truetype (`third_party/stb/`), anti-aliased at the real resolution: a
+capital as tall as the bitmap font's capital, times the text size, times the
+UI scale. Three rules hold it to the firmware's layout:
+
+- **The cell is the bitmap font's.** `fontHeight()`, the datums and the
+  baseline are TFT_eSPI's, and the TrueType capital sits on the bitmap
+  capital's baseline (`bitmapCapRows()` measures each font's 'H'), so text
+  lands in the boxes the screens laid out.
+- **Width is measured with the advances that draw.** `textWidth()` sums the
+  same whole-pixel glyph advances `ttDraw()` moves its pen by, so
+  `Ui::fitted()`, wrapping and centring measure exactly what appears.
+- **No word is wider than the bitmap font draws it.** At font 2's capital
+  height FreeSans matches it on average but runs a tenth wider on words with
+  m and w, so System Info's "Network" tab read "Netwo" where a board reads
+  "Networ". `ttWidthPermille()` narrows each face just enough that the widest
+  of the screens' own words fits (font 2 is drawn at 88.4% of its width,
+  fonts 1 and 4 unchanged; the log says so), keeping the capitals' height.
+  So a cut on the PC is a cut on a board, and the other way round.
+- **What TFT_eSPI would not draw, this does not draw.** Fonts 6, 7 and 8 are
+  not loaded and draw nothing; fonts 2 and 4 draw only 32..126; font 1 draws
+  up to 255, from its bitmap where FreeSans has no glyph.
+
+**Nor is the product mark.** `Ui::drawLogo()` offers the mark to the
+renderer first (`Renderer::drawLogoArt()` -> `PanelArt`, `src/ui/PanelArt.h`)
+and paints the one-bit `LogoMask` only when it declines. Here
+`src/HostLogoArt.cpp` rasterises the same SVG the mask was made from
+(`HostSplash::markPart()`, which is `gen_logo_mask.py`'s select, bounds and
+fill) at the real resolution, into the mask's own box, and sets the trade
+mark sign in FreeSans at the height of the mask's sign -- the small
+wordmarks carry none, as on a board. At a UI scale of 1 it declines, so a
+320x240 window shows exactly the board's mark.
+
+**Nor are the shapes** (`src/HostTftShapes.cpp`). Every icon in the header
+and on the launcher's tiles is drawn from primitives, and drawn as blocks of
+the scale they were the last 2x2 staircases on the panel once text and the
+mark were smooth. At a UI scale of 2 or more, a circle, a ring, a rounded
+corner, a slanted line and a triangle are drawn at the real resolution from
+their logical geometry times the scale, radius and thickness included, with
+anti-aliased edges; rectangles, straight lines and single pixels stay whole
+blocks, which is exactly their shape already. Three rules keep it the
+firmware's picture:
+
+- **A shape covers what TFT_eSPI's covers.** Logical pixels are filled to
+  their edges: a circle of radius r reaches r + 0.5 to its rim, a ring is one
+  logical pixel thick about r, a line one pixel thick with square ends, a
+  triangle half a pixel past its vertices' centres. So a fill and the outline
+  on it share a rim, and two wedges of one pie overlap rather than leave a
+  hairline.
+- **A redraw changes nothing** (`blendReal()` in `src/HostTft.cpp`). The
+  screens redraw the same shape over itself all the time, and a blend drawn
+  twice is darker. Each pixel left partly covered remembers what it was
+  blended over, in what colour, how much and by which shape (a hash of what
+  and where): the same shape again keeps the larger coverage, another shape
+  of the same colour adds to it (a thick ring drawn as rings one pixel apart
+  closes up), another colour covering as much is drawn over the same ground
+  (no halo of a fill outside its outline), and a solid write forgets it all.
+  Text and the mark go through the same door.
+- **At a UI scale of 1 none of it runs**, so a 320x240 window draws its
+  shapes exactly as a board does.
+
+Two glyphs plot their arcs pixel by pixel rather than as shapes -- the
+speaker's two waves and the Wi-Fi badge's fan -- and they are offered to
+the platform first, as the mark is: `Renderer::drawArcArt()` ->
+`PanelArt::drawArc()`. The ESP32 one declines and the same pixels are
+plotted; here `drawArcReal()` draws the arc. The gear's hub is rings of
+radius 4, 3 and 2 and a dot of 1, which are one solid disc; a board's
+midpoint circles leave pinholes between them, so on the panel it reads as
+texture and here as solid. That is the glyph's geometry, not a fault in the
+drawing.
+
+**What is still blocks, and why.** The flags and state maps are bitmaps
+(`map-n-flag`) at the size the 2.8-inch panel shows them, so at 2x they are
+their own pixels doubled; sharper ones need bigger artwork, which is flash
+on every board.
+
+Everything else reads that one answer:
+
+- **`src/` asks `PanelSize`** (`src/hal/PanelSize.h`), answered here by
+  `src/HostPanelSize.cpp` with the logical size (320x240 on the RG40XX V).
+  `boards/host.h` still states a 240x320 panel: that is the compile-time floor
+  the static_asserts check, not the panel.
+- **The panel shim's frame is the real size** (`TFT_eSPI::begin()`), and
+  `tft.width()` / `tft.height()` are the logical one. Shapes are drawn as
+  blocks of the UI scale, so a game at 2x looks as it does on the 2.8-inch
+  board, its text in FreeSans at 2x rather than doubled pixels.
+- **Touch, taps and the d-pad are in logical pixels.** The emulated FT6336U
+  reports in the logical native portrait (`PanelSize::nativeWidth()`), a
+  mouse click is divided by the scale, `BRAINO_TAPS` coordinates are logical
+  (so a script written for 320x240 replays unchanged at 640x480), and the
+  cursor and the selector's ring are drawn at the scale.
+- **The window opens at the panel's size**, or twice it for a 320x240 panel,
+  and letterboxes at whole multiples when resized. On the DRM image a
+  television plugged in later shows the frame at a whole scale, centred; an
+  output smaller than the panel stays dark rather than be written past.
 
 ## How it fits together
 
@@ -161,14 +450,24 @@ interfaces, `PowerProbe` and `SystemSuspend`. Their host versions are in `src/Ho
 |---|---|
 | `boards/host.h` | A board profile whose every pin is **virtual**. It is deliberately not in `include/boards/`, which would make it a claim of support that `check_boards.py` and the web installer would hold it to. |
 | `shim/` | Arduino, TFT_eSPI, Preferences, NVS, FreeRTOS, Wire, I2S, Wi-Fi, SD and the ESP-IDF calls `src/` makes -- **only** what `src/` calls. A new platform call in `src/` breaks this build until a shim answers it, which is the intended way to find out. |
-| `src/HostTft.cpp` | The panel: one 320x240 RGB565 frame in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). The font tables are TFT_eSPI's own, fetched at the pinned version and never copied into this tree. |
+| `src/HostTft.cpp` | The panel: one RGB565 frame at the real resolution of the panel found at start-up, laid out in logical pixels over the UI scale, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, cells, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). TFT_eSPI's own font tables, fetched at the pinned version and never copied into this tree, give the cells and font 1's fallback glyphs. |
+| `src/HostTftShapes.cpp`, `HostTftText.cpp` | The panel's shapes, and its text in the bitmap fonts' cells; split from `HostTft.cpp`. |
+| `src/HostLogoArt.cpp` | `PanelArt`: the product mark from its SVG, and the plotted arcs, at the real resolution. |
+| `src/HostText.cpp` | The text itself: GNU FreeSans (`fonts/`, GPL-3.0-or-later with the font exception), rasterised by stb_truetype (`third_party/`, public domain or MIT) and cached per size. |
 | `src/HostWire.cpp` | An emulated FT6336U answering BoardTouch's one transaction with the pointer, in the panel's native portrait frame. |
+| `src/HostPanelSize.cpp` | `PanelSize`: the panel `HostPlatform` found, for `src/`. |
 | `src/HostNvs.cpp` | One typed key-value store behind both `nvs_*` and Preferences, with IDF's type codes and its refusal of mismatched reads and 16-character keys. Saved whole to `nvs.txt` after every change. |
 | `src/HostAudio.cpp`, `HostI2s.cpp` | The codec backend: an SDL queue kept about as deep as the codec board's DMA, so the audio task is paced the way it is on hardware. |
 | `src/HostWifiOs.cpp`, `HostNet.cpp` | Wi-Fi through the OS's network manager; UDP sockets and libcurl for the firmware's own requests. |
 | `src/HostPlatform.cpp` | The window, input, cursor and test aids. |
 | `src/HostConsole.cpp`, `HostConsoleDetect.cpp` | Which handheld this is: reading a profile from `consoles/`, and finding this console's from the device tree. Nothing under `include/boards/` has a counterpart chosen at run time; this is it. |
-| `src/HostControls.h` | Which control does which job on that console. Pure arithmetic, tested for every combination of controls. |
+| `src/HostControls.h` | Which control does which job on that console: a forwarder to `src/hal/ControlJobs.h`, pure arithmetic, tested for every combination of controls. |
+
+**The version names the build's device.** `FIRMWARE_VERSION` is the
+release, a `+` and `GUME_VERSION_TAG` (`include/FirmwareVersion.h`), and here
+the tag comes from CMake's `BRAINO_VERSION_TAG`: `host` on a desktop, `h700`
+in the card image (`rg40xxv/package/braino/braino.mk`). A new handheld family
+passes its own, lower case `[0-9a-z-]`.
 
 ## Wi-Fi is the computer's radio; the requests are still the firmware's
 
@@ -263,6 +562,17 @@ never the controller's factory address, which a board does broadcast. It
 still needs root (true under muOS) and a controller the OS has powered.
 Without one, the beacon logs why and Nearby sees an empty room.
 
+**On the RG40XX V the controller can be missing at boot, and `S05hardware`
+rebinds its driver.** The Bluetooth half of the Wi-Fi chip sits on a UART and
+is powered through the Wi-Fi half, which the kernel switches on only once it
+finds the Wi-Fi on SDIO. The built-in `hci_uart_h5` driver probes before
+that, gets no answer, and no `hci0` appears, so Nearby stayed on "Radio
+starting". `S05hardware` unbinds and rebinds every `hci_uart_h5` device and
+waits up to three seconds for `hci0`, because Braino opens the radio once, at
+start. On the serial console `hci0` and its firmware appeared within a second
+of the rebind; card images with it have been built, but **it is not yet
+confirmed on the device that Nearby now works.**
+
 **The controller outlives the program.** It keeps advertising after a crash,
 and it refuses new advertising parameters (`HCI 0x2006 refused (status 0x0c)`)
 until told to stop, so `NimBLEDevice::init()` switches advertising and scanning
@@ -274,6 +584,28 @@ thread. Quitting while the firmware sat in `delay()` -- most of the time --
 used to tear down on its own and skip that, and a `std::thread` still joinable
 when statics are destroyed aborts the program: the handheld's log ended in
 `terminate called without an active exception`. Do not add a second way out.
+
+### The loopback radio: two consoles on one PC
+
+`BRAINO_BLE_LOOPBACK=<folder>` opens no controller at all. Every `braino`
+process on the machine that names the same folder hears every other one: each
+writes the exact advertisement bytes `BleBeacon` built to
+`<folder>/<radio id>.adv` while it advertises, rewriting it every 150ms, and
+reads the others' files on the same tick into the same `onResult()` the HCI
+reader calls. So `BleBeacon::decode()`, the scanner, `NearbyPlay` and every
+nearby game run unchanged -- it is the firmware's radio code under test, not a
+second copy of it. **Give each process its own `BRAINO_DATA_DIR`**: that is
+where its device id and radio id come from, and two processes sharing one are
+one console twice.
+
+A file not rewritten for two seconds is not heard, so a process stopped with
+`kill -KILL` (or `-STOP`) goes quiet the way a console carried out of range
+does, and the other one's waiting card comes up on the same clocks a real pair
+would show. What it cannot show is the air itself: there are no missed scan
+windows, no collisions and no range, so a game that works through the loopback
+has proved its sessions, turns and acks, not its tolerance of a lossy medium.
+That still needs two real radios. It adds no outbound flow: the folder is
+local and only processes on this machine can read it.
 
 ## The light ring
 
@@ -489,21 +821,26 @@ again a minute later. A desktop build never suspends the computer;
 `BRAINO_FAKE_SUSPEND=1` makes any build pretend for three seconds, which is how
 the flow is tested on a PC, and `BRAINO_SUSPEND=0` turns it off on a handheld.
 
-**The press that wakes it must not also turn it off.** The Braino image's
-`/opt/braino/hotkeys.sh` turns the console off on the power key, and muhotkey
-hears the press that ended the suspend. It ignores the power key within five
-seconds of `/run/braino/resumed`. That script is part of the image, not of this
-tree, so an image built without the change would shut down on every wake.
+**The press that wakes it must not also turn it off.** Braino writes
+`/run/braino/resumed` on every wake for exactly this. Under muOS the image's
+`/opt/braino/hotkeys.sh` turns the console off on the power key, muhotkey
+hears the press that ended the suspend, and that script (not in this tree)
+ignores the power key within five seconds of the stamp. The Braino-only
+image in `rg40xxv/` has no such script: acpid maps the power key to
+`board/overlay/etc/acpi/power`, which is `exec poweroff` and reads no stamp.
+Whether the waking press reaches acpid there has not been measured; until it
+has, that handler is where the same five-second guard belongs.
 
 ## Seeing a screen without anyone at the window
 
 Two environment variables, both off by default:
 
-- `BRAINO_SHOTS="2500,5000"` saves the panel frame as
-  `<data dir>/shot-<ms>.bmp` at those milliseconds after start. F12 saves one
+- `BRAINO_SHOTS="2500,5000"` saves the panel frame, at its real resolution,
+  as `<data dir>/shot-<ms>.bmp` (ms zero-padded to six digits, `shot-002500.bmp`) at those milliseconds after start. F12 saves one
   on demand.
 - `BRAINO_TAPS="3000:237,223;4500:80,125,200"` presses the panel at frame
-  coordinates `x,y` at that time, for 120 ms or the given hold. `4000:next`
+  coordinates `x,y` -- logical pixels, the panel over the UI scale, so a
+  script written for 320x240 works at 640x480 too -- at that time, for 120 ms or the given hold. `4000:next`
   and `4000:prev` press the page keys instead, and `4000:down,3000`,
   `4000:up`, `4000:left` and `4000:right` hold the d-pad (for 1000 ms unless a
   hold is given), `4000:a` holds A, and `4000:menu`, `4000:mute` and
@@ -517,11 +854,11 @@ of them, and nothing here models SPI time.
 
 ## The boot splash
 
-`braino --splash <file.bmp> [width height [progress]]` writes the picture a
+`braino --splash <file.bmp> [width height [progress [glow]]]` writes the picture a
 handheld shows from power-on until Braino's first screen, then exits without
 opening a window. `src/HostSplash.cpp` draws it, and it is the one thing the
-host draws at the panel's own resolution rather than as the 320x240 canvas
-scaled up. The mark is vector artwork and gets every pixel:
+host draws itself rather than through the firmware's frame, which is the
+panel's own resolution too. The mark is vector artwork and gets every pixel:
 `tools/braino-badge.svg` is compiled into the binary (`cmake/EmbedMark.cmake`)
 and rasterised with 4x4 supersampling by a port of
 `tools/gen_logo_mask.py`'s rasteriser, the one that makes the device's
@@ -559,15 +896,42 @@ code in `host/`:
   with raw ioctls rather than libdrm. `HostPlatform` then initialises SDL
   without video (gamepad, events and sound only) and `present()` converts the
   RGB565 frame, dims it by the emulated backlight, scales it by a whole number
-  and draws the cursor and selector over it in canvas pixels, as the SDL
-  renderer does at its logical size. It still presents only when something
+  -- 1 on the panel, whose mode is the frame's size -- and draws the cursor
+  and selector over it in frame pixels, as the SDL renderer does at its
+  logical size. It still presents only when something
   changed, and `presentImage()` (the splash) clears that so the next frame is
-  drawn. **HDMI wins whenever a screen is connected**: `outputChanged()` reads
-  the kernel's hotplug uevents from a netlink socket (no udev), moves the
-  picture to the TV's own mode on fresh buffers and turns the panel's CRTC
-  off, and back again when it is unplugged; `present()` re-lays out and
-  redraws whole when it says so. The option is off by default: the PC build
-  is untouched.
+  drawn. **HDMI wins whenever a television is connected that can hold the
+  panel's frame**: `outputChanged()` reads the kernel's hotplug uevents from
+  a netlink socket (no udev), moves the picture to the TV on fresh buffers
+  and turns the panel's CRTC off, and back again when it is unplugged;
+  `present()` re-centres and redraws whole when it says so. Instead of the
+  panel, not beside it: the room watches the TV, and the console is the
+  controller. Four rules hold it:
+  - **The layout never moves.** The firmware is laid out on the panel's mode
+    for the run, and the TV shows that frame at a whole scale (2x at 1080p).
+  - **The TV's mode is `HostTvMode::pick()`'s**: its preferred mode up to
+    1920x1080, else the largest progressive one under that, and none smaller
+    than the panel (`test/host/tv_mode_test.cpp`). Dumb buffers are
+    contiguous memory; the image's boot line reserves 64 MB (`cma=64M`) for
+    two at 1080p beside the kernel's own, and a 4K pair would not fit.
+  - **The panel's lamp follows the picture.** `HostScreenPower::setPanelShown()`
+    keeps it off while the TV has the picture, awake or asleep, and lights it
+    when the picture comes back; otherwise waking from sleep relit a panel
+    with no CRTC behind it.
+  - **Sleep turns off whichever output is showing** (`setPower()`), and a TV
+    unplugged meanwhile makes the wake-up's mode set fail, which marks a
+    recheck so the next frame moves to the panel without waiting for an
+    event.
+  There is no HDMI sound: the H700's audio hub has no mainline driver
+  (`rg40xxv/README.md`). The option is off by default: the PC build is
+  untouched.
+- **Headphones take the sound from the speaker, and `host/` never knows.**
+  The kernel reads the jack (`hp-det-gpios`, a `Headphone Jack` control and
+  an input switch); the image's `acpid` runs
+  `board/overlay/usr/bin/braino-headphones`, which switches the codec's
+  `Speaker` pin, and `S40keys` syncs it at boot. Braino's sound path is
+  unchanged on every platform, and its volume and Mute act before the codec,
+  so both outputs behave alike.
 - **The light ring is found, not assumed.** Under Anbernic's kernel the MCU
   is `/dev/ttyS5` behind the PMIC's `mcu_pwr`; under mainline it is whichever
   `ttyS` is UART5 (`5001400.serial`, or `5001400.serial:0.0` now the serial
@@ -694,6 +1058,32 @@ volume), suspend on the power key, and the L2 + R2 combos. Hiding muOS
 completely is not finished: its first-boot setup, its shutdown splash and its
 own network services are still to be dealt with, and a pre-built card image
 is the plan for the first boot.
+
+## Hearing the sounds
+
+`sound/` builds two more programs beside `braino`, from the firmware's own
+`src/hal/AudioSynth.cpp`, `BoardAudio.cpp` and `BoardAudioCues.cpp` and
+nothing else from `src/`. Every cue is asked for through
+`Board::playSound()`, mute gate and all, and the samples are pulled with
+`audio::generateBlock()`, as the `braino-audio` task does on a board.
+`SoundStubs.cpp` answers the rest of the firmware with nothing; if it ever
+computes a sample, it has stopped being a stand-in.
+
+```bash
+build/host/braino-sounds out/codec        # one WAV per cue, plus sequences
+build/host/braino-sounds-dac out/dac      # as the 8-bit built-in DAC plays them
+build/host/braino-sounds --check          # the same renders, judged
+build/host/braino-sounds --bench          # time per generated sample
+```
+
+`braino-sounds` is the codec path -- 16-bit at 16 kHz, what this program, the
+Freenove and a bare I2S amplifier are given. `braino-sounds-dac` is the
+E32R28T-1's: 24 kHz, of which the WAV keeps only the high byte the speaker
+hears. The sequences (a held piano key, a key pressed twice, a Ludo walk,
+the find alert) are played on the device's own timeline, the generator a
+DMA ahead of the speaker, because that is where a held note is decided.
+This is how the sound set chosen on 2026-11-15 was auditioned; a cue is
+changed by ear here first, then on a board.
 
 ## Known differences from a board
 

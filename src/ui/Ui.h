@@ -52,6 +52,11 @@ uint16_t warning();
 uint16_t accent();
 void clear(Ui::Renderer& tft);
 void drawTopBar(Board& board, const String& title);
+/* The top bar's clock alone, for the minute: the new time over the old one,
+ * nothing cleared. False when it cannot be done alone -- the time's width
+ * changed, or the bar has not been drawn at this size -- and the caller
+ * repaints the bar instead. */
+bool drawTopBarClock(Board& board);
 void drawHomeIcon(Ui::Renderer& tft, const Rect& r);
 
 /* Padlock, drawn to fill `r`. `bg` is whatever is behind it: the keyhole is
@@ -164,14 +169,26 @@ void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg);
  * CONTROL_H, ink from `bg` like every other glyph up there. */
 void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour);
 
-/* Transient notification strip, painted over the top of whatever header is
- * already there. Nearby play raises these when another console arrives or
- * beats a record; the runtime paints one for a few seconds and then repaints
- * the header underneath, so the strip is genuinely removed rather than
- * accumulating into a list nobody clears.
+/* Transient notification strip, along the bottom edge of the panel. Nearby
+ * play raises these when another console arrives or beats a record, and the
+ * runtime raises one for a low battery and for a newer firmware. It is up for
+ * a few seconds and then taken away, so the strip is genuinely removed rather
+ * than accumulating into a list nobody clears.
  *
- * Takes the full width at TOP_BAR_HEIGHT, so it works over the top bar and
- * over the launcher's taller header alike. */
+ * It is at the bottom because the top is the header. Painted over the top bar
+ * it hid Home, the padlock, the clock and the battery for as long as it was
+ * up, on every screen. Down here it is over part of the screen instead, which
+ * is why a press on it puts it away (BrainoApp::dismissNotice).
+ *
+ * notificationRect() is where it is drawn, where that press lands, and what
+ * the runtime keeps every other painter out of while it is up: one rectangle,
+ * so the three cannot disagree. Full width, in the panel's own pixels, in
+ * whichever rotation is in force. */
+constexpr int16_t NOTIFICATION_HEIGHT = 26;
+inline Rect notificationRect(int16_t screenW, int16_t screenH) {
+    return Rect{0, static_cast<int16_t>(screenH - NOTIFICATION_HEIGHT), screenW,
+                NOTIFICATION_HEIGHT};
+}
 void drawNotification(Ui::Renderer& tft, const char* text);
 
 /** True when the station interface is associated. */
@@ -312,6 +329,8 @@ constexpr int16_t BUTTON_SHADOW_DY = 3;
 
 /** Text and glyphs drawn on the top bar. A palette role, not a constant. */
 uint16_t barText();
+/* The top bar's own fill, for anything drawn over it that must stand out. */
+uint16_t bar();
 
 /* THE INK THAT CAN BE READ ON `fill`: black or white, whichever contrasts
  * more. Use it wherever text or a glyph goes on a colour the THEME chose --

@@ -61,6 +61,25 @@ void DiceGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* A throw on the screen can be somebody's turn in a board game, so it comes
+ * back -- with no question, because Roll and the count buttons are always
+ * there to move on, and a card in front of a dice roller costs more than a
+ * throw. Before the first throw there is nothing to come back to. */
+Game::Keep DiceGame::keepsGame() const {
+    return thrown_ ? Keep::Quietly : Keep::No;
+}
+
+/* Dice left in the air finish the tumble they had left, rather than landing
+ * the instant the screen is back. Once they have landed the stamps are not
+ * read again until the next Roll sets them, so they are left alone. */
+void DiceGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (rolling_) {
+        movedOn(rollUntilMs_, awayMs);
+        movedOn(nextTumbleMs_, awayMs);
+    }
+}
+
 Rect DiceGame::countRect(uint8_t index) const {
     // Three 44px buttons on an 8px gap, centred on a 320px canvas.
     return Rect{static_cast<int16_t>(86 + index * 52), 46, 44, 26};

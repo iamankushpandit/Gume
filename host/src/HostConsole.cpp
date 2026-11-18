@@ -37,7 +37,7 @@ bool readControls(const std::string& value, uint32_t& controls, std::string& err
             error = "no control is called \"" + value.substr(start, end - start) + "\"";
             return false;
         }
-        controls |= HostControls::bit(c);
+        controls |= HostControls::maskOf(c);
         at = end;
     }
     return true;

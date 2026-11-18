@@ -9,50 +9,39 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
+#include "engine/RecentQuestions.h"
 #include "ui/Ui.h"
+
+#include "MoneyCourse.h"
 
 struct AppMetadata;
 
 const AppMetadata& moneyAppMetadata();
 
+/* Money: a course in counting coins and making change. The levels, the
+ * piles and the wrong amounts are in MoneyCourse.h; this is the screen. */
 class MoneyGame : public AppGame {
 public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     /* Two-phase render. renderStatic() is the clear and the top bar;
-     * renderDynamic() is everything else. Split mechanically by
-     * tools/split_render.py -- see the note in the .cpp. */
+     * renderDynamic() is everything else. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
-    enum class Mode : uint8_t {
-        Total,
-        Make,
-        More,
-        Change
-    };
+    /* What the line under the header says. */
+    enum class Line : uint8_t { Prompt, Right, Wrong, MakeShort, MakeFewer };
 
-    uint8_t level() const;
-    uint8_t allowedCoinCount() const;
-    uint16_t maxTotal() const;
-    uint8_t randomCoinValue(uint16_t maxCents) const;
-    String centsText(uint16_t cents) const;
-    const char* modeName() const;
-
+    void startLevel();
     void newRound();
-    void setupTotalRound();
-    void setupMakeRound();
-    void setupMoreRound();
-    void setupChangeRound();
-    void makeRandomGroup(uint8_t* coins, uint8_t& count, uint8_t minCoins, uint8_t maxCoins, uint16_t limit);
-    void makeOptions(uint16_t correct);
-    bool optionExists(uint16_t value, uint8_t upTo) const;
-    uint16_t groupValue(const uint8_t* coins, uint8_t count) const;
-    void markCorrect(AppContext& host);
-    void markWrong(int8_t flashIndex);
+    /* The first answer of a round, to the ladder; later ones say nothing. */
+    void record(AppContext& host, bool right);
 
     Rect optionRect(uint8_t index) const;
     Rect trayRect(uint8_t index) const;
@@ -61,29 +50,28 @@ private:
     Rect moreRect(uint8_t index) const;
 
     void drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy, uint8_t value) const;
-    void drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* coins, uint8_t count) const;
+    void drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* coins, uint8_t count,
+                       int16_t rowPitch) const;
     void drawOptions(Ui::Renderer& tft) const;
     void drawMake(Ui::Renderer& tft) const;
     void drawMore(Ui::Renderer& tft) const;
 
-    Mode mode_ = Mode::Total;
-    uint8_t groupA_[12] = {};
-    uint8_t groupB_[12] = {};
-    uint8_t makeCoins_[16] = {};
-    uint8_t groupACount_ = 0;
-    uint8_t groupBCount_ = 0;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    RecentQuestions recent_;
+    MoneyCourse::Round round_;
+    uint16_t item_ = 0;
+    bool announce_ = false;
+    bool banner_ = false;
+    uint8_t makeCoins_[MoneyCourse::MAX_BUILT] = {};
     uint8_t makeCount_ = 0;
-    uint16_t target_ = 0;
     uint16_t built_ = 0;
-    uint16_t paid_ = 0;
-    uint16_t price_ = 0;
-    uint16_t options_[4] = {};
-    uint8_t correctButton_ = 0;
     uint16_t score_ = 0;
+    uint16_t rounds_ = 0;
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;
     int8_t selected_ = -1;
-    int8_t flashIndex_ = -1;
-    uint32_t flashUntil_ = 0;
     bool roundComplete_ = false;
+    bool recorded_ = false;
+    Line line_ = Line::Prompt;
 };

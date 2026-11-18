@@ -10,7 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/RecentQuestions.h"
+#include "engine/Course.h"
+#include "StateImageCourse.h"
 #include "ui/Ui.h"
 #include "StateData.h"
 
@@ -33,6 +34,12 @@ public:
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
+    /* No round ends, so the tally is the game: one answer is worth coming
+     * back to, a tap on the difficulty alone is not. */
+    Keep keepsGame() const override {
+        return (current_ != nullptr && rounds_ > 0) ? Keep::Ask : Keep::No;
+    }
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Phase : uint8_t {
@@ -48,15 +55,19 @@ private:
     Rect tierRect() const;
     Rect imageRect() const;
 
-    uint8_t poolSize() const;
-    const StateFact* fromPool(uint8_t index) const;
+    void startLevel();
+    bool canOffer(const StateFact* cand) const;
     void makeOptions();
     void shuffleOptionsForBonus();
     void newQuestion();
+    bool climb(AppContext& host, bool right);
 
-    RecentQuestions recent_;
-    uint8_t tier_ = 1;
-    uint8_t correctStreak_ = 0;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    uint8_t pool_[64] = {};        // STATE_FACTS rows of the level
+    uint8_t poolSize_ = 0;
+    uint16_t item_ = 0;
+    bool announce_ = false;        // the prompt names the new level
     Phase phase_ = Phase::State;
 
     const StateFact* current_ = nullptr;

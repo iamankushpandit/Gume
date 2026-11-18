@@ -15,6 +15,8 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include "BoardConfig.h"
+#include "hal/GameVisibility.h"
+#include "hal/HeldControls.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
 
@@ -163,6 +165,25 @@ public:
     };
     ButtonEvent pollBootButton();
 
+#if GUME_HAS_NAV_KEYS
+    /* The keys held this frame, directions in screen terms: the board's own
+     * and any clipped-on module's, as one set. Called once per frame by the
+     * runtime, beside pollBootButton(). Only on a board with
+     * GUME_HAS_NAV_KEYS; no other image has it. See hal/BoardKeys.cpp. */
+    HeldControls pollControls();
+    /* The controls this console has, as ControlJobs::assign() wants them:
+     * the board's own keys and those of any key module boot found. */
+    uint32_t controlsPresent() const;
+#endif
+
+#if GUME_HAS_KEYBOARD
+    /* This frame's typed character from an attached keyboard, or 0: a
+     * printable ASCII character, '\b' for Delete or '\n' for Enter. Always 0
+     * with the module unclipped. Only on a board with GUME_HAS_KEYBOARD. See
+     * hal/modules/KeyboardModule.cpp. */
+    char pollTypedChar();
+#endif
+
     void beepOk();
     void beepError();
 
@@ -231,10 +252,11 @@ public:
      * could not, and a settings screen has to say which of the two it is
      * looking at rather than offering controls that do nothing.
      *
-     * Covers both the codec (GUME_HAS_AUDIO_CODEC) and the built-in DAC
-     * (GUME_HAS_AUDIO_DAC) backends. */
+     * Covers all three backends -- the codec (GUME_HAS_AUDIO_CODEC), the
+     * built-in DAC (GUME_HAS_AUDIO_DAC) and a bare I2S amplifier
+     * (GUME_HAS_AUDIO_I2S) -- through GUME_HAS_AUDIO in BoardConfig.h. */
     static constexpr bool hasSound() {
-        return GUME_HAS_AUDIO_CODEC != 0 || GUME_HAS_AUDIO_DAC != 0;
+        return GUME_HAS_AUDIO != 0;
     }
 
     /* Feeds queued audio to the I2S DMA without blocking. Called once per
@@ -287,6 +309,10 @@ public:
     uint8_t addPlayer(const String& name) { return addPlayer(name.c_str()); }
     /** Delete a player, shifting later names and persisted profile data down. */
     void removePlayer(uint8_t index);
+    /* Counts removals. Removing a player moves the ones after down a slot, so
+     * anything held in memory against a slot number -- a game left in the
+     * middle, the levels of whoever is in that slot -- has to notice. */
+    uint8_t playersEpoch() const { return playersEpoch_; }
     bool isGuest() { return activeProfile() == GUEST_INDEX; }
 
     /* Admin profile with PIN protection for device settings access. */
@@ -318,6 +344,17 @@ public:
     /* Small binary blobs, used by engine/Progress for per-item mastery. */
     void loadBlob(const char* key, void* dst, size_t len);
     void saveBlob(const char* key, const void* src, size_t len);
+
+    /* Blobs that belong to the console rather than to a player: the state of
+     * a game being played against another console. Kept under a slot of
+     * their own (CONSOLE_SLOT), so they are untouched by a change of player,
+     * by removing one, and by Guest's rule that nothing is written -- the
+     * other console is playing THIS console, whoever is holding it. Scores
+     * and progress never go here. */
+    static constexpr uint8_t CONSOLE_SLOT = 9;
+    void loadConsoleBlob(const char* key, void* dst, size_t len);
+    void saveConsoleBlob(const char* key, const void* src, size_t len);
+    void clearConsoleBlob(const char* key);
 
     ThemeMode themeMode();
     void setThemeMode(ThemeMode mode);
@@ -428,12 +465,20 @@ public:
     static constexpr uint32_t PANEL_SLEEP_SETTLE_MS = 120;
     bool displayAsleep() const { return displayAsleep_; }
     DisplaySleepTelemetry displaySleepTelemetry() const { return displaySleepTelemetry_; }
-    bool gameVisible(uint8_t catalogIndex, bool fallback = true);
-    void setGameVisible(uint8_t catalogIndex, bool visible);
-    bool gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback = true);
-    void setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible);
-    /** Launcher indices at or above this cannot be hidden (see VISIBILITY_BITS). */
-    static constexpr uint8_t gameVisibilityLimit() { return VISIBILITY_BITS; }
+    /* Per-player game visibility, keyed by the game's id
+     * (GameVisibility::keyFor(id)), never by its launcher index. */
+    bool gameVisible(GameVisibility::Key game, bool fallback = true);
+    void setGameVisible(GameVisibility::Key game, bool visible);
+    bool gameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool fallback = true);
+    /** False only when the player's table is full of other games and nothing
+     *  was stored -- SLOTS is half as long again as the catalogue. */
+    bool setGameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool visible);
+    /* Schema 2 -> 3: the per-index visibility keys ("p0_gv12") become each
+     * player's id-keyed blob. Board cannot know which game sits at an index,
+     * so the runtime calls this straight after begin() with the key of the
+     * game at each launcher index -- the index the old keys were read
+     * against, so every player sees exactly what they saw before. */
+    void migrateGameVisibility(const uint16_t* keyAtIndex, uint8_t count);
     String wifiSsid();
     String wifiPassword();
     /* The char* form is the real one, as with addPlayer(): the serial console
@@ -456,6 +501,16 @@ public:
     String ntpServer();
     void setNtpServer(const String& server);
     bool isWifiConnected();
+
+    /* The name this console gives the router: DHCP option 12, the name in the
+     * router's client list. One fixed word, the same from every console, so
+     * it says what the device is and nothing about which one. Left alone, the
+     * Arduino core makes this name up from the Wi-Fi MAC -- see
+     * applyWifiHostname() in BoardNetwork.cpp. tools/check_privacy.py asserts
+     * that this stays a literal and that nothing else names the station. */
+    static constexpr char WIFI_HOSTNAME[] = "braino";
+    /* Call before anything that can start the station interface. */
+    static void applyWifiHostname();
 
     /* Update availability -- a NOTICE, not an OTA. The console never downloads
      * or installs firmware; it reads one static file, compares a version string
@@ -498,6 +553,14 @@ public:
      * the clock from this reply directly. Returns true if the clock was set. */
     bool ntpUdpProbe(const char* host);
     void tickTimeSync();
+    /* The panel has slept for SleepPower::STATION_REST_AFTER_MS: stop the
+     * Wi-Fi station (driver kept, Bluetooth untouched) and hold the time
+     * sync state machine still until wakeWifiFromSleep(). Both block for a
+     * few milliseconds inside their own Watchdog::Pause; call them from the
+     * runtime's sleep path, never from a render path. */
+    void restWifiForSleep();
+    void wakeWifiFromSleep();
+    bool wifiResting() const { return wifiResting_; }
     bool timeSynced() const;
     uint32_t lastTimeSyncMs() const;
     time_t lastTimeSyncEpoch() const;
@@ -519,16 +582,24 @@ public:
     /** Look the zone up from the public IP. Requires an active connection. */
     bool detectTimezone();
     bool tzAutoDetected() const { return tzAutoDetected_; }
+    /* An automatic timezone is looked up once per boot, by whichever sync
+     * reaches the network first -- the boot connect, or a join made in the
+     * Wi-Fi screen. A chosen zone is never looked up. */
+    void lookUpTimezoneOnce() {
+        if (!tzZoneChosen() && !tzAutoDetected_) detectTimezone();
+    }
     void setDisplayRotation(uint8_t rotation);
     uint8_t displayRotation() const;
 
     void setRgb(bool red, bool green, bool blue);
 
-    /* RGB backlight LED (GPIO 4/16/17, common anode so the drive is inverted).
-     * Driven by LEDC PWM for full-brightness colour mixing -- bright enough to
-     * light a translucent case. setRgbColor() holds a colour; pulseRgb() shows
+    /* The RGB case LED, wherever BOARD.rgb puts it. On GPIOs it is driven by
+     * LEDC PWM for full-brightness colour mixing -- bright enough to light a
+     * translucent case; on an I2C expander each channel is on or off, and
+     * only a change of colour reaches the bus. setRgbColor() holds a colour; pulseRgb() shows
      * one for a moment and then fades out via tickRgb(), which the main loop
-     * calls every frame. */
+     * calls every frame. On an expander tickRgb() also holds the LED off for
+     * as long as the panel sleeps -- see keepExpanderRgbDark(). */
     void setRgbColor(uint8_t r, uint8_t g, uint8_t b);
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms);
     void tickRgb();
@@ -598,6 +669,11 @@ public:
     NetworkActivity networkActivity(uint8_t newestFirstIndex) const;
 
 private:
+    /* WiFi.mode(WIFI_STA) and WiFi.begin() with the saved network, the
+     * station named first. Shared by beginTimeSync() and the wake from a
+     * station rest. */
+    void joinSavedNetwork(uint32_t now);
+
     struct RawTouch {
         bool down = false;
         int16_t x = 0;
@@ -629,6 +705,10 @@ private:
     TouchPoint lastTouch_;
     /* Previous sample of the BOOT key, for the edge in pollBootButton(). */
     bool bootButtonDown_ = false;
+#if GUME_HAS_NAV_KEYS
+    /* The Core's key port as last read, kept for a failed read. */
+    uint8_t keyLevel_ = 0xFF;
+#endif
     bool sdMounted_ = false;
     uint8_t displayRotation_ = 1;
 
@@ -638,6 +718,7 @@ private:
     uint32_t lastSyncAttemptMs_ = 0;
     uint32_t lastResyncMs_ = 0;
     uint32_t lastWifiBeginMs_ = 0;   // throttles our own WiFi.begin()
+    bool wifiResting_ = false;       // station stopped while the panel sleeps
     bool tzAutoDetected_ = false;
 
     /* Credentials are cached in RAM. hasWifiCredentials() is polled every
@@ -646,7 +727,12 @@ private:
     String wifiSsidCache_;
     String wifiPassCache_;
     bool wifiCacheLoaded_ = false;
-    static constexpr uint16_t STORAGE_SCHEMA_VERSION = 2;
+    /* 2: the scoped key format, migrated in begin(). 3: game visibility
+     * keyed by id, migrated by migrateGameVisibility() once the runtime can
+     * say which game is at which index. "schema" reads 3 only when both are
+     * done. */
+    static constexpr uint16_t KEY_SCHEMA_VERSION = 2;
+    static constexpr uint16_t STORAGE_SCHEMA_VERSION = 3;
     static constexpr size_t STORAGE_KEY_CAP = 16;   // NVS keys cap at 15 chars + NUL
     void loadWifiCache();
     void migrateStorageSchema();
@@ -681,6 +767,7 @@ private:
      * stale read is not possible. The Wi-Fi credentials already worked this
      * way -- this extends the same pattern to the rest of the hot settings. */
     bool profileCached_ = false;
+    uint8_t playersEpoch_ = 0;
     uint8_t cachedProfile_ = 0;
     bool themeCached_ = false;
     uint8_t cachedTheme_ = 0;
@@ -749,22 +836,16 @@ private:
     char appliedTz_[TZ_SPEC_CAP] = {0};
     bool sntpConfigured_ = false;
 
-    /* Game visibility as a bitmask for one profile: bit i = catalog index i.
-     * Loaded in one pass, then answered from RAM.
-     *
-     * 32 bits is now a real ceiling rather than headroom: the catalog is at 30.
-     * gameVisibleFor() and setGameVisibleFor() both bound-check against
-     * VISIBILITY_BITS, so a 33rd game would not corrupt anything -- it would
-     * silently pin itself to its default and refuse to be hidden from Settings,
-     * which is worse, because it looks like a Settings bug. Widen this to
-     * uint64_t before adding the 33rd. */
-    static constexpr uint8_t VISIBILITY_BITS = 32;
+    /* The game visibility of one profile, mirrored from its "p<N>_gvis" blob
+     * (see GameVisibility.h). Loaded in one read, then answered from RAM:
+     * gameVisible() is asked for every tile on every launcher repaint. A game
+     * with no entry is at its default, which the caller passes in. */
     bool visibilityCached_ = false;
     uint8_t visibilityProfile_ = 0xFF;
-    uint32_t visibilityMask_ = 0;
-    void loadVisibility(uint8_t profileIndex, bool fallback);
-    /** Build "p<N>_gv<I>" without allocating. */
-    static void visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex);
+    GameVisibility::Table visibility_;
+    void loadVisibility(uint8_t profileIndex);
+    /** Build "p<N>_gvis" without allocating. */
+    static void visibilityKey(char* out, size_t cap, uint8_t profileIndex);
 
     /* One battery sample shared by every accessor. Two battery getters were
      * once called while drawing a single top bar, and each ran its own
@@ -789,6 +870,14 @@ private:
 
     void beginBatteryMonitor();
     void sampleBattery();
+#if GUME_HAS_ATTAKY_MODULES
+    /* The battery module's path of sampleBattery(): whatever the module table
+     * reads, on a board whose profile names a fuel gauge. BoardModules.cpp. */
+    void sampleModuleBattery();
+#endif
+    /* The deadband both paths share: moves displayPct_ towards a fresh raw
+     * percentage only when it has genuinely moved. Battery task only. */
+    void settleDisplayPercent(int8_t raw);
     BatteryPublic batterySnapshot();
     static void batteryTask(void* arg);
 
@@ -809,11 +898,30 @@ private:
      * verdict and the gauge filter are all untouched by it. */
     static constexpr int8_t PERCENT_DEADBAND = 2;
     int8_t curvePercent(float vBat) const;
+    /* The curve with its top moved to `fullVolts` (0: the curve's own), for a
+     * battery module that reads full below 4.20 V. */
+    int8_t curvePercentTo(float vBat, float fullVolts) const;
     int8_t displayPct_ = -1;   // -1 until the first good sample
 
     bool rgbReady_ = false;
     uint32_t rgbHoldUntilMs_ = 0;
     uint8_t rgbR_ = 0, rgbG_ = 0, rgbB_ = 0;
+#if GUME_HAS_IO_EXPANDER
+    /* What an expander LED is KNOWN to show, one bit a channel -- recorded
+     * only when the bus took the write -- or RGB_EXPANDER_UNKNOWN: before the
+     * first write, after one the part did not answer, and on the way into
+     * panel sleep, when it is checked against the part rather than believed.
+     * Unknown never equals a colour, so the next call always reaches the bus. */
+    static constexpr uint8_t RGB_EXPANDER_UNKNOWN = 0xFF;
+    uint8_t rgbExpanderBits_ = RGB_EXPANDER_UNKNOWN;
+    void driveExpanderRgb(bool red, bool green, bool blue);
+    /* The expander LED held off while the panel sleeps; nothing otherwise.
+     * `recheck` forgets what the LED was believed to show first, so the part
+     * itself is asked. Costs no bus traffic once off has been confirmed. */
+    void keepExpanderRgbDark(bool recheck);
+#else
+    void keepExpanderRgbDark(bool) {}
+#endif
     uint32_t lastTimeSyncMs_ = 0;
     time_t lastTimeSyncEpoch_ = 0;
     static constexpr uint8_t NETWORK_ACTIVITY_CAP = 8;

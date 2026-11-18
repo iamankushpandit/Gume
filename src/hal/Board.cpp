@@ -25,6 +25,8 @@
 #endif
 
 #include "BleBeacon.h"
+#include "BoardExpander.h"
+#include "modules/Modules.h"
 #include "ui/Ui.h"
 
 Board::Board() : sdSpi_(VSPI) {}
@@ -52,20 +54,25 @@ void Board::begin() {
     /* Every peripheral below is optional in the profile. A board that does not
      * wire one sets PIN_NONE and skips it here -- that is what makes a port a
      * header rather than a patch. Touch and the panel are not optional. */
-    if (BOARD.hasBatterySense()) {
+    if (BOARD.hasBatteryAdc()) {
         pinMode(BOARD.battery.adcPin, INPUT);
     }
     /* Takes the first reading synchronously and then hands the gauge to its own
      * task, so no frame ever pays for a conversion. Safe on a board with no
-     * sense line: it publishes the zeroed snapshot and starts nothing. */
-    beginBatteryMonitor();
+     * sense line: it publishes the zeroed snapshot and starts nothing. A fuel
+     * gauge is on the touch bus, which is not up yet, so that board starts its
+     * monitor below, once Wire is. */
+    if (!BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();
+    }
 
     if (BOARD.hasBacklightControl()) {
         pinMode(BOARD.panel.backlightPin, OUTPUT);
         digitalWrite(BOARD.panel.backlightPin, BOARD.panel.backlightActiveHigh ? HIGH : LOW);
     }
 
-    if (BOARD.hasRgbLed()) {
+    /* An LED on an expander waits for the I2C bus, below. */
+    if (BOARD.hasRgbLed() && BOARD.rgb.expander == 0) {
         if (BOARD.rgb.r != PIN_NONE) pinMode(BOARD.rgb.r, OUTPUT);
         if (BOARD.rgb.g != PIN_NONE) pinMode(BOARD.rgb.g, OUTPUT);
         if (BOARD.rgb.b != PIN_NONE) pinMode(BOARD.rgb.b, OUTPUT);
@@ -119,6 +126,14 @@ void Board::begin() {
             pinMode(BOARD.touch.reset, OUTPUT);
             digitalWrite(BOARD.touch.reset, LOW);
         }
+#if GUME_HAS_IO_EXPANDER
+        /* The same hold, through an expander. That needs the bus up now,
+         * rather than after the panel as on a board with a GPIO reset. */
+        if (BOARD.touch.resetExpanderAddress != 0) {
+            Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+            BoardExpander::driveTouchReset(false);
+        }
+#endif
     }
 #else
     configureResistiveTouchPins();
@@ -152,16 +167,74 @@ void Board::begin() {
     if (BOARD.touch.reset != PIN_NONE) {
         digitalWrite(BOARD.touch.reset, HIGH);
     }
+#if GUME_HAS_IO_EXPANDER
+    if (BOARD.touch.resetExpanderAddress == 0) {
+        Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+    }                                               // else the bus is already up
+    /* An expander this firmware drives no port of still has to be told so.
+     *
+     * An AW9523 strapped to its lowest address powers up with all sixteen
+     * ports OUTPUTS driving LOW, and on the Attaky Core that part (0x58) is
+     * where the other chips' interrupt outputs arrive: touch, the IMU, the
+     * power module's gauge, the gamepad's and keyboard's halves and the
+     * second expander. Never written, it held every one of those lines low
+     * against its owner's output or pull-up for as long as the console ran.
+     * Inputs are high-impedance, which is what a line nobody here uses
+     * should see; park() is allInputs() plus the part's own interrupt
+     * output switched off, since nothing reads that either.
+     *
+     * Before the touch controller is let out of reset, because one of those
+     * lines is its interrupt, and before the module table or the battery
+     * task read anything. The two INPUT registers are logged afterwards:
+     * with nothing driving them they are the lines' own levels, which is
+     * the only place a bench can read them. */
+    if (BOARD.parked.parkedExpander != 0) {
+        const uint8_t parked = BOARD.parked.parkedExpander;
+        BoardExpander::park(parked);
+        uint8_t p0 = 0;
+        uint8_t p1 = 0;
+        if (BoardExpander::readInputs(parked, p0, p1)) {
+            Serial.printf("[expander] 0x%02X inputs P0=0x%02X P1=0x%02X\n", parked, p0, p1);
+        } else {
+            Serial.printf("[expander] 0x%02X not answering\n", parked);
+        }
+    }
+    if (BOARD.touch.resetExpanderAddress != 0) {
+        BoardExpander::driveTouchReset(true);
+    }
+    if (BOARD.hasNavKeys() && BOARD.keys.keyExpander != BOARD.touch.resetExpanderAddress) {
+        BoardExpander::allInputs(BOARD.keys.keyExpander);
+    }
+    /* After the reset is released, because that writes the whole bank; this
+     * then touches only the LED's own bits. */
+    if (BOARD.rgb.expander != 0) {
+        BoardExpander::setupLed();
+        setRgb(false, false, false);
+    }
+#else
     Wire.begin(BOARD.touch.sda, BOARD.touch.scl, BOARD.touch.i2cHz);
+#endif
+    if (BOARD.hasFuelGauge()) {
+        beginBatteryMonitor();                      // the gauge's bus is up now
+    }
 #endif
 
     prefs_.begin("cydkids", false);
     migrateStorageSchema();
     logStorageUsage("boot");
+    /* Before any radio code: the station is named here, once, so the core's
+     * MAC-derived default is never the name in force. See BoardNetwork.cpp. */
+    applyWifiHostname();
     loadNtpEnabled();
     loadNtpResyncHours();
     applyBrightness();
     loadTouchCalibration();
+    /* What is clipped on: the profile says where each module could be, and
+     * this decides whether it is there (hal/modules/Modules.h). Before audio
+     * as well as before the SD slot: on Media I/O the GPS's line is the
+     * amplifier's bit clock, and the LoRa/GPS probe listens to it. Nothing on
+     * a board without modules. */
+    Modules::probeAll();
     beginAudio();
 #if GUME_HAS_AUDIO_DAC && !GUME_TOUCH_CAPACITIVE && !defined(TOUCH_CS)
     /* Again, after audio. On the 2.8-inch boards the touch clock is a DAC pad;
@@ -188,6 +261,14 @@ bool Board::sdReady() const {
 
 bool Board::mountSd() {
     if (!BOARD.hasSdSlot()) {
+        sdMounted_ = false;
+        return false;
+    }
+    /* On a board with modules, the slot is used only if the module wearing
+     * its lines provides it; the table has already said which module that
+     * is. Driving somebody else's lines as an SD card is what it prevents.
+     * A constant true on every other board. */
+    if (!Modules::allows(ModuleCapability::Storage)) {
         sdMounted_ = false;
         return false;
     }
@@ -254,6 +335,7 @@ uint8_t Board::addPlayer(const char* name) {
 void Board::removePlayer(uint8_t index) {
     const uint8_t n = playerCount();
     if (index >= n) return;
+    ++playersEpoch_;
 
     const uint8_t oldActive = activeProfile();
     const uint8_t oldAdmin = adminProfileIndex();
@@ -491,53 +573,57 @@ void Board::setDeepSleepEnabled(bool enabled) {
     deepSleepCached_ = true;
 }
 
-bool Board::gameVisible(uint8_t catalogIndex, bool fallback) {
+bool Board::gameVisible(GameVisibility::Key game, bool fallback) {
     if (isGuest()) return true;
-    return gameVisibleFor(catalogIndex, activeProfile(), fallback);
+    return gameVisibleFor(game, activeProfile(), fallback);
 }
 
-void Board::setGameVisible(uint8_t catalogIndex, bool visible) {
+void Board::setGameVisible(GameVisibility::Key game, bool visible) {
     if (isGuest()) return;
-    setGameVisibleFor(catalogIndex, activeProfile(), visible);
+    setGameVisibleFor(game, activeProfile(), visible);
 }
 
-void Board::visibilityKey(char* out, size_t cap, uint8_t profileIndex, uint8_t catalogIndex) {
-    snprintf(out, cap, "p%u_gv%u", profileIndex, catalogIndex);
+void Board::visibilityKey(char* out, size_t cap, uint8_t profileIndex) {
+    snprintf(out, cap, "p%u_gvis", profileIndex);
 }
 
-void Board::loadVisibility(uint8_t profileIndex, bool fallback) {
-    uint32_t mask = 0;
+void Board::loadVisibility(uint8_t profileIndex) {
     char key[16];
-    for (uint8_t i = 0; i < VISIBILITY_BITS; ++i) {
-        visibilityKey(key, sizeof(key), profileIndex, i);
-        if (prefs_.getBool(key, fallback)) {
-            mask |= (1UL << i);
-        }
+    visibilityKey(key, sizeof(key), profileIndex);
+    uint8_t blob[GameVisibility::BLOB_BYTES] = {};
+    size_t len = 0;
+    if (prefs_.isKey(key)) {
+        len = prefs_.getBytesLength(key);
+        if (len > sizeof(blob)) len = sizeof(blob);
+        prefs_.getBytes(key, blob, len);
     }
-    visibilityMask_ = mask;
+    visibility_.load(blob, len);
     visibilityProfile_ = profileIndex;
     visibilityCached_ = true;
 }
 
-bool Board::gameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool fallback) {
+bool Board::gameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool fallback) {
     if (profileIndex == GUEST_INDEX) return true;
-    if (catalogIndex >= VISIBILITY_BITS) return fallback;
     if (!visibilityCached_ || visibilityProfile_ != profileIndex) {
-        loadVisibility(profileIndex, fallback);
+        loadVisibility(profileIndex);
     }
-    return ((visibilityMask_ >> catalogIndex) & 1UL) != 0;
+    return visibility_.shown(game.value, fallback);
 }
 
-void Board::setGameVisibleFor(uint8_t catalogIndex, uint8_t profileIndex, bool visible) {
-    if (profileIndex == GUEST_INDEX || catalogIndex >= VISIBILITY_BITS) return;
-    char key[16];
-    visibilityKey(key, sizeof(key), profileIndex, catalogIndex);
-    prefs_.putBool(key, visible);
-    if (visibilityCached_ && visibilityProfile_ == profileIndex) {
-        if (visible) {
-            visibilityMask_ |= (1UL << catalogIndex);
-        } else {
-            visibilityMask_ &= ~(1UL << catalogIndex);
-        }
+bool Board::setGameVisibleFor(GameVisibility::Key game, uint8_t profileIndex, bool visible) {
+    if (profileIndex == GUEST_INDEX) return false;
+    if (!visibilityCached_ || visibilityProfile_ != profileIndex) {
+        loadVisibility(profileIndex);
     }
+    if (!visibility_.set(game.value, visible)) {
+        Serial.printf("[storage] p%u visibility table full, game %u not stored\n",
+                      profileIndex, game.value);
+        return false;
+    }
+    char key[16];
+    visibilityKey(key, sizeof(key), profileIndex);
+    uint8_t blob[GameVisibility::BLOB_BYTES];
+    visibility_.store(blob);
+    prefs_.putBytes(key, blob, sizeof(blob));
+    return true;
 }

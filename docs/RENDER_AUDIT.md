@@ -610,7 +610,10 @@ With these two, every drawing path in the firmware is accounted for:
 - 7 system apps — Groups D and E
 - the launcher — converted, reference
 - the screen saver and the lock screen — this group, already correct
-- the top bar and notification banner — `Game::renderChrome()`, done separately
+- the top bar — `Game::renderChrome()`, done separately
+- the notice — its own strip along the bottom, kept to itself by the
+  renderer's paint clip and given back to the screen on its own
+  (`BrainoApp::settleNotice()`)
 
 
 ---

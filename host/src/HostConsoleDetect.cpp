@@ -53,7 +53,7 @@ Profile least() {
     using namespace HostControls;
     Profile p;
     p.name = "Unknown console";
-    p.controls = bit(DPad) | bit(A) | bit(B);
+    p.controls = maskOf(DPad) | maskOf(A) | maskOf(B);
     return p;
 }
 

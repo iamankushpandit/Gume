@@ -11,7 +11,8 @@
 #include "engine/AppRegistry.h"
 
 namespace {
-constexpr uint8_t COIN_VALUES[] = {1, 5, 10, 25, 50};
+namespace MC = MoneyCourse;
+constexpr uint16_t YELLOW = 0xFEC0;
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
 constexpr uint16_t RED = 0xE8E4;
@@ -64,227 +65,88 @@ const char* MoneyGame::title() const {
         : moneyAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the tally starts over,
+ * the level does not. It used to be the visit's score, and the kind of
+ * question too, so every visit began with ones and fives. */
 void MoneyGame::begin(AppContext& host) {
     score_ = 0;
+    rounds_ = 0;
     streak_ = 0;
     bestStreak_ = static_cast<uint16_t>(host.getScore(moneyAppMetadata().score->bestKey, 0));
+    ladder_.start(MC::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announce_ = false;
     newRound();
     markDirty();
 }
 
-uint8_t MoneyGame::level() const {
-    return min<uint8_t>(5, 1 + score_ / 4);
+/* An answered round, or coins half-built, is something to come back to. */
+Game::Keep MoneyGame::keepsGame() const {
+    return (rounds_ > 0 || makeCount_ > 0) ? Keep::Ask : Keep::No;
 }
 
-uint8_t MoneyGame::allowedCoinCount() const {
-    const uint8_t currentLevel = level();
-    if (currentLevel == 1) {
-        return 2;
-    }
-    if (currentLevel == 2) {
-        return 3;
-    }
-    if (currentLevel < 5) {
-        return 4;
-    }
-    return 5;
-}
+/* Nothing here runs on a clock any more: an answer stays until the next
+ * tap. */
+void MoneyGame::resume(AppContext&, uint32_t) {}
 
-uint16_t MoneyGame::maxTotal() const {
-    switch (level()) {
-        case 1:
-            return 15;
-        case 2:
-            return 35;
-        case 3:
-            return 75;
-        case 4:
-            return 100;
-        default:
-            return 150;
-    }
-}
-
-uint8_t MoneyGame::randomCoinValue(uint16_t maxCents) const {
-    uint8_t candidates[5] = {};
-    uint8_t count = 0;
-    const uint8_t allowed = allowedCoinCount();
-    for (uint8_t i = 0; i < allowed; ++i) {
-        if (COIN_VALUES[i] <= maxCents) {
-            candidates[count++] = COIN_VALUES[i];
-        }
-    }
-    if (count == 0) {
-        return 1;
-    }
-    return candidates[random(count)];
-}
-
-String MoneyGame::centsText(uint16_t cents) const {
-    if (cents < 100) {
-        return String(cents) + "c";
-    }
-    char buffer[8];
-    snprintf(buffer, sizeof(buffer), "$%u.%02u", cents / 100, cents % 100);
-    return String(buffer);
-}
-
-const char* MoneyGame::modeName() const {
-    switch (mode_) {
-        case Mode::Total:
-            return "How much is this?";
-        case Mode::Make:
-            return "Make this amount";
-        case Mode::More:
-            return "Which is more?";
-        default:
-            return "Make change";
-    }
-}
-
-uint16_t MoneyGame::groupValue(const uint8_t* coins, uint8_t count) const {
-    uint16_t total = 0;
-    for (uint8_t i = 0; i < count; ++i) {
-        total += coins[i];
-    }
-    return total;
-}
-
-void MoneyGame::makeRandomGroup(uint8_t* coins, uint8_t& count, uint8_t minCoins, uint8_t maxCoins, uint16_t limit) {
-    count = 0;
-    uint16_t total = 0;
-    const uint8_t desired = static_cast<uint8_t>(random(minCoins, maxCoins + 1));
-    uint8_t attempts = 0;
-    while (count < desired && attempts < 80) {
-        const uint8_t coin = randomCoinValue(limit > total ? limit - total : 0);
-        if (total + coin <= limit) {
-            coins[count++] = coin;
-            total += coin;
-        }
-        ++attempts;
-    }
-    if (count == 0) {
-        coins[count++] = 1;
-    }
-}
-
-bool MoneyGame::optionExists(uint16_t value, uint8_t upTo) const {
-    for (uint8_t i = 0; i < upTo; ++i) {
-        if (options_[i] == value) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void MoneyGame::makeOptions(uint16_t correct) {
-    correctButton_ = random(4);
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i] = 0;
-    }
-    options_[correctButton_] = correct;
-
-    const int16_t spread = level() <= 2 ? 12 : (level() <= 4 ? 25 : 50);
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) {
-            continue;
-        }
-        uint16_t candidate = correct;
-        uint8_t attempts = 0;
-        while ((candidate == correct || optionExists(candidate, i)) && attempts < 50) {
-            const int16_t delta = random(-spread, spread + 1);
-            int16_t next = static_cast<int16_t>(correct) + delta;
-            if (next < 0) {
-                next = abs(next);
-            }
-            candidate = static_cast<uint16_t>(next);
-            ++attempts;
-        }
-        while (candidate == correct || optionExists(candidate, i)) {
-            candidate += 5;
-        }
-        options_[i] = candidate;
-    }
-}
-
-void MoneyGame::setupTotalRound() {
-    makeRandomGroup(groupA_, groupACount_, level() <= 2 ? 3 : 4, level() <= 3 ? 6 : 8, maxTotal());
-    target_ = groupValue(groupA_, groupACount_);
-    makeOptions(target_);
-}
-
-void MoneyGame::setupMakeRound() {
-    makeRandomGroup(groupA_, groupACount_, 2, level() <= 3 ? 5 : 7, maxTotal());
-    target_ = groupValue(groupA_, groupACount_);
-    built_ = 0;
-    makeCount_ = 0;
-}
-
-void MoneyGame::setupMoreRound() {
-    uint16_t left = 0;
-    uint16_t right = 0;
-    do {
-        makeRandomGroup(groupA_, groupACount_, 2, level() <= 3 ? 5 : 7, maxTotal());
-        makeRandomGroup(groupB_, groupBCount_, 2, level() <= 3 ? 5 : 7, maxTotal());
-        left = groupValue(groupA_, groupACount_);
-        right = groupValue(groupB_, groupBCount_);
-    } while (left == right);
-    correctButton_ = left > right ? 0 : 1;
-}
-
-void MoneyGame::setupChangeRound() {
-    const uint16_t payChoices[] = {25, 50, 100, 150};
-    paid_ = payChoices[random(level() >= 5 ? 4 : 3)];
-    const uint8_t step = level() >= 5 ? 1 : 5;
-    do {
-        price_ = static_cast<uint16_t>(random(1, paid_ / step) * step);
-    } while (price_ >= paid_);
-    target_ = paid_ - price_;
-    makeOptions(target_);
+void MoneyGame::startLevel() {
+    deck_.reset(MC::numbered(ladder_.level()) ? MC::poolSize(ladder_.level()) : 0);
+    recent_.reset();
 }
 
 void MoneyGame::newRound() {
-    const uint8_t unlockedModes = level() == 1 ? 1 : (level() == 2 ? 2 : (level() == 3 ? 3 : 4));
-    mode_ = static_cast<Mode>(score_ % unlockedModes);
+    const uint8_t level = ladder_.level();
+    if (MC::numbered(level)) {
+        item_ = deck_.next(esp_random());
+        MC::make(level, item_, esp_random(), round_);
+    } else {
+        for (uint8_t tries = 0; tries < 20; ++tries) {
+            MC::makeDrawn(level, esp_random(), round_);
+            if (!recent_.recentlyUsed(MC::token(round_))) break;
+        }
+        recent_.remember(MC::token(round_));
+    }
+    banner_ = announce_;
+    announce_ = false;
     selected_ = -1;
-    flashIndex_ = -1;
-    flashUntil_ = 0;
     roundComplete_ = false;
-    groupACount_ = 0;
-    groupBCount_ = 0;
+    recorded_ = false;
+    line_ = Line::Prompt;
     makeCount_ = 0;
     built_ = 0;
-
-    switch (mode_) {
-        case Mode::Total:
-            setupTotalRound();
-            break;
-        case Mode::Make:
-            setupMakeRound();
-            break;
-        case Mode::More:
-            setupMoreRound();
-            break;
-        case Mode::Change:
-            setupChangeRound();
-            break;
-    }
 }
 
-void MoneyGame::markCorrect(AppContext& host) {
-    ++score_;
-    ++streak_;
-    if (host.saveBestScore(moneyAppMetadata().score->bestKey, streak_, false)) {
-        bestStreak_ = streak_;
+void MoneyGame::record(AppContext& host, bool right) {
+    if (recorded_) {
+        right ? host.beepOk() : host.beepError();
+        return;
     }
-    roundComplete_ = true;
-    flashIndex_ = -1;
-}
-
-void MoneyGame::markWrong(int8_t flashIndex) {
-    streak_ = 0;
-    flashIndex_ = flashIndex;
-    flashUntil_ = millis() + 420UL;
+    recorded_ = true;
+    ++rounds_;
+    if (right) {
+        ++score_;
+        ++streak_;
+        if (host.saveBestScore(moneyAppMetadata().score->bestKey, streak_, false)) {
+            bestStreak_ = streak_;
+        }
+    } else {
+        streak_ = 0;
+        if (MC::numbered(round_.level)) deck_.missed(item_);
+    }
+    const Course::Ladder::Step step = ladder_.answer(right);
+    if (step != Course::Ladder::Step::Stay) {
+        host.setCourseLevel(ladder_.level());
+        startLevel();
+    }
+    if (step == Course::Ladder::Step::Up) {
+        announce_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else if (right) {
+        host.beepOk();
+    } else {
+        host.beepError();
+    }
 }
 
 Rect MoneyGame::optionRect(uint8_t index) const {
@@ -310,11 +172,6 @@ Rect MoneyGame::moreRect(uint8_t index) const {
 }
 
 void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
-    if (flashIndex_ >= 0 && millis() > flashUntil_) {
-        flashIndex_ = -1;
-        markDirty();
-    }
-
     if (!touch.justPressed) {
         return;
     }
@@ -325,28 +182,34 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    if (mode_ == Mode::Make) {
+    if (round_.mode == MC::Mode::Make) {
         if (clearRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             built_ = 0;
             makeCount_ = 0;
+            line_ = Line::Prompt;
             markDirty();
             return;
         }
         if (doneRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (built_ == target_) {
-                markCorrect(host);
+            const bool amount = built_ == round_.target;
+            const bool fewest = !round_.fewest || makeCount_ == MC::fewestCoins(round_.target);
+            /* Only the first Done of a round reaches the ladder; after a miss
+             * the coins can be put right, which teaches, and says nothing. */
+            record(host, amount && fewest);
+            if (amount && fewest) {
+                roundComplete_ = true;
+                line_ = Line::Right;
             } else {
-                markWrong(6);
+                line_ = amount ? Line::MakeFewer : Line::MakeShort;
             }
             markDirty();
             return;
         }
-        const uint8_t allowed = allowedCoinCount();
-        for (uint8_t i = 0; i < allowed; ++i) {
-            if (trayRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && makeCount_ < sizeof(makeCoins_) / sizeof(makeCoins_[0])) {
-                const uint8_t coin = COIN_VALUES[i];
-                makeCoins_[makeCount_++] = coin;
-                built_ += coin;
+        const uint8_t kinds = MC::levelOf(round_.level).coinKinds;
+        for (uint8_t i = 0; i < kinds; ++i) {
+            if (trayRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP) && makeCount_ < MC::MAX_BUILT) {
+                makeCoins_[makeCount_++] = MC::COINS[i];
+                built_ = static_cast<uint16_t>(built_ + MC::COINS[i]);
                 markDirty();
                 return;
             }
@@ -354,99 +217,101 @@ void MoneyGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
 
-    if (mode_ == Mode::More) {
-        for (uint8_t i = 0; i < 2; ++i) {
-            if (moreRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                selected_ = i;
-                if (i == correctButton_) {
-                    markCorrect(host);
-                } else {
-                    markWrong(static_cast<int8_t>(4 + i));
-                }
-                markDirty();
-                return;
-            }
-        }
+    /* Total, More and Change: one try. The right answer is shown either way;
+     * any number of taps used to find it. */
+    const uint8_t buttons = round_.mode == MC::Mode::More ? 2 : 4;
+    for (uint8_t i = 0; i < buttons; ++i) {
+        const Rect r = round_.mode == MC::Mode::More ? moreRect(i) : optionRect(i);
+        if (!r.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+        selected_ = static_cast<int8_t>(i);
+        const bool right = i == (round_.mode == MC::Mode::More ? round_.more : round_.correct);
+        record(host, right);
+        roundComplete_ = true;
+        line_ = right ? Line::Right : Line::Wrong;
+        markDirty();
         return;
-    }
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (optionRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            selected_ = i;
-            if (i == correctButton_) {
-                markCorrect(host);
-            } else {
-                markWrong(i);
-            }
-            markDirty();
-            return;
-        }
     }
 }
 
 void MoneyGame::drawCoin(Ui::Renderer& tft, int16_t cx, int16_t cy, uint8_t value) const {
+    char label[8];
+    MC::cents(value, label, sizeof(label));
     tft.fillCircle(cx, cy, 12, coinFill(value));
     tft.drawCircle(cx, cy, 12, COIN_OUTLINE);
     tft.setTextColor(coinText(value), coinFill(value));
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(centsText(value), cx, cy, 1);
+    tft.drawString(label, cx, cy, 1);
     tft.setTextDatum(TL_DATUM);
 }
 
-void MoneyGame::drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* coins, uint8_t count) const {
+/* A row is drawn only if its coins fit inside the box: the Make box used to
+ * show the first eight coins built and hide the rest. */
+void MoneyGame::drawCoinGroup(Ui::Renderer& tft, const Rect& r, const uint8_t* coins,
+                              uint8_t count, int16_t rowPitch) const {
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
     tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, Ui::outline());
     const uint8_t cols = max<uint8_t>(1, r.w / 34);
     for (uint8_t i = 0; i < count; ++i) {
         const int16_t x = static_cast<int16_t>(r.x + 18 + (i % cols) * 34);
-        const int16_t y = static_cast<int16_t>(r.y + 18 + (i / cols) * 30);
-        if (y < r.y + r.h - 8) {
+        const int16_t y = static_cast<int16_t>(r.y + 14 + (i / cols) * rowPitch);
+        if (y + 12 <= r.y + r.h) {
             drawCoin(tft, x, y, coins[i]);
         }
     }
 }
 
 void MoneyGame::drawOptions(Ui::Renderer& tft) const {
+    char label[12];
     for (uint8_t i = 0; i < 4; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
-        if (roundComplete_ && i == correctButton_) {
+        if (roundComplete_ && i == round_.correct) {
             fill = GREEN;
             text = TFT_BLACK;
-        } else if (flashIndex_ == i) {
+        } else if (roundComplete_ && i == selected_) {
             fill = RED;
             text = TFT_BLACK;
         }
-        Ui::drawButton(tft, optionRect(i), centsText(options_[i]), fill, Ui::outline(), text, false, 2);
+        MC::cents(round_.options[i], label, sizeof(label));
+        Ui::drawButton(tft, optionRect(i), label, fill, Ui::outline(), text, false, 2);
     }
 }
 
 void MoneyGame::drawMake(Ui::Renderer& tft) const {
-    drawCoinGroup(tft, Rect{18, 82, 284, 54}, makeCoins_, makeCount_);
+    /* Two rows of eight: the box is 54 tall and the rows 25 apart. */
+    drawCoinGroup(tft, Rect{18, 84, 284, 54}, makeCoins_, makeCount_, 25);
+    char want[12];
+    char have[12];
+    char line[40];
+    MC::cents(round_.target, want, sizeof(want));
+    MC::cents(built_, have, sizeof(have));
+    snprintf(line, sizeof(line), "Make %s   Built %s", want, have);
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString(String("Make ") + centsText(target_) + "   Built " + centsText(built_), GAME_CANVAS_WIDTH / 2, 70, 2);
+    tft.drawString(line, GAME_CANVAS_WIDTH / 2, 75, 2);
 
-    const uint8_t allowed = allowedCoinCount();
-    for (uint8_t i = 0; i < allowed; ++i) {
+    const uint8_t kinds = MC::levelOf(round_.level).coinKinds;
+    for (uint8_t i = 0; i < kinds; ++i) {
         const Rect r = trayRect(i);
         Ui::drawButton(tft, r, "", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-        drawCoin(tft, r.x + r.w / 2, r.y + r.h / 2, COIN_VALUES[i]);
+        drawCoin(tft, r.x + r.w / 2, r.y + r.h / 2, MC::COINS[i]);
     }
     Ui::drawButton(tft, clearRect(), "Clear", Ui::surface(), Ui::outline(), Ui::text(), false, 2);
-    Ui::drawButton(tft, doneRect(), "Done", flashIndex_ == 6 ? RED : BLUE, Ui::outline(), flashIndex_ == 6 ? TFT_BLACK : TFT_WHITE, false, 2);
+    const bool done = roundComplete_;
+    Ui::drawButton(tft, doneRect(), "Done", done ? GREEN : BLUE, Ui::outline(),
+                   done ? TFT_BLACK : TFT_WHITE, false, 2);
 }
 
 void MoneyGame::drawMore(Ui::Renderer& tft) const {
-    drawCoinGroup(tft, Rect{14, 72, 140, 88}, groupA_, groupACount_);
-    drawCoinGroup(tft, Rect{166, 72, 140, 88}, groupB_, groupBCount_);
+    drawCoinGroup(tft, Rect{14, 72, 140, 88}, round_.a, round_.aCount, 28);
+    drawCoinGroup(tft, Rect{166, 72, 140, 88}, round_.b, round_.bCount, 28);
     for (uint8_t i = 0; i < 2; ++i) {
         uint16_t fill = BLUE;
         uint16_t text = TFT_WHITE;
-        if (roundComplete_ && i == correctButton_) {
+        if (roundComplete_ && i == round_.more) {
             fill = GREEN;
             text = TFT_BLACK;
-        } else if (flashIndex_ == static_cast<int8_t>(4 + i)) {
+        } else if (roundComplete_ && i == selected_) {
             fill = RED;
             text = TFT_BLACK;
         }
@@ -462,59 +327,95 @@ void MoneyGame::renderStatic(AppContext& host) {
 
 void MoneyGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
-    /* Split mechanically, and only half done.
-     *
-     * What this saves is the top bar -- a battery read and five glyphs -- and
-     * the strip of clear above the content, on every repaint that is not a
-     * full one. What it does NOT yet do is leave the question panel alone when
-     * only the answer buttons change, which is the win this screen actually
-     * has: answering recolours four buttons and rewrites one line, and the
-     * question above them does not move.
-     *
-     * Doing that needs the region cleared below to shrink to the parts that
-     * change, and the next-question path to call markFullDirty(). See this
-     * screen's entry in docs/RENDER_AUDIT.md before attempting it: the traps
-     * are text that gets narrower, things that stop being drawn, and
-     * right-aligned text whose stale characters are left at the LEFT end. */
+    /* Still the whole content area on every change, as before: a tray tap
+     * repaints the coins, the line and the tray. */
     tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH,
                  GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
 
+    char buf[40];
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TL_DATUM);
-    tft.drawString(String("Level ") + level(), 8, 35, 2);
-    tft.drawString(String("Score ") + score_, 8, 51, 1);
+    snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(round_.level));
+    tft.drawString(buf, 8, 35, 2);
+    snprintf(buf, sizeof(buf), "Score %u", static_cast<unsigned>(score_));
+    tft.drawString(buf, 8, 51, 1);
     tft.setTextDatum(TR_DATUM);
-    tft.drawString(String("Streak ") + streak_, GAME_CANVAS_WIDTH - 8, 35, 2);
-    tft.drawString(String("Best ") + bestStreak_, GAME_CANVAS_WIDTH - 8, 51, 1);
+    snprintf(buf, sizeof(buf), "Streak %u", static_cast<unsigned>(streak_));
+    tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 35, 2);
+    snprintf(buf, sizeof(buf), "Best %u", static_cast<unsigned>(bestStreak_));
+    tft.drawString(buf, GAME_CANVAS_WIDTH - 8, 51, 1);
 
-    if (mode_ != Mode::Make) {
-        Ui::drawLabel(tft, Rect{8, 58, 304, 12}, modeName(), Ui::muted(), 1, Align::Center);
+    /* The line under the header: the question, a new level's name over its
+     * first question, or how the answer went. It replaces the panel that
+     * used to cover the top of the answer buttons. */
+    uint16_t colour = Ui::muted();
+    const char* text = MC::prompt(round_);
+    switch (line_) {
+        case Line::Right:
+            text = "Correct - tap for the next";
+            colour = GREEN;
+            break;
+        case Line::Wrong: {
+            char amount[12];
+            if (round_.mode == MC::Mode::More) {
+                snprintf(buf, sizeof(buf), "The %s pile is worth more - tap",
+                         round_.more == 0 ? "left" : "right");
+            } else {
+                MC::cents(round_.target, amount, sizeof(amount));
+                snprintf(buf, sizeof(buf), "It is %s - tap for the next", amount);
+            }
+            text = buf;
+            colour = RED;
+            break;
+        }
+        case Line::MakeShort:
+            text = "Not that amount - try again";
+            colour = RED;
+            break;
+        case Line::MakeFewer:
+            text = "Right amount - now with fewer coins";
+            colour = RED;
+            break;
+        case Line::Prompt:
+        default:
+            if (banner_) {
+                MC::levelLine(round_.level, buf, sizeof(buf));
+                text = buf;
+                colour = YELLOW;
+            }
+            break;
     }
-    if (mode_ == Mode::Total) {
-        drawCoinGroup(tft, Rect{18, 78, 284, 70}, groupA_, groupACount_);
+    tft.setTextColor(colour, Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(text, GAME_CANVAS_WIDTH / 2, 62, 1);
+
+    if (round_.mode == MC::Mode::Total) {
+        drawCoinGroup(tft, Rect{18, 78, 284, 70}, round_.a, round_.aCount, 30);
         drawOptions(tft);
-    } else if (mode_ == Mode::Make) {
+    } else if (round_.mode == MC::Mode::Make) {
         drawMake(tft);
-    } else if (mode_ == Mode::More) {
+    } else if (round_.mode == MC::Mode::More) {
         drawMore(tft);
     } else {
+        char price[12];
+        char price2[12];
+        char paid[12];
+        MC::cents(round_.price, price, sizeof(price));
+        MC::cents(round_.paid, paid, sizeof(paid));
+        if (round_.price2 > 0) {
+            MC::cents(round_.price2, price2, sizeof(price2));
+            snprintf(buf, sizeof(buf), "Price %s + %s", price, price2);
+        } else {
+            snprintf(buf, sizeof(buf), "Price %s", price);
+        }
         tft.fillRoundRect(32, 82, 256, 56, 6, Ui::surface());
         tft.drawRoundRect(32, 82, 256, 56, 6, Ui::outline());
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(MC_DATUM);
-        tft.drawString(String("Price ") + centsText(price_), GAME_CANVAS_WIDTH / 2, 99, 2);
-        tft.drawString(String("Pay ") + centsText(paid_), GAME_CANVAS_WIDTH / 2, 123, 2);
+        tft.drawString(buf, GAME_CANVAS_WIDTH / 2, 99, 2);
+        snprintf(buf, sizeof(buf), "Pay %s", paid);
+        tft.drawString(buf, GAME_CANVAS_WIDTH / 2, 123, 2);
         drawOptions(tft);
-    }
-
-    if (roundComplete_) {
-        tft.fillRoundRect(62, 126, 196, 42, 8, Ui::panel());
-        tft.drawRoundRect(62, 126, 196, 42, 8, GREEN);
-        Ui::drawLabel(tft, Rect{64, 132, 192, 28}, "Correct - tap next", GREEN, 2, Align::Center);
-    } else if (flashIndex_ >= 0) {
-        tft.setTextColor(RED, Ui::bg());
-        tft.setTextDatum(MC_DATUM);
-        tft.drawString("Try again", GAME_CANVAS_WIDTH / 2, 226, 2);
     }
     tft.setTextDatum(TL_DATUM);
 }

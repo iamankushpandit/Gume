@@ -307,6 +307,17 @@ void setTurn(uint8_t session, uint8_t ply, uint8_t from, uint8_t to,
     restartRadio();
 }
 
+void clearInvite() {
+    if (!adv_.inviting) {
+        return;
+    }
+    adv_.inviting = false;
+    adv_.pokeTarget[0] = 0;
+    adv_.pokeTarget[1] = 0;
+    buildPayload(adv_);
+    restartRadio();
+}
+
 void clearTurn() {
     if (!adv_.hasTurn) {
         return;
@@ -327,6 +338,10 @@ bool poke(const char* targetDeviceId, bool findMe) {
         return false;
     }
     adv_.poking = true;
+    /* A poke and an invitation share the target and the nonce, so a poke
+     * takes an invitation's place: left flagged, the invitation would go on
+     * naming the poke's target and a session number that is now a nonce. */
+    adv_.inviting = false;
     adv_.findMe = findMe;
     adv_.pokeTarget[0] = target[0];
     adv_.pokeTarget[1] = target[1];
@@ -342,13 +357,18 @@ bool poke(const char* targetDeviceId, bool findMe) {
     return true;
 }
 
-/* Expires both a poke and a game invitation: they share the wire block, the
- * timer and the argument for having one -- each is an event, and an
- * advertisement left up forever would turn it into a state somebody is stuck
- * in. A move is the opposite and is deliberately NOT expired here; see
- * setTurn(). */
+/* Expires a poke. A poke is an event, and an advertisement left up for ever
+ * would turn it into a state somebody is stuck in.
+ *
+ * An invitation shares the poke's wire block but is NOT expired here, and it
+ * used to be. It is a question somebody is waiting on: the console that asked
+ * sits in its lobby until it is answered, so an invitation that left the air
+ * after six seconds left that console waiting for an answer nobody could give
+ * any more -- and the other player's tap, a moment late, became a second
+ * invitation crossing the first. It stands until it is answered (the first
+ * turn replaces it, see setTurn), withdrawn (clearInvite) or replaced. */
 void clearExpiredPoke() {
-    if (!adv_.poking && !adv_.inviting) {
+    if (!adv_.poking) {
         return;
     }
     if (millis() - pokeStartedMs_ < POKE_ADVERTISE_MS) {
@@ -356,7 +376,6 @@ void clearExpiredPoke() {
     }
     adv_.poking = false;
     adv_.findMe = false;
-    adv_.inviting = false;
     adv_.pokeTarget[0] = 0;
     adv_.pokeTarget[1] = 0;
     /* The nonce is deliberately NOT reset: it has to keep increasing across

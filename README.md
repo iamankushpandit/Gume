@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-82.4%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-86.0%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -40,8 +40,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,592,549 / 3,145,728 bytes of the app partition (**82.4%**) |
-| RAM | 90,916 / 327,680 bytes (**27.7%**) |
+| Flash | 2,706,221 / 3,145,728 bytes of the app partition (**86.0%**) |
+| RAM | 95,108 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -122,6 +122,10 @@ backend is possible without a panel. That is
 [issue #44](https://github.com/iamankushpandit/Gume/issues/44), and the rest of what this firmware does not
 do yet is [on the tracker](https://github.com/iamankushpandit/Gume/issues) beside it.
 
+**Ideas, written down.** Every idea and future plan discussed for Braino --
+agreed or not -- is in [docs/IDEAS.md](docs/IDEAS.md), a backlog rather than
+a plan. Pick one up, argue with one, or add your own.
+
 Found a security problem instead? Don't open an issue —
 [SECURITY.md](SECURITY.md) has the private route.
 
@@ -144,8 +148,9 @@ screen rather than an error.
 
 ### Which board do you have?
 
-Six boards are supported. Five have been flashed and run on hardware by the
-maintainer; the sixth, the ST7789 dual-USB CYD, is being confirmed by its
+Seven boards are supported. Six have run on hardware -- the Attaky Core
+most recently, on a Cyber Deck Plus; its page says what is still unchecked on
+it -- and the seventh, the ST7789 dual-USB CYD, is being confirmed by its
 owner. Tell them apart by screen size, touch type and USB ports:
 
 | Screen | Touch | USB | Board | Pick in the installer | Vendor page |
@@ -155,6 +160,7 @@ owner. Tell them apart by screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
+| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, ST7789 panel (the CYD2USB) -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB, ST7789](#esp32-2432s028-dual-usb-st7789-panel) | [witnessmenow CYD2USB](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display/tree/main/DisplayConfig/CYD2USB) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to
@@ -429,34 +435,34 @@ needs without touching anyone else's. Only the admin can change it.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Counting** | "How many objects?" — tap the matching number | One-to-one correspondence: the idea that counting means one number per object |
-| **Fingers** | Alternates *"How many fingers?"* (count what's raised) and *"Show me 7 fingers"* (raise that many) | Counting on hands in **both** directions — recognising a quantity and producing one |
-| **Shape Arith** | Objects appear one by one to add; subtraction splits left vs. take-away boxes | Makes arithmetic concrete before it's symbolic. The subtraction display keeps the removed group visible while the player counts what is left |
-| **Number Line** | A marker hops along a number line to reach the answer | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic |
-| **Math** | "Tap the answer" — addition and subtraction, difficulty rises with level. From level 2 about a third of the questions arrive as **word problems**: "Nia has 12 shells and gives 7 away. How many are left?" | Recall speed once the concept is solid, then the harder half — working out which sum a sentence is asking for. Level 1 stays pure arithmetic, because a young player still learning that 3 + 4 is 7 is being asked to read as well, and the reading is the harder job at that stage |
-| **Multiply** | "Tap the product" — times tables | Multiplication facts |
-| **Fractions** | "Pick the matching fraction" against a pie chart | Connects the written fraction to the amount it represents |
-| **Money** | "How much is this?" — count coins, compare amounts, make change | Coin values and everyday arithmetic |
-| **Percent** | Read, make and calculate percentages on a circle | Percentage as a portion of a whole, before it is an algorithm |
-| **Sorting** | "Tap smallest to largest" (or the reverse) | Ordering and magnitude comparison |
-| **Roman** | Roman numerals, both ways round: read one, or write a number as one. The symbol key and the rule for the level stay on the screen, and every answer is followed by the number taken apart — `XIV = X + IV = 10 + 4`. The wrong answers are the real mistakes: reading XIV as 10 + 1 + 5, or writing 4 as IIII | Place value in a system that has none, and the habit of checking a smaller symbol before a bigger one. Five levels, each adding the next letter: X, then L, then C, then D and M |
+| **Counting** | "How many objects?" — tap the matching number, over seven levels: to five in a row, to ten on a ten-frame, scattered with no pattern (none at all included), to twenty in two rows of ten, one more and one less, tens and ones to 99 with rods of ten, and counting in twos, fives and tens | One-to-one correspondence first — counting means one number for each object — then seeing five and ten at a glance, place value and skip counting, which adding and the times tables are built on. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, and one answered wrong comes back a few questions later |
+| **Fingers** | Numbers to ten on two hands, over six levels: one hand, raised in order from the thumb; a whole hand and some more; any fingers; how many are down; both hands added together; and changing a number already shown (*"Make it 4"*). Each level asks *"How many fingers?"* and the player taps the number, or *"Show me 7 fingers"* and the player raises them and taps Done | Counting on hands in **both** directions — recognising a quantity and producing one — then five as a whole hand, the partners of ten, adding on two hands and counting on and back. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and showing a number ends on Done, so tapping fingers without counting can be wrong |
+| **Shape Arith** | Adding and taking away with shapes the player can count, over eight levels: adding to five, taking away within five, the same within ten in rows of five, zero (adding nothing, taking nothing, taking everything), how many more fill a frame of five to ten, adding past ten and taking away back past ten. A second group arrives a shape at a time; a group taken away blinks, goes, and stays in view beside what is left | Makes adding and taking away concrete before they are written: joining two groups and removing one, with every answer there to be counted, through zero and the step across ten that Math then asks with numerals only. Each player's level is kept between visits and moves up or down with their answers. Every question of a level comes up before any repeats, one answered wrong comes back a few questions later, and the wrong buttons are the mistakes players really make, such as counting the shapes taken away instead of the ones left |
+| **Number Line** | A frog hops along a number line, over nine levels: first the player watches the hops and reads where it landed; from then on the question comes first and the frog checks the answer. Adding and taking away within ten, how many hops from one mark to another (*3 + ? = 8*), crossing ten in two hops — to ten, then the rest — hops of ten to a hundred, which ten a number is nearest, equal hops from zero, and the line below zero | Turns addition and subtraction into *movement* — the mental model behind mental arithmetic — then the strategies built on it: bridging through ten, counting in tens, rounding, skip counting and negative numbers. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the mistakes the line invites, such as counting the starting mark as the first hop |
+| **Math** | "Tap the answer" — adding and taking away in twelve levels, numerals only: sums to ten, number bonds (4 + ? = 10), crossing ten, tens and ones, carrying, borrowing, three-digit sums and two-digit missing numbers (? + 38 = 75). From level 4 about a third of the questions arrive as **word problems**: "Nia has 21 shells and gives 8 away. How many are left?" | Quick, sure recall of the adding and taking-away facts, then carrying, borrowing and finding a missing number, and working out which sum a sentence is asking for. Each player's level is kept: it goes up with steady right answers and quietly back down after repeated misses. On the first five levels every question comes up before any repeats and a missed one comes back a few questions later, and the wrong buttons are the mistakes players really make, such as forgetting to carry |
+| **Multiply** | "Tap the product" — the times tables in teaching order, twelve levels: twos, fives and tens; threes and fours; 0 and 1; sixes and eights; sevens and nines; elevens and twelves; all of them mixed. Then missing numbers (? x 7 = 56) and division as the same facts backwards, up to 144 ÷ 12 | Fluent recall of the multiplication facts, then the link between multiplying and dividing. Each player's level is kept and goes up or down with their answers, every fact in a level comes up before any repeats, and a missed one comes back a few questions later. The wrong buttons are the neighbouring facts, such as 49 offered for 7 x 8 |
+| **Fractions** | Twelve levels, from pies to written sums: name a pie and find the pie for a fraction, in halves and quarters, then thirds, then fifths, sixths and eighths; which of two is bigger — one piece each, the same bottom number, the same top number; equal fractions (*6/8 is 3/4*); comparing any two, with pies and then without; a fraction of a number (*3/4 of 12*); adding and taking away with the same bottom number; and more than one whole (*7/4 = 1 3/4*) | Connects the written fraction to the amount it represents, then the reasoning that comes after: that a bigger bottom number means a smaller piece, that two fractions can be the same amount, and how fractions add. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong answers are the misreadings players make — the empty slices counted, the bottom numbers added (*3/8 + 2/8 = 5/16*) — never a second right answer |
+| **Money** | Counting coins over eight levels: ones and fives; tens, and making an amount from a tray of coins; quarters, and which of two piles is worth more; a whole dollar; change in fives; change to the cent; making an amount with the fewest coins; and change from two prices | Coin values and everyday arithmetic — and that more coins is not more money, which the piles are built to show. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong amounts are the slips players make: a coin missed or counted twice, every coin counted as one cent, the price given back as the change |
+| **Percent** | Ten levels on a circle and then off it: read and shade quarters, tens and fives (from fives on the shaded amount is not printed, so the circle is what is read); fractions as percents (*3/4 = 75%*); 50% and 10% of a number, then 25% and 75%, then any ten percent, then the fives; what percent one number is of another; and adding or taking a percent off | Percentage as a portion of a whole, before it is an algorithm, then the arithmetic built on it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, every answer is a whole number, and the wrong answers are the mistakes players make — the top of a fraction taken as the percent, the part left over, the other direction |
+| **Sorting** | "Tap smallest to largest" (or the reverse), over ten levels: three small numbers, to twenty, both ways round, two digits, look-alikes (*36* and *63*), three digits made of the same three digits, below zero, decimals (*0.45* is less than *0.5*), fractions, and decimals and fractions together | Ordering and magnitude comparison, then place value, negative numbers and the size of a decimal or a fraction. Each player's level is kept between visits and moves on a board sorted with no wrong tap, and from level 3 the direction is chosen at random, never three boards the same way |
+| **Roman** | Roman numerals, both ways round: read one, or write a number as one. The symbol key and the rule for the level stay on the screen, and every answer is followed by the number taken apart — `XIV = X + IV = 10 + 4`. The wrong answers are the real mistakes: reading XIV as 10 + 1 + 5, or writing 4 as IIII | Place value in a system that has none, and the habit of checking a smaller symbol before a bigger one. Eight levels, one sign at a time — I V X, tens, L, C, D, M — then the whole notation, with small numbers still coming back, and last, spotting the numeral written wrongly (*IC* for 99, *XXXX* for 40). Each player's level is kept between visits and moves up or down with their answers, and numbers with a 4 or a 9, the subtractive pairs, come up more often |
 
 ### World knowledge
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus** | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore |
-| **US States** | Name the state, then its capital | US geography as a name-then-capital pair, the same loop as Flags |
-| **State Flags** | A real state flag, name the state, then its capital | Fifty more flags with the same reward loop |
-| **State Maps** | A real state outline, name the state, then its capital | Map-shape recognition |
-| **Calendar** | "What comes after Wednesday?" — days and months | Sequence and cyclical time |
-| **Time** | "Which time is shown?" on an analogue clock | Reading a clock face |
-| **Space** | Forty-four questions about the solar system and the layers of air above it — the planets in order, why Venus beats Mercury, where the ozone is, which layer the Space Station orbits in. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Three levels, so a younger player is never asked about the Karman line |
-| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** asks six kinds of question about it; **Level** decides how much of the table it may ask about | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen |
+| **Flags** | A real flag, name the country. Correct answers unlock a **capital-city bonus**. Nine levels: the famous flags, the well known, then Europe, the Americas, Asia, Oceania and Africa one at a time with every wrong answer from the same continent, the whole world, and last the whole world with the capital counting as much as the flag | 195 flags with a genuine reward loop; capitals arrive as a bonus rather than a chore. Each player's level is kept between visits and moves up or down with their answers, every flag of a level comes up before any repeats, a missed flag comes back a few flags later, and flags that cannot be told apart at this size (Indonesia and Monaco, Chad and Romania) are never offered against each other |
+| **US States** | Name the state, then its capital, over eight levels: the nine famous states' capitals, the same nine the other way round, the next eighteen, those twenty-seven both ways, the last twenty-three, all fifty both ways, the postal codes (*TX*), and everything mixed | US geography as a name-then-capital pair, the same loop as Flags, then the postal codes. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong codes share a first letter where they can (the eight *M* states) |
+| **State Flags** | A real state flag, name the state, then its capital. Five levels: the nine famous states, the next eighteen, the last twenty-three, all fifty, and all fifty with the capital counting as much as the flag | Fifty more flags with the same reward loop. Each player's level is kept between visits and moves up or down with their answers, and every flag of a level comes up before any repeats |
+| **State Maps** | A real state outline, name the state, then its capital. Five levels: the nine famous states, the next eighteen, the last twenty-three, all fifty, and all fifty with the capital counting as much as the outline | Map-shape recognition. Each player's level is kept between visits and moves up or down with their answers, every outline of a level comes up before any repeats, and Colorado and Wyoming, the same rectangle, are never offered against each other |
+| **Calendar** | Days and months in order, as two courses with a level each. Days: the next day, then round the week (*after Sunday*), two or three days on, then a week and more (*10 days after Wednesday*). Months: the next month, round the year, which month is number 9, how many days a month has — and a week, a year and a leap year — then several months on | Sequence and cyclical time: the week and the year as circles rather than lists, a week on bringing the same day back, and the facts a calendar is built from. Each player's level on each is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong tiles are the mistakes players make — the day before given for the day after, the starting day counted as the first |
+| **Time** | Reading an analogue clock, over ten levels: o'clock, half past, quarter past and quarter to, minutes past and minutes to in fives, then any minute with the minutes marked round the rim; then the same clock said in words (*"quarter to 4"*), in 24-hour time, twenty minutes later or fifteen earlier, and how many minutes until the next o'clock | Telling the time from the hands, then saying it the ways people say it and working with it. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the readings players really make: the hands read the wrong way round, the hour hand read as the next number when it is nearly there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. written as 13:00 |
+| **Space** | 176 questions about the solar system and the layers of air above it, over eight levels: the Sun, Earth and Moon; the eight planets, in order (*Which planet is fifth from the Sun?*); rocky worlds and giants; moons and small worlds; the air above us; days, years and seasons; exploring space; stars and beyond. Every answer, right or wrong, is followed by one plain sentence saying why | The sky as one continuous thing: "where does space start" and "how far up does the air go" are the same question, and a quiz that answers one and not the other leaves the join out. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the order of the planets and of the layers of air is asked every way round rather than learned as a list |
+| **Elements** | **Explore** the real 118-cell periodic table, tap any square to read what it is and where you have met it; **Quiz** is a course of nine levels: the 26 famous elements' names, then their symbols and states, then where they sit and their protons; the 63 common elements the same ways, with families and which element comes next; then all 118, names and then places -- row, column and family; then all of it. **Level** follows the player, or pins the easy, common or whole table | The periodic table as a place rather than a list — a player who has never taken chemistry can find Oxygen on the chart, learn that Helium is what makes balloons float, and never be asked about an element they have not seen |
 | **Piano** | One octave, C to C, with the note name on every key; tap or hold a key and it sounds for as long as you hold it | The first thing here with no right answer — a young player can make something rather than be tested on it, and the note names are on the keys so the naming comes for free |
 | **Chess** | The full rules, against a friend or against the console — on one device, on two in the same room over Bluetooth, or on your own at Easy or Medium. Tap a piece and every square it may legally move to is ringed, including castling and en passant. Check and checkmate are called out, and so are the draws, each with its reason: stalemate, too few pieces to mate with, and fifty moves without a capture. Captured pieces are shown for both sides, the game is remembered if you put the device down, and either player can end one nobody can finish | Learning chess by seeing what is legal rather than being told when you are wrong — and the one game here two people play against each other — or, on your own, an opponent that is beatable on purpose |
 | **Sea Battle** | Battleships on an 8x8 sea, for two players — passing one console, or against another in the room over Bluetooth. Your fleet is shuffled for you; hunt theirs a square at a time, watching your own sea take damage beside the board | Deduction with a memory: every miss narrows the search, and a young player works out that hits come in lines long before anyone explains it |
-| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-nine short words a young player knows, covering every letter but q. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, drawn a third larger than the first version because young players found it too small to follow. A numbered arrow beside each stroke shows where it starts and which way it goes, the way a handwriting workbook marks it. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice |
+| **Cursive** | Joined-up handwriting, traced with a finger: capitals, lowercase, and forty-nine short words a young player knows, covering every letter but q. A word is one unbroken stroke, not a letter at a time, with the stroke order a hand actually uses, drawn a third larger than the first version because young players found it too small to follow. A numbered arrow beside each stroke shows where it starts and which way it goes, the way a handwriting workbook marks it. Five stages: small letters, capitals and joined words, each finished by tracing it through; then less help, with no arrows; then from memory, with only the start ring and the next dot. Every tab is open at every stage, and each player's stage is kept between visits. The score counts how much has been practised and never stops going up | Cursive is a different skill from printing, not a decoration on it — the joins are the skill, and there is nothing here to win or lose, only practice |
 | **Ludo** | The classic race round the cross-shaped board for two to four — on one console, where each seat is a player or the computer at Easy or Normal, or across up to four consoles in the same room over Bluetooth, with computers filling any empty seats. A 6 brings a token out and rolls again, three 6s in a row lose the turn, landing on a lone token sends it home, and two tokens together make a block nobody can pass. The tokens that can move light up and a tap picks the nearest one; when there is only one move it plays itself. Every colour has its own shape as well, so the game works for a young player who cannot tell red from green, and it is remembered if you put the device down | Counting on from where you stand, and the first real decisions about risk — whether to run a token home or wait on a safe square — against a computer that plays fair: it cannot choose its dice any more than you can |
 | **Backgammon** | The race for two, with the full rules — on one console, against the computer, or against another console in the room over Bluetooth. Roll, tap a checker and the points it can reach light up; take a move back with Undo until you press Done. Every forced-move rule is enforced — as many dice as possible, the higher die when only one can be played — and a game ends as a single, a gammon or a backgammon. The pip count shows how far each side has to go, and the game is remembered if you put the device down | Counting and adding on every turn, then the first real strategy: when to run, when to hold a point, and when a blot is worth the risk |
 | **Go** | The oldest board game there is, on a 9x9 board (19x19 on the 4-inch console), for two on one console, against the computer at Easy or Medium, or against another console in the room over Bluetooth. Five rule sets, chosen before the game: *Capture 1*, *3* or *5* -- first to take that many stones wins, the way it is taught in schools -- *Area*, and *Territory*, which ends with both players marking the groups that cannot live. A stone is placed in two taps, the first a ghost so a misplaced finger costs nothing, and on 19x19 the panel magnifies the five-by-five around it. Undo takes back your move and the computer's reply; the game is remembered if you put the device down | Surrounding rather than attacking, and the idea that a group lives or dies by its liberties -- the computer never fills its own eye, and a young player who watches it learns why |
@@ -468,18 +474,18 @@ uses **adaptive difficulty** — see below.
 
 | Game | What it is | What it builds |
 |---|---|---|
-| **Cinnamon** | Repeat the colour sequence | Working memory and sustained attention |
-| **Memory** | Match pairs face-down | Visual working memory |
-| **Odd One** | "Tap the one that is different" | Categorisation — spotting the attribute that doesn't fit |
-| **Shapes** | Match each shape to its outline, over four rounds that each take an easy cue away: the four everyone knows ("red circle"), then four told apart by **side count** (pentagon, hexagon, heptagon, octagon), then **lookalikes** (oval, rectangle, diamond, trapezium), then **concave against convex**, with the word on the row | Holding two attributes in mind at once, then shape vocabulary a young player can use: that a hexagon is a hexagon because it has six sides, that an oval is not a circle, and that concave and convex are the names for bending in and bulging out |
-| **Color Mix** | "What do you get?" mixing two colours | Colour theory, and that mixing is predictable |
+| **Cinnamon** | Repeat the colour sequence, over six levels: one step at a time, then quicker, then a new sequence every round so it cannot be learned by heart, then the same at speed, then backwards, last pad first, and backwards with a new sequence every round | Working memory and sustained attention, then holding a sequence well enough to turn it round. Each player's level is kept between visits and moves on rounds of four steps or more repeated correctly; the pace never reaches three flashes a second |
+| **Memory** | Match pairs face-down, over eight levels: six cards, eight, twelve, sixteen, twenty, the full board of 24, look-alike faces (*O* and *Q*, *6* and *9*), and pairs that belong together rather than match (*G* with *g*, *7* with *3+4*) | Visual working memory. The faces change every board, each player's level is kept between visits, and a board cleared in no more than two moves a pair moves the player on |
+| **Odd One** | "Tap the one that is different", over eight levels: a different colour, then a different shape, size and turn, each on its own; any of them without saying which; a colour only a shade away; one difference hidden among cards that differ in a way that does not matter; and the smallest steps | Categorisation — spotting the attribute that doesn't fit, then holding on to the one that matters while others vary. Each player's level is kept between visits and moves up or down with their answers, and the odd card can be bigger or smaller, upside down or the right way up, so no rule but looking finds it |
+| **Shapes** | Match four shapes to four targets, over seven levels that each ask something new about a shape: its outline, in any colour (*"purple star"*); the **lookalikes** a young player calls circle and square (oval, rectangle, diamond, trapezium, parallelogram, kite); how many **sides** it has; its **name**, with none on the picture; its outline **turned**; **concave or convex**, with the word on the row; and the sides of any shape, stars and the cross included | Holding two attributes in mind at once, then shape vocabulary a young player can use: that a hexagon is a hexagon because it has six sides, that an oval is not a circle, that a triangle is still a triangle upside down, and that concave and convex are the names for bending in and bulging out. Each player's level is kept between visits and moves on a round with no wrong match, every shape of a level comes up before any repeats, and a shape matched wrongly comes back a few shapes later |
+| **Color Mix** | Mixing paint, over six levels: the first mixes (*red + yellow*), lighter and darker with white or black, the same mixes backwards (*red + ? = pink*), the colours between a primary and its neighbour, opposite colours that make brown, and last mixing light, where red and green make yellow | Colour theory, and that mixing is predictable — then that it can be run backwards, and that light does not mix like paint. Each player's level is kept between visits and moves up or down with their answers, every question of a level comes up before any repeats, and the wrong buttons are the colours a mix is mistaken for — another mix sharing one of its colours, darker for lighter, and for light, what the same two make as paint |
 | **Microku** | 2×2 up to 6×6 grids | Constraint reasoning, scaled to a player's level |
 | **Slide** | Slide numbered tiles into order | Planning several moves ahead |
 | **Maze** | Drag a dot to the exit | Fine motor control and route planning |
 | **Whack** | Tap the smiles before they vanish | Reaction time and visual scanning |
 | **Tic-Tac-Toe** | Two players | Turn-taking and blocking — best played with a grown-up |
-| **Trace** | Trace uppercase, lowercase, digits and fifty-four short printed words following dots. A numbered arrow beside each stroke, outside the letter, shows where it starts and which way it goes, with an extra arrow at a sharp turn like the top of an A. Words are spelled out of the same lowercase letters, so a young player writes 'cat' with the strokes they practised on c, a and t | Letter formation and stroke order, with Again and Next controls so a player can repeat any character, then putting letters together into words |
-| **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** picks the right gloss from four | 250 GRE-level words, weighted by spaced repetition so a missed word returns soon. Aimed at an older player, not a younger one |
+| **Trace** | Trace uppercase, lowercase, digits and fifty-four short printed words following dots. A numbered arrow beside each stroke, outside the letter, shows where it starts and which way it goes, with an extra arrow at a sharp turn like the top of an A. Words are spelled out of the same lowercase letters, so a young player writes 'cat' with the strokes they practised on c, a and t. Six stages: capitals, small letters, numbers and words, each finished by tracing it through; then less help, with no arrows; then from memory, with only the start ring and the next dot. Every tab is open at every stage, and each player's stage is kept between visits | Letter formation and stroke order, with Again and Next controls so a player can repeat any character, then putting letters together into words |
+| **GRE Words** | **Study** flips a card to its meaning and an example; **Quiz** asks over six levels: pick the meaning, with the wrong ones another part of speech; pick it from four of the same part of speech; pick the word from its meaning; pick the word that fills the gap in its own sentence; tell a word from its look-alikes, the words beside it in the alphabet; and all of them mixed | 250 GRE-level words. Each player's level is kept between visits and moves up or down with their quiz answers, every word comes up before any repeats, and a word missed or marked *Didn't* comes back a few words later. Aimed at an older player, not a younger one |
 | **Dice** | Pick one, two or three dice and throw them | A physical randomiser to play board games with when the real dice are lost. Keeps no score, because a best total would be luck |
 | **Coin Flip** | Spin a coin, best of one, three or five | Settling an argument fairly, and seeing that best-of-five is not the same as one toss. Keeps no score, for the same reason |
 
@@ -508,6 +514,71 @@ one player's progress never moves another's.
 Three tiers — **Easy** (30 familiar countries), **Medium** (62), **Hard** (all
 195). Six correct in a row promotes a tier automatically. The tier button still
 overrides by hand, and the choice persists.
+
+### A level kept for each player
+
+**Math**, **Multiply**, **Counting**, **Shape Arith**, **Fingers**, **Time**,
+**Number Line**, **Calendar**, **Color Mix**, **Shapes**, **Odd One**,
+**Money**, **Fractions**, **Percent**, **Roman**, **Sorting**, **Memory**,
+**Cinnamon**, **Flags**, **State Flags**, **State Maps**, **US States**,
+**Space**, **GRE Words**, **Elements**, **Trace** and **Cursive** are courses:
+twelve levels of adding and taking away, twelve of times tables and division,
+seven of counting, eight of adding and taking away with shapes, six of numbers
+to ten on the hands, ten of reading a clock, nine on the number line, four of
+days and five of months, six of mixing colours, seven of shapes, eight of
+spotting a difference, eight of coins and change, twelve of fractions, ten of
+percents, eight of Roman numerals, ten of putting numbers in order, eight of
+remembering where cards are, six of repeating a sequence, nine of flags and
+capitals, five of state flags, five of state outlines, eight of states,
+capitals and postal codes, eight of the solar system and the sky, six of
+vocabulary, nine of the periodic table, six stages of tracing letters, numbers
+and words, five stages of joined-up writing. Each
+player's level in each of them is kept between visits, so a player starts
+where they left off, not at the first level.
+
+The level moves both ways. Right answers move the player up -- six in a row
+from the start of a level -- with a flourish and the new level's name over its
+first question. A miss counts twice as much as a right answer, and enough of
+them move the player down one, with no message: the questions just get
+easier. Two right answers in three keep a player where they are.
+
+Within a level, every question comes up once before any comes back, in a new
+order each time round, and a question answered wrong comes back after three
+others until it is answered right. Math's levels from tens and ones upwards
+have hundreds of questions or more each, so there a question is drawn at
+random instead and never comes back within ten.
+
+The wrong buttons are the mistakes players make at that level: a carry
+forgotten, the smaller digit taken from the larger, the sign in `4 + ? = 10`
+done instead of undone, the neighbouring fact in a times table, the tens and
+ones digits swapped, a clock's hands read the wrong way round.
+
+The level is stored per player like a score, and Guest's lasts only until
+another player takes the console. Starting a new game on the *Carry on?*
+question starts the score again and keeps the level. With the admin PIN, the
+serial console reads or sets the level of the player in use (`level
+<game-id>`, see [Diagnostics](#diagnostics)).
+
+### A game left by mistake is still there
+
+Home is one press -- a tap in the corner, the BOOT key, or on a console with
+keys the one beside the key that answers -- and players pressed it by mistake
+and lost the game they were in. A game left in the middle is now kept. Open
+it again and it asks **Carry on?** or **New game**; Carry on puts back the
+question that was on the screen, the score, the puzzle half done. Screens that
+hold a place rather than a game come straight back with no question: the
+letter being traced, the tab that was open, and every board game, which has
+its own End game.
+
+<p>
+  <img src="docs/screens/carry-on.png" width="280" alt="The Carry on? question: two buttons, Carry on and New game, under the game's own title">
+</p>
+
+It is kept until the console is switched off, for the player who left it:
+somebody else opening the same game gets a new one. Nothing is stored for it.
+And time away does not count. A countdown or a stopwatch stops while the game
+is off the screen, and while the console sleeps or is locked -- before this, a
+timed game ran out behind a dark panel.
 
 ### Profiles
 
@@ -554,7 +625,7 @@ once.
 
 **Every supported board plays all of it**, through whatever speaker is plugged
 into the board's speaker connector — with nothing plugged in, the console
-simply plays silently. One synthesiser feeds two different outputs:
+simply plays silently. One synthesiser feeds three different outputs:
 
 - The [Freenove FNK0104B](#freenove-fnk0104b-esp32-s3) plays through an
   **ES8311 audio codec**.
@@ -562,12 +633,20 @@ simply plays silently. One synthesiser feeds two different outputs:
   E32R40T have no codec. The **ESP32's built-in DAC** on GPIO26 drives an onboard amplifier
   directly, which gives 8-bit output — coarser than the codec, and the same
   cues, pad notes, piano notes and spoken phrase.
+- The [Attaky Core](docs/boards/Attaky-Core.md) has no codec either: its
+  Media I/O module carries an **NS4168 I2S amplifier**, which is sent plain
+  I2S and does its own conversion. Not yet heard on a device.
 
 **None of it is a recording.** There is no WAV, no MP3 and no sample bank
 anywhere in this firmware, and there is not going to be one: a single second of
 audio would cost more flash than several games. Every sound is generated as it
 plays, from a few oscillators, a noise source and three formant filters. A cue
 is a short script for those, and costs about forty bytes.
+
+Most cues are pure tones that are struck and left to ring, gliding from one
+pitch to another -- rising for a good thing, falling for a wrong one -- and a
+run of notes rings on under itself into the chord it spells. The piano holds a
+note for as long as a key is held.
 
 The formant filters are there because the console says **"Let's play Braino!"**
 when it starts up, in a deliberately robotic voice. That phrase is not a clip
@@ -579,7 +658,8 @@ is exactly why it sounds like one.
 
 All of it can be turned off. **Settings → Sound** holds a mute switch and a
 volume slider capped for a device held near a young player's ears — at 85% on
-the Freenove and 75% on the built-in-DAC boards — plus two buttons to hear the
+the Freenove, 75% on the built-in-DAC boards and a provisional 50% on the
+Attaky Core — plus two buttons to hear the
 level while you set it, because setting a volume you cannot hear while you set
 it is guesswork.
 
@@ -601,15 +681,15 @@ One screen per game, in launcher order.
 ### Numbers and early maths
 
 <p align="center">
-  <img src="docs/screens/counting.png" width="300" alt="Counting">
+  <img src="docs/screens/counting.png" width="300" alt="Counting: tens and ones, rods of ten and the ones beside them">
   <img src="docs/screens/fingers-count.png" width="300" alt="Finger Counting: count them">
   <img src="docs/screens/fingers-show.png" width="300" alt="Finger Counting: show me N">
   <img src="docs/screens/shapearith.png" width="300" alt="Shape Arith">
 </p>
 <p align="center">
   <img src="docs/screens/numberline.png" width="300" alt="Number Line">
-  <img src="docs/screens/math.png" width="300" alt="Math">
-  <img src="docs/screens/multiply.png" width="300" alt="Multiplication">
+  <img src="docs/screens/math.png" width="300" alt="Math: a missing number on level 12">
+  <img src="docs/screens/multiply.png" width="300" alt="Multiplication: a division on level 10">
 </p>
 <p align="center">
   <img src="docs/screens/fractions.png" width="300" alt="Fractions">
@@ -735,7 +815,8 @@ rather than volume zero, so the level survives being silenced and comes back
 where it was; muting takes *everything*, including the startup phrase, and
 leaves the case LED still flashing green and red. The volume slider is capped
 below 100% and says so — **85** on the Freenove, **75** on the boards that
-play through the ESP32's built-in DAC — because a control that relabelled its
+play through the ESP32's built-in DAC, **50** on the Attaky Core until
+somebody has listened to it — because a control that relabelled its
 ceiling as 100% would read better and lie. That ceiling is a hearing-safety
 limit for a device held near a young player's ears, the counterpart of the 25%
 brightness floor. It is stated per board because it depends on the amplifier
@@ -881,8 +962,9 @@ adversary.
 
 **Off by default.** Turned on, the console listens for other Brainos in range
 and shows who is there, which game they have open, and their best score for it.
-When somebody's score beats the record on this device, a strip appears over the
-header for a few seconds and is then removed.
+When somebody's score beats the record on this device, a strip appears along
+the bottom of the screen for a few seconds and is then removed (see
+[Notices](#notices)).
 
 It is anonymous by construction. A peer is **four hex digits of its own
 Bluetooth MAC** — the same id already used to name the device — and the only
@@ -896,8 +978,8 @@ Two switches guard it, in this order: the **BLE beacon** must be on, and then
 scan is passive, so listening never transmits anything.
 
 **Poke.** Each peer in the list carries a *Poke* button. Pressing it nudges that
-console: a strip appears over its header saying who poked it, and it makes a
-sound. It is the one notification here that does — everything else Nearby raises
+console: a strip appears along the bottom of its screen saying who poked it,
+and it makes a sound. It is the one notification here that does — everything else Nearby raises
 is ambient news about the room, while a poke is a person asking for your
 attention.
 
@@ -1005,9 +1087,15 @@ from the last touch, and **Sleep after** (15s / 30s / 1m / 2m / 5m) is how long
 the saver runs before the screen goes dark.
 
 **Sleep is not `esp_deep_sleep`.** The CPU stays up so it can poll the touch
-panel — there is no wake source wired for a true deep sleep on this board. The
-main loop drops from 50 Hz to 10 Hz while asleep, and the battery still drains,
-just far more slowly than with the backlight on.
+panel — there is no wake source wired for a true deep sleep on this board. But
+it does less while asleep: the main loop drops from 50 Hz to 10 Hz, the
+processor slows from 240 MHz to 80 MHz, and after five minutes asleep **Wi-Fi
+switches off** until the next touch, which reconnects it while you unlock.
+Bluetooth is left as it was, so a console that has the beacon on still shows
+up in Nearby and can still be found. Leaving the Wi-Fi screen also puts the
+radio's power saving back on; until 5.14.0 it stayed off until a restart. The
+battery still drains while asleep, just far more slowly than with the screen
+on.
 
 #### Hold to unlock
 
@@ -1059,7 +1147,9 @@ It is a shortcut and never the only way to do anything. Everything it reaches
 is reachable by touch, so a board that does not wire the key behaves as it
 always did. Two places ignore it on purpose: the **Hold to unlock** screen,
 because a key pressed through the side of a bag is the accident that screen
-exists to catch, and the launcher, where you are already home.
+exists to catch, and the launcher, where you are already home. While a
+[notice](#notices) is up, the first press puts the notice away instead, on
+every screen; the next one is Home as usual.
 
 Holding it while the console starts is unchanged and has nothing to do with
 this — that is a message to the chip's own ROM, which reads the pin at reset,
@@ -1067,13 +1157,52 @@ long before this firmware runs. **RESET**, beside it, cannot be given a job at
 all: it pulls the chip's enable line, so there is no software on either side of
 it to notice.
 
+On the **Attaky Core** the power key's short press does what the on-screen
+Lock button does: the screen goes dark and comes back to **Hold to unlock**.
+Its long press switches the console off in hardware, as Attaky built it; the
+firmware never sees that press and does nothing with it.
+
+**Its keys work every screen, the way the RG40XX V's do.** The D-pad --
+the gamepad's, or the Core's own -- moves a selector from control to control:
+every button, tile, keyboard key and tab, and the header's Home, padlock,
+speaker, gear and player name. **A** presses what it is on, **B** is Home,
+**L1** and **R1** turn pages, **L2** mutes, **R2** locks, **Menu** goes to
+the next tab (or Settings), and **Select + Start** held for three seconds
+restarts. Pushing past the end of a row turns the page, and past the end of a
+list scrolls it. A finger on the glass puts the selector away. It stops on
+every square of every board too, so every game plays from the keys.
+
+### Notices
+
+Three things can interrupt a screen to say something: a low battery, a newer
+firmware, and Nearby. Each is one line on a strip **along the bottom of the
+screen**, shown for a few seconds and then taken away. The header stays whole
+above it: Home, the padlock, the clock and the battery badge are all still
+there, and still work, while a notice is up.
+
+<p>
+  <img src="docs/screens/notice.png" width="280" alt="Math with a notice along its bottom edge: Battery low, time to charge. The top bar is untouched, and the lower half of the bottom two answers is under the strip">
+</p>
+
+Down there it lies over part of the screen, such as the bottom row of answers
+or the launcher's Prev and Next. So **a press on the notice puts it away**, and
+does nothing else: whatever is under it is not pressed. On a console with no
+touch screen the **BOOT** key (B on a gamepad) does the same. Left alone, it
+goes by itself.
+
+While a notice is up, nothing else is drawn on its strip. A game that repaints
+under it does not disturb it, and the d-pad's selector stops at its edge
+instead of being drawn across the words. A control the notice hides completely
+cannot be selected until it has gone. When it goes, only the strip it covered
+is redrawn; the rest of the screen does not blink.
+
 ### Scores, Profiles, About and System Info
 
 Four more screens, all of them ordinary `Game` subclasses like everything else:
 
 - **Profiles** -- shown at boot; picks whose scores are being written. Carries
   the Braino! product mark in a branded header, with the copyright line
-  beside it.
+  beside it, and the battery between Add Player and Done.
 - **Scores** -- two tabs:
   - **Mine** shows bests and worsts for the active player, per game.
   - **Device** shows the device-wide best and its holder across every player on
@@ -1145,12 +1274,22 @@ reads **high, close to full**, rather than showing an empty or absent battery.
 The digits blank only when the ADC reads outside a plausible range, which means
 a sensor fault, not a missing pack.
 
+**The Attaky Core is the exception: its Power module reports the cell over
+I²C, not through a divider.** Attaky make three, with three different chips,
+and the firmware finds whichever is fitted: on the Standard Cell 1.0 a
+MAX17048 fuel gauge, whose own state of charge the badge shows; on the
+Standard Cell 1.1 an INA219 and on the 18650 Cell an INA226, which measure
+the voltage, so the badge uses the same LiPo curve as every other board. The
+thresholds and the steadying are the same either way. Unclip the module
+and the gauge stops answering, so the badge disappears and no warning is raised
+-- the console does not mistake a missing module for an empty battery.
+
 The icon is **one size at every level**, the width `100` needs, with the
 number centred inside it, so it does not shrink as the battery drops from 10%
 to 9%. The status rows around it are still laid out from its measured width,
 because a board with no battery sense shows no icon at all.
 
-At **15% or less** a strip also appears across the top of whatever screen is
+At **15% or less** a strip also appears along the bottom of whatever screen is
 open: *Battery low — time to charge*, escalating to *Battery empty — plug in the
 charger* at 5%. It shows for six seconds and repeats every two minutes, so it
 stays a warning rather than becoming furniture. It is driven by the percentage
@@ -1186,6 +1325,11 @@ The battery diagnostic (*System Info -> Batt*) is held in memory and starts over
 at every restart. It stores nothing in flash and adds nothing to what leaves the
 device; its log lines go to the serial cable, or on a handheld to the log file
 on its own card.
+
+On your own network every console gives the router the same name, `braino`,
+so the router's list of connected devices says what it is and not which one.
+The router also sees the console's Wi-Fi hardware address, as it does for
+anything that joins it.
 
 ### Where the Wi-Fi password is kept, and what that is worth
 
@@ -1264,7 +1408,7 @@ writing the password readably; it asks for it again after a restart.
 
 Once a day, a console with Wi-Fi configured downloads one small file listing the
 current firmware version of every supported board, compares it with its own
-version, and — if there is something newer — says so in the header and on
+version, and — if there is something newer — says so in a notice and on
 *About -> Updates*. **Braino never updates itself.** Nothing is downloaded,
 nothing is installed, and no firmware image is fetched; a person decides, and
 does it from the web installer.
@@ -1283,7 +1427,7 @@ number; it cannot point you somewhere else.
 
 ### The BLE beacon
 
-The beacon is **off by default** and opt-in from *Settings -> Beacon*. When it is
+The beacon is **off by default** and opt-in from *Settings -> Device -> Beacon*. When it is
 on, the launcher header shows a Bluetooth badge -- drawn **only** while the radio
 is genuinely advertising, so it is never a question of whether an icon looks
 greyed out. It is placed per layout: landscape puts it on the clock's line,
@@ -1305,7 +1449,7 @@ is not derived from anything a player entered. Advertising is **non-connectable*
 there is no GATT server, so there is nothing to connect to.
 
 **Consoles can play each other over it.** When players start a game from the
-Chess, Sea Battle, Ludo or Backgammon lobby, each console advertises its latest turn: a
+Chess, Go, Sea Battle, Ludo or Backgammon lobby, each console advertises its latest turn: a
 session number, a move number, two small numbers saying what was played, and
 how far it has caught up with everyone else. In Chess the two numbers are
 squares; in Ludo they are a seat and a token, in Backgammon the point a checker
@@ -1318,14 +1462,24 @@ score normally uses, because the advertisement is already full at 31 bytes.
 Ludo seats up to four consoles; that uses the same turn, read by more consoles,
 and adds nothing to what any one of them transmits.
 
+**Each lobby shows the room.** Every console nearby is a row saying what it is
+doing -- inviting you, asking somebody else, playing whom, or free -- all read
+from what consoles already advertise. An invitation stays on the air until it
+is answered or taken back, so the other player can take their time; Go's says
+which rules and board it offers, inside the session number it already carries.
+A game across consoles is saved as the console's, not the player's, so it is
+still there after a change of player or a power cut, for Guest too.
+
 **If the other console goes quiet, the game pauses and says so.** A battery
 going flat or a young player walking into the next room cannot send anything, so the
-only sign is that the beacon stopped. After about six seconds without hearing
+only sign is that the beacon stopped. After about fifteen seconds without hearing
 the other console every nearby game pauses, names who it is waiting for and
 for how long, and offers Keep waiting or End game; after 45 seconds it says out
 of range. Waiting has no limit -- the game is saved after every move -- and a
 console that comes back into range picks the game up where it stopped, because
-each console's latest move is still on the air. Ending from that card tells the
+each console's latest move is still on the air. Going Home does not end a
+game either: it is saved, the last move stays on the air, and opening the game
+again carries on. Only End game ends it. Ending from that card tells the
 other console, if it returns, that the game is over. At a Ludo table the whole
 table pauses for one quiet console, and once it has been out of range for 45
 seconds the host is offered *Play without* it: that seat becomes a computer
@@ -1447,6 +1601,15 @@ attached to releases: they are bench tools, built from source by whoever is
 holding the board, and a copy frozen into a release would only ever be older
 than the one in the tree.
 
+Every platform carries one version, and every image says which device it was
+built for after a `+`: `5.14.0+e32r28t1` on the E32R28T-1, `5.14.0+h700` on the
+handheld card image, `5.14.0+host` on a PC. That is what the `[boot]` line,
+`identify`, About and System Info show. The part after the `+` names the
+device and nothing else: releases, tags and the update check use the plain
+version. A board that is still experimental is built by CI, with its image
+attached to the run for testers, and is not in a release or on the web
+installer until it is published.
+
 To check the page itself before pushing:
 
 ```bash
@@ -1487,8 +1650,8 @@ play works over Bluetooth wherever Linux has a Bluetooth controller; see
 
 The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
 it turns the console into a Braino appliance: it boots straight into Braino
-behind a Braino splash. The D-pad moves a selector from button to button, and
-the stick moves a crosshair for anything else, such as a chess board. A is the
+behind a Braino splash. The D-pad moves a selector from button to button and
+square to square, and the stick moves a crosshair anywhere on the screen. A is the
 tap, B goes Home, L1 and R1 turn pages, and a list scrolls when either the
 selector or the crosshair is pushed against its end.
 
@@ -1504,15 +1667,13 @@ stick. Nothing is lost with a job, because a button is only ever a shortcut:
 Home, the padlock, the speaker, the gear, the tabs and the page buttons are
 all on the screen, and the D-pad's selector reaches every one.
 
-**What a console without a stick cannot do.** Tic-Tac-Toe, Whack A Mole,
-Piano, Maze, the Elements table, Microku, both tracing games, and the boards
-of Chess, Go, Sea Battle and Backgammon are each drawn as one picture and
-work out the square from where the finger lands. No button is drawn on them
-for the selector to stop at, so the crosshair is the only way onto them, and
-the crosshair needs a stick. On a console that has none, those games open
-and their boards cannot be played; every other game, and every button around
-those boards, works as it does anywhere. That is a property of how those
-games are drawn, and it is left as it is.
+**Every game plays from the D-pad, with or without a stick.** The squares of
+every board -- Chess, Go, Sea Battle, Backgammon, Ludo, Tic-Tac-Toe, Whack A
+Mole, Maze, Microku, the Elements table and Piano's keys -- are each a stop
+for the selector, and A presses the one it is on. In Maze, A steps the dot
+towards the square selected. In the two tracing games the selector waits on
+the next dot of the letter and A draws to it, so a letter is traced in the
+order it is written.
 
 When Braino sleeps it switches off the console's backlight, its Wi-Fi
 and three of its four cores, and any button wakes it; Wi-Fi
@@ -1539,6 +1700,7 @@ with `custom_env_kind`, and `tools/envs.py` is what every workflow asks:
 
 ```bash
 python tools/envs.py --product        # the five that are Braino!
+python tools/envs.py --experimental   # Braino! for a board not offered yet
 python tools/envs.py --diagnostic     # the fourteen bench probes
 ```
 
@@ -1580,14 +1742,20 @@ PIN: after `unlock <PIN>`,
 | Settings | `set <key> <value>` for every setting the Settings and Wi-Fi screens offer: theme, brightness, layout, flip, sound, volume, saver, sleep, idle, wakelock, deep_sleep (only where the device can suspend), light, beacon, nearby, ntp, ntp_hours, timezone |
 | Wi-Fi | `wifi "<network>" "<password>"`, `wifi clear` |
 | Players | `profiles` (list), `profile-add "<name>"`, `profile-rename <slot> "<name>"`, `profile-remove <slot>` |
-| Games per player | `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+| Games per player | `games` (every game id), `games <slot>` (which are switched off), `game <slot|all> <game-id> on|off` |
+| A notice | `notice "<words>"` shows the words as a [notice](#notices) for six seconds, to look at the strip on a panel; `notice ""` takes it down |
+| Levels | `level <game-id>` (the level the player in use has reached in that game; 0 if never set), `level <game-id> <1-63>` (put them on that level), `level <game-id>:<track> [<level>]` for a game that keeps more than one, tracks 0-3 |
+| Lights | `lights` blinks every light the firmware drives, one at a time and each for four seconds: the status LED's red, green and blue, then the lights of any module clipped on, and last of all every light at rest. The serial log names each step as it starts. `lights <step>` holds one step for twelve seconds, `lights off` stops |
 
 then `lock`. Every change goes through the same code the screens use, with the
 same refusals: the admin profile and the player currently in use cannot be
 removed, and Nearby needs the beacon. The password is never echoed, and three
 wrong PINs lock the console for 30 seconds. `game all <id> off` switches one
-game off for every player at once. Chess, Sea Battle, Cursive, Ludo and
-Backgammon cannot be hidden yet (a known limit of per-player visibility).
+game off for every player at once. A level set while that game is open, or
+kept to carry on, is where the next game of it starts (the reply says
+`applies="next visit"`); the one in progress keeps its own. Every game can be
+switched off, and the setting follows the game rather than its place in the
+launcher.
 
 `python tools/ESP32_boardUtil.py` uses `identify` to say which board is on
 which port. To set up several boards at once, copy
@@ -1628,11 +1796,17 @@ src/
     AppCapabilities.h   system-app capability flags
     AppRegistry.cpp     authoritative app registry + instance bindings
     AppRuntime.cpp      runtime loop, transitions, view state
-    AppRuntimeLauncher.cpp  LauncherApp paging, tiles, header UI
+    AppRuntimeContext.cpp  what screens call: storage, sound, capabilities
+    AppRuntimeLauncher.cpp  LauncherApp paging, grid, header UI
+    AppRuntimeLauncherTiles.cpp  one tile's icon and labels
+    AppRuntimeSelector.cpp  the d-pad's selector, on a board with keys
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
-    AppRuntimeNotify.cpp  the header banner: battery, update, nearby
+    AppRuntimeKeep.cpp  the game a player left, kept until switch-off
+    CarryOnScreen.cpp  the Carry on? / New game question on the way back in
+    AppRuntimeNotify.cpp  the notice strip: battery, update, nearby
     AppRuntimeIdentity.cpp  boot banner: which board, which build
+    AppRuntimeLights.cpp  the console's light test: each light, by name
     AppRuntimeNearby.cpp  the nearby-play calls an app is given, forwarded
     AppRuntimeConsole.cpp  serial console: one command table, PIN-gated writes
     AppRuntimeConsoleSettings.cpp  console: get/set over one settings table
@@ -1645,6 +1819,8 @@ src/
     NearbyPlay.cpp      anonymous peer scores, notifications, sharing switch
     NearbySession.cpp   games on nearby consoles: seats, invites, turns
     Progress.cpp        per-item mastery, spaced repetition
+    Course.h            a quiz as a course: the kept level, and a deck that
+                        deals all of a level before anything repeats
     ContentLoader.cpp   optional SD-card config (everything has defaults)
   games/                one .cpp/.h pair per game and per system app
     SettingsApp.cpp    Settings: lifecycle, the four tabs, touch routing
@@ -1660,21 +1836,41 @@ src/
     LetterTracer.cpp    finger-tracing engine shared by Trace and Cursive
     LetterTracerArrows.cpp  where the numbered direction arrows go
     LetterTracerWords.cpp   printed words spelled out of the alphabet
+    MathCourse.h, MultiplicationCourse.h, CountingCourse.h
+                        each course's levels, questions and wrong answers;
+                        no Arduino, tested on a PC in test/host/
   hal/
     Board.cpp           board bring-up, profiles, layout/idle settings
     BoardAccess.h       narrow display/touch/storage/power/network/feedback facades
     BoardDisplay.cpp    TFT access, rotation, BMP blitting
     BoardTouch.cpp      touch ADC, calibration, coordinate mapping
     BoardButton.cpp     the BOOT key, debounced by the frame rate
+    BoardExpander.cpp   AW9523 I2C expanders: the Attaky Core's touch reset, LED, parked ports
+    BoardKeys.cpp       navigation keys (D-pad, Enter, Back): the board's and a gamepad's
+    BoardModules.cpp    Board's side of the module table: battery, typed keys
+    modules/            what is clipped on, found at boot -- one file a module
+      Modules.cpp         the module table: probes, slots, what each provides
+      KeyboardModule.cpp  a clip-on typing keyboard, scanned as two matrices
+      GamepadModule.cpp   a clip-on gamepad: every key, held, as controls
+      FuelGaugeModule.cpp the power module's gauge: MAX17048, INA226 or INA219
+      ExpandFmAm.cpp      Expand: FM/AM, found by its tuner on its own bus
+      ExpandLoraGps.cpp   Expand: LoRa/GPS, found by its GPS's sentences
+      ExpandMediaIo.cpp   Expand: Media I/O (SD, sound), found by elimination
+    HeldControls.h      the keys held this frame, directions in screen terms
+    ControlJobs.h       which button does which job (shared with host/)
     BoardPower.cpp      battery telemetry, backlight, panel sleep/wake
     BoardNetwork.cpp    Wi-Fi credentials, timezone, NTP sync
     BoardUpdate.cpp     is a newer firmware available (a notice, not an OTA)
     PowerMonitor.cpp    where the battery went: the recorder
     PowerLedger.cpp     where the battery went: the analysis
     PowerProbeEsp32.cpp what an ESP32 board can measure of it
+    PanelSize.h         how big the panel is: every platform's own answer
+    PanelSizeEsp32.cpp  a board's: the profile's panel
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
+    SleepPowerEsp32.cpp what sleep switches off: a slower clock, the station
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
-    BoardAudio.cpp      the synthesiser: script, oscillator, resonators, task
+    AudioSynth.cpp      the synthesiser: script, oscillator, resonators (pure)
+    BoardAudio.cpp      arming the synthesiser, and the task that runs it
     BoardAudioBackend.cpp  the hardware under it: codec, I2S, amp, DAC idle
     BoardAudioCues.cpp  the vocabulary: every cue, and the spoken phrase
     Sound.h             the console's sound vocabulary, as an enum
@@ -1690,12 +1886,19 @@ src/
   ui/
     Renderer.h          app-facing drawing interface, no TFT driver include
     TftRenderer.h       TFT_eSPI adapter used by firmware runtime
+    PaintClip.h         the arithmetic of that adapter's paint clip
     LauncherIcons.cpp   launcher tile icon drawing
     LogoMask.cpp        the product mark, generated -- see tools/gen_logo_mask.py
+    PanelArt.h          the mark drawn by a platform that can do better than the mask
+    PanelArtEsp32.cpp   a board's: it cannot, the mask is the art
     LauncherLayout.cpp  launcher header, profile and tile geometry
+    FocusRecorder.cpp   the controls on the panel, as drawn, for the selector
+    FocusMath.h         where the selector goes next (shared with host/)
     Ui.cpp              theme, widgets, badges, map-n-flag blitting
     Keypad.cpp          the one on-screen QWERTY keyboard, bottom-anchored
+    TypingPanel.cpp     a text field with a clip-on keyboard typing: no keypad
     RowList.cpp         scrolling label/value list; fixed buffers, no heap
+    Stops.cpp           whether a board takes a press now, for the d-pad
 host/
   CMakeLists.txt        builds src/ unchanged as a desktop program (SDL2)
   boards/host.h         the virtual board: every pin answered by host/src

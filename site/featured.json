@@ -229,6 +229,20 @@
       "sha256": "3e1e322ccde77f8cf384c6d5e7c5b1da06676b0a6946d0e4284a6f95d554e2fe",
       "width": 1024,
       "height": 880
+    },
+    {
+      "id": "hacktuber3",
+      "outlet": "Hacktuber (YouTube)",
+      "title": "7 NEW Aliexpress Finds",
+      "byline": "Hacktuber, 1.49M subscribers; Braino is item 6, from 04:16",
+      "url": "https://www.youtube.com/watch?v=TGgH-MnPvXg&t=256",
+      "published": "2026-11-13",
+      "archive": "https://web.archive.org/web/20261118034037/https://www.youtube.com/watch?v=TGgH-MnPvXg",
+      "screenshot": "hacktuber3.jpg",
+      "captured": "2026-11-18T03:42:11Z",
+      "sha256": "d406f2d1870d7bc4f5a46f0e5059f07b081bfc08089c78f8ed6a8d78be0ea94a",
+      "width": 1024,
+      "height": 1120
     }
   ]
 }

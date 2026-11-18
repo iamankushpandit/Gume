@@ -262,6 +262,7 @@ uint8_t BrainoApp::lockProgressPercent(uint32_t nowMs) const {
 }
 
 void BrainoApp::enterLock() {
+    noticeOffPanel();
     board_.setRgbColor(0, 0, 0);
     Watchdog::setContext("Locked");
     view_ = View::Locked;

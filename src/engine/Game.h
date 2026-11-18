@@ -10,6 +10,12 @@
 #pragma once
 
 #include <Arduino.h>
+/* For the GUME_HAS_* macros that decide which of GameHost's virtuals exist.
+ * Every file that sees GameHost has to see the same answer, or two
+ * translation units disagree about its vtable -- so the macros come from the
+ * one header that defines them, never from whatever happened to be included
+ * first. BoardConfig.h is the board profile and its checks; no driver. */
+#include "BoardConfig.h"
 #include "engine/AppCapabilities.h"
 #include "hal/Sound.h"
 #include "hal/TouchTypes.h"
@@ -52,6 +58,23 @@ struct NearbySeat {
     /* Milliseconds since this console was last heard. A lobby can grey a row
      * that is on its way out of range; mid-game, use nearbyPeerSilentMs(). */
     uint32_t silentMs = 0;
+    /* That console has a move on the air: it is in a game with somebody, of
+     * some kind -- a move does not say which game it belongs to. A lobby
+     * shows it, so a player can see why that console is not answering. */
+    bool inGame = false;
+    /* Who with, when the other console of that game is in the room as well
+     * (the one saying moves in the same session). Empty when it is not, and
+     * `partnerName` is the owner's label for it, like `name`. */
+    char partner[5] = {0};
+    char partnerName[11] = {0};
+    /* The game it is in is one THIS console has a move on the air for: a
+     * game of ours, in this app or another, left in the middle. */
+    bool withUs = false;
+    /* That console is asking SOMEBODY ELSE to play the app open here: it is
+     * in its lobby, waiting on an answer. `partner` is who it asked and
+     * `session` the number it offered. A two-player lobby shows it as busy; a
+     * game with a table to sit at can let this console ask for a seat. */
+    bool asking = false;
 };
 
 /* The opponent's latest move, as heard on the air. `ack` is the highest ply of
@@ -97,8 +120,26 @@ public:
     virtual bool batteryLow() = 0;
     virtual void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) = 0;
     virtual void drawTopBar(const char* title) = 0;
+    /* The top bar's clock alone, over the old time; false when only the
+     * whole bar will do (Ui::drawTopBarClock()). */
+    virtual bool drawTopBarClock() = 0;
     virtual void goHome() = 0;
     virtual void relaunchActiveGame() = 0;
+
+    /* THE PLAYER'S PLACE IN THIS GAME'S COURSE.
+     *
+     * A level, 1 and up, kept for each player and each game. It is all a
+     * game needs kept to start a player where they left off rather than at
+     * 3 + 4 every visit; engine/Course.h has the ladder that moves it and
+     * the deck that deals a level's questions. 0 means never set.
+     *
+     * `track`, 0..3, is for a game that teaches more than one thing and
+     * keeps a level for each. Cheap to read: the runtime holds the active
+     * player's levels in memory. Written to storage only when the level
+     * changes. For Guest nothing is stored, as with everything of Guest's,
+     * and the level lasts until another player takes the console. */
+    virtual uint8_t courseLevel(uint8_t track = 0) = 0;
+    virtual void setCourseLevel(uint8_t level, uint8_t track = 0) = 0;
 
     /* ---- two-player games on nearby consoles ---------------------------
      *
@@ -141,6 +182,22 @@ public:
     virtual void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) = 0;
     /** Stop advertising a game. */
     virtual void nearbyStop() = 0;
+    /* For a game that is OVER and is being left: its last move or its ending
+     * stays on the air for a minute, so the other console can still hear it,
+     * and is then taken down. Until it is, this console looks busy and shares
+     * no score. A game still in play does not call this: its move stays. */
+    virtual void nearbyStopLater() = 0;
+    /* A game played across consoles belongs to the CONSOLE, not to the player
+     * who happened to be holding it: the other console is playing this one,
+     * whoever picks it up. So its state is kept here, apart from the players'
+     * own saves -- it survives a change of player, is kept for Guest, whose
+     * own saves are dropped, and never overwrites anybody's game against the
+     * computer. Same rules as loadBlob()/saveBlob(): a fixed-size blob, and a
+     * blob of another size is refused. Clear it when that game is finished
+     * with. Nothing here is transmitted. */
+    virtual void loadConsoleBlob(const char* key, void* dst, size_t len) = 0;
+    virtual void saveConsoleBlob(const char* key, const void* src, size_t len) = 0;
+    virtual void clearConsoleBlob(const char* key) = 0;
     /** The named peer's latest move in `session`, if it has one on the air. */
     virtual bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                                 NearbyTurn& out) = 0;
@@ -151,12 +208,25 @@ public:
      * anything, so this silence is the only notice anyone gets. Cheap enough
      * to ask every frame. */
     virtual uint32_t nearbyPeerSilentMs(const char* deviceId) = 0;
+    /* Milliseconds the named console, though still heard, has said no move in
+     * the game this console is in. Past NearbyPlay::PEER_AWAY_MS it has left
+     * the game -- lost it, or started another -- which a console that only
+     * left the screen has not. 0 when it cannot be judged. */
+    virtual uint32_t nearbyPeerAwayMs(const char* deviceId) = 0;
     /* This console's own tag, as its peers see it -- the four hex digits it
      * already advertises about itself -- or "" while sessions are not allowed.
      * A game with more than two seats needs it to put every console, itself
      * included, in the same order on every console. It is the same identifier
      * every peer already has, so handing it to an app reveals nothing new. */
     virtual const char* nearbySelfId() = 0;
+    /* The session number for a game about to be offered. Never one this
+     * console still holds a turn for, so an old game's last move or ending
+     * cannot be read as the new game's. */
+    /* `lowBits`, when `lowBitCount` is not 0, are fixed as the number's low
+     * bits: a game whose two consoles must agree a setting before the first
+     * move (Go's rules and board size) states it there, and the console that
+     * accepts reads it back out of NearbySeat::session. At most four. */
+    virtual uint8_t nearbyFreshSession(uint8_t lowBits = 0, uint8_t lowBitCount = 0) = 0;
 };
 
 class GameHost : public AppContext {
@@ -177,7 +247,31 @@ public:
      * that is up turns now. A screen never sets a rotation itself: which one
      * it gets is the runtime's decision, made in one place. */
     virtual void applyOrientation() = 0;
+#if GUME_HAS_KEYBOARD
+    /* This frame's character from an attached keyboard, or 0: printable
+     * ASCII, '\b' for Delete, '\n' for Enter (hal/modules/KeyboardModule.cpp).
+     * Valid only during update(), like the touch. A screen with a text field
+     * takes it as a second way to press the keys it already draws, and must
+     * handle it apart from the touch: on a frame with a typed character the
+     * touch's coordinates are the LAST touch's, and testing them would press
+     * again whatever was tapped last. Only on a board with GUME_HAS_KEYBOARD;
+     * screens read it through hostTypedChar() below, which is 0 elsewhere. */
+    virtual char typedChar() = 0;
+#endif
 };
+
+/* The two above, for a screen to call on every board. Where the board has no
+ * keys or no keyboard they are constants, so the screen's key path folds away
+ * at compile time and that image carries none of it -- the screen needs no
+ * #if of its own. */
+inline char hostTypedChar(GameHost& host) {
+#if GUME_HAS_KEYBOARD
+    return host.typedChar();
+#else
+    (void)host;
+    return 0;
+#endif
+}
 
 class Game {
 public:
@@ -239,6 +333,59 @@ public:
      * you leave it; this hook exists so that stays true as screens grow. */
     virtual void end(GameHost& host) { (void)host; }
 
+#if GUME_HAS_NAV_KEYS
+    /* The d-pad's selector is leaving `box`: put back what its ring covered.
+     * The default false leaves that to the selector, which paints the
+     * control's own fill and outline back -- right for every button. A screen
+     * whose stops are parts of a picture (a board's squares) answers here,
+     * because a picture's edge is not one colour. */
+    virtual bool repaintUnderRing(GameHost& host, const Rect& box) {
+        (void)host;
+        (void)box;
+        return false;
+    }
+#endif
+
+    /* LEAVING A GAME DOES NOT LOSE IT.
+     *
+     * Home is one press, on a key that sits beside the one that answers, and
+     * players press it by mistake. Every screen is a static instance, so the
+     * game they left is still in memory -- it was begin(), run again on the
+     * way back in, that threw it away. So the runtime remembers that a game
+     * was left with something in it, and the next time the same player opens
+     * it, the game comes back: resume() is called INSTEAD of begin(). Kept
+     * until the console is switched off, and never across a change of player.
+     *
+     * keepsGame() is asked as the screen is left, before end(): does this
+     * game, as it stands, hold something a player would want back, and how
+     * should it come back? The runtime already requires a press since
+     * begin(), so a game opened and left untouched is never kept.
+     *
+     *   Ask      the default. A game with a round, a score or a puzzle in
+     *            it: the runtime asks "Carry on? / New game" first, because
+     *            leaving and coming back used to be how a player started
+     *            again, and for most games it is the only way there is.
+     *   Quietly  straight back to where it was, no question. For a screen
+     *            with a place rather than a game -- which letter is being
+     *            traced, where a table was scrolled to -- and for a game
+     *            that has its own way of ending one (End game, Reset).
+     *   No       coming back would be coming back to nothing: a result
+     *            screen, a menu, a tool with no game in it. begin() as ever.
+     *
+     * resume() is called when the game comes back without begin(): from the
+     * card or quietly, and also after the screen saver, sleep and the lock
+     * screen, where the game stayed up but was not being updated. `awayMs`
+     * is how long. A game with a deadline or a stopwatch moves it on by that
+     * much (movedOn() below), so the time away does not count against the
+     * player; anything end() gave back is taken again here. The runtime asks
+     * for a full repaint afterwards, so nothing needs drawing. */
+    enum class Keep : uint8_t { No, Ask, Quietly };
+    virtual Keep keepsGame() const { return Keep::Ask; }
+    virtual void resume(GameHost& host, uint32_t awayMs) {
+        (void)host;
+        (void)awayMs;
+    }
+
     bool needsRender() const {
         return dirty_;
     }
@@ -255,8 +402,9 @@ public:
 
     /* Repaint the header strip alone, leaving the screen under it untouched.
      *
-     * The battery badge, the clock and the notification banner all change on
-     * their own schedule rather than the screen's, and the runtime used to
+     * The battery badge and the clock change on their own schedule rather
+     * than the screen's (a notice did too, until it moved to a strip of its
+     * own along the bottom of the panel), and the runtime used to
      * answer that with requestRender() -- a full 320x240 wipe, ~150KB over SPI
      * and roughly 30ms of visible blanking, for a change confined to the top
      * 30 pixels. The strip is an eighth of the panel, so this costs about 4ms
@@ -275,6 +423,18 @@ public:
     virtual bool renderChrome(GameHost& host) {
         host.drawTopBar(title());
         return true;
+    }
+
+    /* The minute changed: the clock alone, if this screen can. The time is
+     * drawn over the old one with its background filled, so nothing is
+     * cleared and nothing else on the header is touched -- the rule is to
+     * repaint only what changed, and once a minute that is a few digits.
+     * False means "only my chrome will do" (the time changed width, which
+     * moves what sits beside it) and the runtime falls back to
+     * renderChrome(). The default is the top bar's clock; a screen with its
+     * own header overrides it, and one with no clock returns true. */
+    virtual bool renderClock(GameHost& host) {
+        return host.drawTopBarClock();
     }
 
     /* Where this screen's padlock and speaker are, if it draws its own header
@@ -322,6 +482,14 @@ protected:
         return fullRedraw_;
     }
 
+    /* A millis() stamp, moved on by time the game was not running. 0 is left
+     * alone: it is what a stamp that was never set holds. */
+    static void movedOn(uint32_t& stampMs, uint32_t awayMs) {
+        if (stampMs != 0) {
+            stampMs += awayMs;
+        }
+    }
+
 private:
     bool dirty_ = true;
     bool fullRedraw_ = true;   // first paint is always a full one
@@ -343,6 +511,22 @@ public:
         renderDynamic(host);
     }
     virtual void end(AppContext& host) { (void)host; }
+#if GUME_HAS_NAV_KEYS
+    virtual bool repaintUnderRing(AppContext& host, const Rect& box) {
+        (void)host;
+        (void)box;
+        return false;
+    }
+    bool repaintUnderRing(GameHost& host, const Rect& box) final {
+        return repaintUnderRing(static_cast<AppContext&>(host), box);
+    }
+#endif
+
+    /* The AppContext half of Game::resume() -- see there. */
+    virtual void resume(AppContext& host, uint32_t awayMs) {
+        (void)host;
+        (void)awayMs;
+    }
 
     void begin(GameHost& host) final {
         begin(static_cast<AppContext&>(host));
@@ -358,5 +542,9 @@ public:
 
     void end(GameHost& host) final {
         end(static_cast<AppContext&>(host));
+    }
+
+    void resume(GameHost& host, uint32_t awayMs) final {
+        resume(static_cast<AppContext&>(host), awayMs);
     }
 };

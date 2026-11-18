@@ -109,6 +109,30 @@ public:
     virtual float imageScaleX() const { return 1.0f; }
     virtual float imageScaleY() const { return 1.0f; }
 
+    /* Draw the product mark itself, if this renderer's platform can do better
+     * than the one-bit mask Ui::drawLogo() would paint (ui/PanelArt.h). False
+     * means "paint the mask": every renderer but the panel's own says so. */
+    /* Draw an arc itself, if this renderer's platform can do better than the
+     * pixels its caller plots (ui/PanelArt.h). False means "plot them". */
+    virtual bool drawArcArt(int16_t cx, int16_t cy, int16_t radius, int16_t fromDeg,
+                            int16_t toDeg, uint16_t colour) {
+        (void)cx; (void)cy; (void)radius; (void)fromDeg; (void)toDeg; (void)colour;
+        return false;
+    }
+
+    virtual bool drawLogoArt(uint8_t which, int16_t x0, int16_t y0, const uint8_t* bits,
+                             int16_t width, int16_t height, int16_t stride, uint16_t colour) {
+        (void)which; (void)x0; (void)y0; (void)bits; (void)width; (void)height;
+        (void)stride; (void)colour;
+        return false;
+    }
+
+    /* Where the canvas's origin sits on the physical panel: non-zero only
+     * when ScaledRenderer has centred the canvas on a panel bigger than a
+     * whole multiple of it. Image helpers add it to the origin they compute. */
+    virtual float imageOriginX() const { return 0.0f; }
+    virtual float imageOriginY() const { return 0.0f; }
+
     /* The underlying physical renderer, bypassing any coordinate transform.
      * Image-blitting code that computes its own scaled origin and pushes raw
      * pixel data needs this -- ScaledRenderer's setAddrWindow would otherwise

@@ -10,6 +10,8 @@
 #include "MathGame.h"
 #include "engine/AppRegistry.h"
 
+#include <esp_system.h>   // esp_random(), for dealing the questions
+
 namespace {
 constexpr uint16_t BLUE = 0x24BD;
 constexpr uint16_t GREEN = 0x05D1;
@@ -37,6 +39,18 @@ static_assert(PROMPT_Y > PANEL_Y + PANEL_H - 1,
               "the prompt strip would erase the question panel's bottom border");
 static_assert(PROMPT_H >= 16, "the prompt strip is too short for a font 2 line");
 
+/* The text the course writes, against the room this screen gives it.
+ * MathCourse.h measures its widest equation, option and level name against
+ * these widths; here they are held to the layout that actually draws them,
+ * so neither side can move without the other noticing. */
+constexpr int16_t BUTTON_W = 132;
+constexpr int16_t PROMPT_X = 20;
+constexpr int16_t PROMPT_W = GAME_CANVAS_WIDTH - 2 * PROMPT_X;
+static_assert(PANEL_W - 16 >= MathCourse::QUESTION_TEXT_W, "the question panel is narrower than the course allows for");
+static_assert(PROMPT_W >= MathCourse::PROMPT_W, "the prompt strip is narrower than the longest level name");
+static_assert(BUTTON_W - 12 >= MathCourse::LABEL_W, "an answer button is narrower than the largest option");
+static_assert(MathCourse::EQUATION_CHARS < 24, "the equation buffer in drawQuestion() is too small");
+
 constexpr AppScoreInfo MATH_SCORE = {
     "math", "Math", "mathBest", "pts", false
 };
@@ -53,27 +67,6 @@ constexpr AppMetadata MATH_METADATA = {
     9,
     true,
 };
-
-/* Names and things to count.
- *
- * Short, because the whole problem has to wrap into three lines of font 2, and
- * from as many places as a classroom has young players in it. No pronouns anywhere
- * in the templates: "Ava has 7 shells and finds 5 more" needs none, and a
- * pronoun would be a guess about a made-up young player that the sentence does not
- * need to make. */
-const char* const NAMES[] = {
-    "Ava", "Ben", "Chen", "Dara", "Eli", "Farah", "Gus", "Hana",
-    "Ines", "Jai", "Kofi", "Lena", "Mo", "Nia", "Omar", "Priya",
-    "Rosa", "Sam", "Tess", "Uma", "Wren", "Yusuf", "Zara", "Iris",
-};
-constexpr uint8_t NAME_COUNT = sizeof(NAMES) / sizeof(NAMES[0]);
-
-const char* const THINGS[] = {
-    "apples", "marbles", "stickers", "pencils", "shells", "buttons",
-    "grapes", "blocks", "coins", "leaves", "beads", "crayons",
-    "acorns", "stamps", "cherries", "pebbles",
-};
-constexpr uint8_t THING_COUNT = sizeof(THINGS) / sizeof(THINGS[0]);
 }
 
 const AppMetadata& mathAppMetadata() {
@@ -90,32 +83,51 @@ void MathGame::begin(AppContext& host) {
     bestCorrect_ = static_cast<uint16_t>(host.getScore(mathAppMetadata().score->bestKey, 0));
     bestSeconds_ = static_cast<uint16_t>(host.getScore("mathTime", 0));
     startedAt_ = millis();
+    /* The level is the player's, not the visit's: it comes back from the
+     * runtime, and New game on the Carry on card starts the score again here
+     * without moving it. The meter under it starts over every visit, which
+     * is Course::Ladder's own rule. */
+    ladder_.start(MathCourse::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announceNext_ = 0;
     newQuestion();
     markDirty();
 }
 
-uint8_t MathGame::level() const {
-    return min<uint8_t>(5, 1 + score_ / 5);
+/* Unchanged by the level being kept: with no correct answer yet there is
+ * still nothing here a player would want back -- the question on screen is
+ * one of many, and the level is waiting for them on the way in either way. */
+Game::Keep MathGame::keepsGame() const {
+    return score_ > 0 ? Keep::Ask : Keep::No;
+}
+
+/* The clock is the visit's, and it is also half of the best record: time spent
+ * away -- on the card, in another game, asleep -- must not be counted, or the
+ * next correct answer writes a slower time than the player took. */
+void MathGame::resume(AppContext&, uint32_t awayMs) {
+    movedOn(startedAt_, awayMs);
+}
+
+/* A new level, or a new visit to one: the deck starts a fresh pass, and the
+ * recent list forgets the questions of the level that was left. */
+void MathGame::startLevel() {
+    deck_.reset(MathCourse::poolSize(ladder_.level()));
+    recent_.reset();
 }
 
 Rect MathGame::answerRect(uint8_t index) const {
     const int16_t col = index % 2;
     const int16_t row = index / 2;
     return Rect{static_cast<int16_t>(18 + col * 152),
-                static_cast<int16_t>(BUTTON_TOP + row * 46), 132, 38};
+                static_cast<int16_t>(BUTTON_TOP + row * 46), BUTTON_W, 38};
 }
 
-bool MathGame::optionExists(int16_t value, uint8_t upTo) const {
-    for (uint8_t i = 0; i < upTo; ++i) {
-        if (options_[i] == value) {
-            return true;
-        }
-    }
-    return false;
-}
-
+/* Held at its largest rather than wrapped. A game kept to carry on can be
+ * open for a day, and eighteen hours wrapping to 0:00 would read as the
+ * fastest time ever and write it into the record. */
 uint16_t MathGame::elapsedSeconds() const {
-    return static_cast<uint16_t>((millis() - startedAt_) / 1000UL);
+    const uint32_t seconds = (millis() - startedAt_) / 1000UL;
+    return seconds > 0xFFFFUL ? static_cast<uint16_t>(0xFFFF) : static_cast<uint16_t>(seconds);
 }
 
 /* Into the caller's buffer rather than out of a String. It is called twice per
@@ -135,113 +147,42 @@ void MathGame::updateBest(AppContext& host) {
     }
 }
 
-/* The sum already exists by the time this runs -- left_, right_, operation_
- * and answer_ are decided first and are not touched here. A word problem is a
- * way of ASKING the question, not a different question, which is what keeps
- * the four answer buttons and the whole scoring path identical. */
-void MathGame::makeWordProblem() {
-    const char* who = NAMES[random(NAME_COUNT)];
-    const char* thing = THINGS[random(THING_COUNT)];
-    const unsigned a = static_cast<unsigned>(left_);
-    const unsigned b = static_cast<unsigned>(right_);
-
-    if (operation_ == Operation::Add) {
-        switch (random(3)) {
-            case 0:
-                snprintf(problem_, sizeof(problem_),
-                         "%s has %u %s and finds %u more. How many now?",
-                         who, a, thing, b);
-                break;
-            case 1:
-                snprintf(problem_, sizeof(problem_),
-                         "There are %u %s in a box. %u more go in. How many in all?",
-                         a, thing, b);
-                break;
-            default:
-                snprintf(problem_, sizeof(problem_),
-                         "%s picks %u %s on Monday and %u on Tuesday. How many?",
-                         who, a, thing, b);
-                break;
-        }
-        return;
-    }
-
-    switch (random(3)) {
-        case 0:
-            snprintf(problem_, sizeof(problem_),
-                     "%s has %u %s and gives %u away. How many are left?",
-                     who, a, thing, b);
-            break;
-        case 1:
-            snprintf(problem_, sizeof(problem_),
-                     "%u %s are on the table. %u are taken away. How many stay?",
-                     a, thing, b);
-            break;
-        default: {
-            /* Two names, and they must differ or the question reads as
-             * nonsense. Walking forward one slot is cheaper than a retry loop
-             * and cannot spin. */
-            uint8_t first = static_cast<uint8_t>(random(NAME_COUNT));
-            uint8_t second = static_cast<uint8_t>((first + 1 + random(NAME_COUNT - 1)) % NAME_COUNT);
-            snprintf(problem_, sizeof(problem_),
-                     "%s has %u %s. %s has %u. How many more has %s?",
-                     NAMES[first], a, thing, NAMES[second], b, NAMES[first]);
-            break;
-        }
-    }
-}
-
+/* Deals the next question from the player's level, and everything that goes
+ * with it, once: the options, the story if it is one, and the invalidation.
+ * Nothing about the question is worked out again per frame. */
 void MathGame::newQuestion() {
-    const uint8_t currentLevel = level();
+    const uint8_t level = ladder_.level();
     selected_ = -1;
     answered_ = false;
+    announce_ = announceNext_;
+    announceNext_ = 0;
 
-    switch (currentLevel) {
-        case 1:
-            operation_ = Operation::Add;
-            left_ = random(1, 10);
-            right_ = random(1, 10);
-            break;
-        case 2:
-            operation_ = random(2) == 0 ? Operation::Add : Operation::Subtract;
-            left_ = random(2, 13);
-            right_ = random(1, 10);
-            break;
-        case 3:
-            operation_ = random(2) == 0 ? Operation::Add : Operation::Subtract;
-            left_ = random(10, 30);
-            right_ = random(1, 10);
-            break;
-        case 4:
-            operation_ = random(2) == 0 ? Operation::Add : Operation::Subtract;
-            left_ = random(10, 50);
-            right_ = random(10, 50);
-            break;
-        default:
-            operation_ = random(2) == 0 ? Operation::Add : Operation::Subtract;
-            left_ = random(10, 100);
-            right_ = random(10, 100);
-            break;
+    if (MathCourse::numbered(level)) {
+        item_ = deck_.next(esp_random());
+        MathCourse::makeNumbered(level, item_, question_);
+    } else {
+        /* Hundreds of questions or more, so a repeat is unlikely rather than
+         * impossible; drawing again while the question is one of the last
+         * ten makes it vanishingly rare, and twenty tries cannot spin. */
+        uint32_t token = 0;
+        for (uint8_t tries = 0; tries < 20; ++tries) {
+            MathCourse::makeDrawn(level, esp_random(), question_);
+            token = MathCourse::token(level, question_);
+            if (!recent_.recentlyUsed(token)) break;
+        }
+        recent_.remember(token);
     }
+    MathCourse::makeOptions(level, question_, esp_random());
 
-    if (operation_ == Operation::Subtract && right_ > left_) {
-        const int16_t tmp = left_;
-        left_ = right_;
-        right_ = tmp;
-    }
-    answer_ = operation_ == Operation::Add ? left_ + right_ : left_ - right_;
-
-    /* Level 1 is never a story. A player still learning that 3 + 4 is 7 is
-     * being asked to read a sentence as well, and the reading is the harder
-     * half at that stage -- so the words arrive once the arithmetic is steady,
-     * and then about a third of the time, so a run of them never becomes a
-     * reading test. */
-    wordProblem_ = currentLevel >= 2 && random(3) == 0;
+    /* About a third of the questions a story can tell, so a run of them
+     * never becomes a reading test. Which questions those are is the
+     * course's to say: never before level 4, never a missing number, and
+     * never with one of anything, which is where the grammar went wrong. */
+    wordProblem_ = MathCourse::storyFits(level, question_) && esp_random() % 3 == 0;
     if (wordProblem_) {
-        makeWordProblem();
+        MathCourse::tellStory(question_, esp_random(), problem_, sizeof(problem_));
     }
 
-    makeOptions();
     /* Everything a new question changes, invalidated together.
      *
      * The buttons matter more than they look. The loop below repaints a button
@@ -253,8 +194,9 @@ void MathGame::newQuestion() {
      * The header is invalidated because it carries the elapsed clock and the
      * level. Its own condition only fires when the score or streak moves, and
      * a wrong answer with the streak already at 0 moves neither -- so the
-     * clock would sit still for longer than it used to. Repainting two small
-     * rects per question keeps that behaviour as it was. */
+     * clock would sit still for longer than it used to, and a step down
+     * would not show until the next answer. Repainting two small rects per
+     * question keeps that behaviour as it was. */
     drawnQuestion_ = false;
     drawnHeader_ = false;
     for (uint8_t i = 0; i < 4; ++i) {
@@ -262,31 +204,20 @@ void MathGame::newQuestion() {
     }
 }
 
-void MathGame::makeOptions() {
-    correctButton_ = random(4);
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i] = 0;
-    }
-    options_[correctButton_] = answer_;
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) {
-            continue;
-        }
-        int16_t candidate = answer_;
-        uint8_t attempts = 0;
-        while ((candidate == answer_ || optionExists(candidate, i)) && attempts < 40) {
-            const int16_t spread = level() <= 2 ? 5 : (level() <= 4 ? 12 : 20);
-            candidate = answer_ + random(-spread, spread + 1);
-            if (candidate < 0) {
-                candidate = abs(candidate);
-            }
-            ++attempts;
-        }
-        while (candidate == answer_ || optionExists(candidate, i)) {
-            ++candidate;
-        }
-        options_[i] = candidate;
+/* One answer has moved the ladder. Up is said out loud -- the flourish now,
+ * and the new level's name in the strip over its first question. Down says
+ * nothing at all: the questions get easier, and that is the whole of it. */
+void MathGame::climb(AppContext& host, Course::Ladder::Step step) {
+    if (step == Course::Ladder::Step::Stay) return;
+    host.setCourseLevel(ladder_.level());
+    startLevel();
+    if (step == Course::Ladder::Step::Up) {
+        announceNext_ = ladder_.level();
+        /* The colour by hand, since playSound() does not pulse the LED. */
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else {
+        announceNext_ = 0;
     }
 }
 
@@ -310,17 +241,30 @@ void MathGame::update(AppContext& host, const TouchPoint& touch) {
 
     for (uint8_t i = 0; i < 4; ++i) {
         if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            selected_ = i;
+            selected_ = static_cast<int8_t>(i);
             answered_ = true;
-            if (i == correctButton_) {
+            const bool right = i == question_.correct;
+            if (right) {
                 ++score_;
                 ++streak_;
                 updateBest(host);
-                host.beepOk();
             } else {
                 streak_ = 0;
-                host.beepError();
+                /* Before the ladder moves: a step down resets the deck, and
+                 * the item number belongs to the level it was dealt from.
+                 * A drawn level has no numbers to bring back. */
+                if (MathCourse::numbered(ladder_.level())) {
+                    deck_.missed(item_);
+                }
             }
+            /* One answer, one move: there is no second try on this screen,
+             * so the first press is the only one the ladder hears. */
+            const Course::Ladder::Step step = ladder_.answer(right);
+            if (step != Course::Ladder::Step::Up) {
+                if (right) host.beepOk();
+                else host.beepError();
+            }
+            climb(host, step);
             markDirty();
             return;
         }
@@ -357,9 +301,7 @@ void MathGame::drawQuestion(Ui::Renderer& tft) {
 
     if (!wordProblem_) {
         char equation[24];
-        const char symbol = operation_ == Operation::Add ? '+' : '-';
-        snprintf(equation, sizeof(equation), "%d %c %d = ?",
-                 static_cast<int>(left_), symbol, static_cast<int>(right_));
+        MathCourse::equation(question_, equation, sizeof(equation));
         tft.setTextDatum(MC_DATUM);
         tft.drawString(equation, GAME_CANVAS_WIDTH / 2,
                        static_cast<int16_t>(PANEL_Y + PANEL_H / 2), 4);
@@ -417,7 +359,7 @@ void MathGame::renderDynamic(AppContext& host) {
         char clock[8];
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(level()));
+        snprintf(buf, sizeof(buf), "Level %u", static_cast<unsigned>(ladder_.level()));
         tft.drawString(buf, 10, 35, 2);
         formatSeconds(elapsedSeconds(), clock, sizeof(clock));
         snprintf(buf, sizeof(buf), "Correct %u  %s", static_cast<unsigned>(score_), clock);
@@ -444,7 +386,7 @@ void MathGame::renderDynamic(AppContext& host) {
     for (uint8_t i = 0; i < 4; ++i) {
         uint8_t state = 0;
         if (answered_) {
-            if (i == correctButton_) state = 1;
+            if (i == question_.correct) state = 1;
             else if (i == selected_) state = 2;
         }
         if (state == drawnButton_[i]) {
@@ -453,7 +395,7 @@ void MathGame::renderDynamic(AppContext& host) {
         const uint16_t fill = state == 1 ? GREEN : (state == 2 ? RED : BLUE);
         const uint16_t text = state == 0 ? TFT_WHITE : TFT_BLACK;
         char label[12];
-        snprintf(label, sizeof(label), "%d", static_cast<int>(options_[i]));
+        snprintf(label, sizeof(label), "%d", static_cast<int>(question_.options[i]));
         Ui::drawButton(tft, answerRect(i), label, fill, TFT_DARKGREY, text, false, 4);
         drawnButton_[i] = state;
     }
@@ -461,16 +403,26 @@ void MathGame::renderDynamic(AppContext& host) {
     /* "Tap the answer" and "Green is correct - tap next" are different lengths,
      * so the line is cleared before either is written. The strip starts one row
      * below the panel and stops one row above the buttons -- both derived, so
-     * neither edge can eat into its neighbour the way this one used to. */
+     * neither edge can eat into its neighbour the way this one used to.
+     *
+     * The first question of a level just reached names the level here in
+     * place of "Tap the answer": the place a player is already looking, and
+     * gone with the next question. The longest name is measured against this
+     * strip by the course's own test. */
     if (answered_ != drawnAnswered_) {
-        tft.fillRect(20, PROMPT_Y, GAME_CANVAS_WIDTH - 40, PROMPT_H, Ui::bg());
+        tft.fillRect(PROMPT_X, PROMPT_Y, PROMPT_W, PROMPT_H, Ui::bg());
         tft.setTextDatum(MC_DATUM);
         const int16_t cy = static_cast<int16_t>(PROMPT_Y + PROMPT_H / 2);
+        const bool right = selected_ == static_cast<int8_t>(question_.correct);
         if (answered_) {
-            tft.setTextColor(selected_ == correctButton_ ? GREEN : RED, Ui::bg());
-            tft.drawString(selected_ == correctButton_ ? "Correct - tap for next"
-                                                       : "Green is correct - tap next",
+            tft.setTextColor(right ? GREEN : RED, Ui::bg());
+            tft.drawString(right ? "Correct - tap for next" : "Green is correct - tap next",
                            GAME_CANVAS_WIDTH / 2, cy, 2);
+        } else if (announce_ != 0) {
+            char line[MathCourse::LEVEL_LINE_MAX];
+            MathCourse::levelLine(announce_, line, sizeof(line));
+            tft.setTextColor(YELLOW, Ui::bg());
+            tft.drawString(line, GAME_CANVAS_WIDTH / 2, cy, 2);
         } else {
             tft.setTextColor(YELLOW, Ui::bg());
             tft.drawString("Tap the answer", GAME_CANVAS_WIDTH / 2, cy, 2);

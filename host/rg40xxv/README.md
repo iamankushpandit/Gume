@@ -33,10 +33,44 @@ number, with no libdrm, no Mesa and no X or Wayland. SDL2 is still used, but
 only for the gamepad, events and sound. The PC build is unchanged: the option
 is off unless `BRAINO_HOST_DRM=ON`.
 
-**HDMI.** With a screen plugged into the console's HDMI port, Braino moves
-to it at the screen's own resolution (4× on a 1080p TV, centred) and the
-built-in panel switches off; unplugged, it comes back. The kernel's hotplug
-event is read straight from its netlink socket, so no udev is needed.
+**HDMI.** With a television plugged into the console's mini HDMI port
+(engraved "HD"), Braino moves to it and the built-in panel goes dark, lamp
+and all; unplugged, the picture comes back to the panel. The TV gets the
+panel's own 640x480 picture at a whole scale, centred -- 2x on a 1080p TV --
+so nothing is laid out again and nothing is stretched. Why instead of
+alongside: the room is looking at the TV and the console in the player's
+hands is the controller, and a second picture would cost a second
+conversion of every frame and the panel's lamp for something nobody watches.
+
+- **The layout is always the panel's.** A TV plugged in before power-on is
+  shown, but Braino still lays out on the panel's mode, so pulling the TV out
+  never leaves a frame too big for the panel.
+- **The TV's preferred mode is used up to 1920x1080**; a 4K TV is driven at
+  its largest progressive mode up to that (`host/src/HostTvMode.h`, tested by
+  `test/host/tv_mode_test.cpp`). Every buffer the display engine scans has to
+  be physically contiguous, and two at 4K would be 66 MB; the boot line asks
+  for 64 MB of contiguous memory (`cma=64M` in `board/extlinux.conf`, against
+  the kernel's 32 MB) for two at 1080p beside the kernel's own. A TV whose best
+  mode is smaller than the panel is ignored.
+- **Sleep turns off whichever output is showing**, and a TV unplugged while
+  the console sleeps finds the panel on waking.
+- **Nothing else draws on the TV.** The kernel has no text console, U-Boot
+  has no video output on this chip, and the kernel's fbdev emulation, which
+  has no console to show, holds a black frame until Braino starts.
+- **The sound stays on the console** (see below). The kernel's hotplug event
+  is read straight from its netlink socket, so no udev is needed.
+
+**Headphones.** With headphones in the 3.5 mm jack the speaker is silent and
+its amplifier is powered down; pulled out, the speaker is back. The kernel
+already reads the jack -- the device tree gives the codec its detect line
+(`hp-det-gpios`, PI3), and `sun4i-codec` reports it as a `Headphone Jack`
+control and an input switch -- but both outputs hang off the codec's one line
+output and the kernel never takes the speaker away. `acpid` hears the switch
+and runs `/usr/bin/braino-headphones in|out`, which turns the codec's
+`Speaker` pin off or on; `S40keys` runs it once at boot with `sync` for a
+plug that was already in. Volume and Mute are the same on both: Braino sets
+its own level in software, and the volume keys move the line output that
+feeds both.
 
 ### Nothing on the screen but Braino
 
@@ -54,13 +88,20 @@ loopback interface):
   formatted, because a console that keeps no setting is worse than one that
   starts over.
 - `S05hardware` loads the joypad driver, sets the clock from the RTC, opens
-  the codec's mixer, and powers the light ring's controller. It also writes
+  the codec's mixer, and powers the light ring's controller. It rebinds the
+  Bluetooth driver once the Wi-Fi chip is powered, because the driver probes
+  before the chip has power and no `hci0` appears otherwise (not yet
+  confirmed on the device). It also writes
   `hardware.txt` (what the kernel named every LED, serial port, input, sound
-  card and display connector) and `dmesg.txt` next to Braino's own log in
+  card and display connector, each connector's modes, and what the headphone
+  jack read at boot) and `dmesg.txt` next to Braino's own log in
   `BRAINODATA/braino/`, so a card brought back to a PC explains itself. They
   stay on the card; nothing is sent anywhere.
 - `S40keys` runs busybox's `acpid` for the keys that are not on the gamepad:
-  power (turns the console off) and the volume keys (the codec's mixer).
+  power (turns the console off) and the volume keys (the codec's mixer). It
+  also hears the headphone jack, which moves the sound between the speaker
+  and the jack (`/usr/bin/braino-headphones`), and sets the speaker from the
+  jack as it is at boot.
 - `/etc/braino/consoles/` holds one profile per console, copied from
   `host/consoles/`: the controls on its case. Braino reads the model from the
   device tree and picks one, then decides what each control is for
@@ -128,11 +169,83 @@ slower.
 ### In CI
 
 `.github/workflows/card-image.yml` builds the same image on GitHub's runners
-whenever a pull request or a push to `dev` or `main` changes `host/`, `src/`
-or `include/`, and uploads two artifacts: `braino-rg40xxv` (the `.img.gz`,
-its checksums and `write-card.ps1`) and `braino-rg40xxv-sources` (the source
-bundle below). The first build on a runner takes a few hours; the downloads
-are cached after that.
+when a pull request or a push to `dev` or `main` changes something the image
+is built from -- `host/` (not its Markdown, not the muOS packer), `src/`,
+`include/`, the product mark, the licences -- and uploads two artifacts:
+`braino-rg40xxv` (the `.img.gz`, its checksums and `write-card.ps1`) and
+`braino-rg40xxv-sources` (the source bundle below). A change to the README, to
+an ESP32 board or to the site starts nothing. Those paths are
+`TRIGGER_PATHS` in `tools/card_inputs.py`, and `tools/check_card_inputs.py`
+fails if the workflow's copy of them drifts.
+
+**Most runs build only Braino.** A full build -- toolchain, glibc, kernel,
+U-Boot, every library -- takes 50 to 80 minutes on a runner (measured on
+every run from 12 to 13 November 2026), and a change to a game touches none of
+it. So a full build on `dev` or `main` stores its output as an *OS base*:
+`os-base.sh trim` cuts the 17 GB build directory to the 1.3 GB (compressed) a
+later build reads -- the toolchain, the root filesystem, the kernel's tree, the
+Arduino libraries Braino compiles, and every other package's `.stamp_*` files
+-- and it is kept as a 90-day artifact named after `os-base.sh key`, a hash of
+everything the OS is built from. A later run with the same hash unpacks it,
+runs `os-base.sh settle`, and runs the same `build.sh`: Braino's build
+directory is named after its commit, so Buildroot builds it afresh, then
+repacks the root filesystem and relinks the kernel around it, and nothing
+else. On a runner that whole job is about two and a half minutes, the build
+itself 78 seconds, against an hour; in WSL, from a trimmed base to the
+finished image, 2 minutes 53 seconds, with `braino` the only package built. `settle` dates the OS's own files in the
+checkout before the base's stamps, because a fresh checkout dates them now,
+and make takes a fragment newer than its stamp as a change to rebuild from
+sources the base no longer has.
+
+**What counts as the OS is decided in one place, `tools/card_inputs.py`**,
+which `os-base.sh` asks for the key and for the files to settle;
+`python3 tools/card_inputs.py explain` prints every file here with its kind,
+and `python3 tools/card_inputs.py needs <path>...` says whether a change to
+those paths is a full build. Everything in this directory is OS, and its
+contents are hashed, except:
+
+- **the overlay**, whose file *names* are hashed and whose contents are not.
+  Buildroot copies the overlay into the root filesystem on every build, so
+  editing an init script, `acpid`'s map or `braino-run` takes minutes. Adding
+  or removing a file is a full build: a removed file would otherwise survive
+  in the base's root filesystem, and a new one usually comes with an OS change
+  beside it.
+- **what every build applies afresh**: Braino's package, `post-image.sh`, the
+  boot menu and the card layout, which write only into `images/`.
+- **this README and `write-card.ps1`**, which are not in the image.
+
+`post-build.sh` is OS on purpose: it deletes from the root filesystem
+(firmware blobs, init scripts), and a base's root filesystem has already lost
+whatever it deleted. The defconfig, the packages, the kernel and busybox
+fragments, ROCKNIX's patches and device trees, `fetch.sh`'s pinned commit and
+`build.sh` (which names the Buildroot release) are all OS. Change one and the
+hash moves, no base matches, and the run builds everything; on `dev` or
+`main` it then stores the new base. Things to know:
+
+- **Only a base stored by a push to `dev` or `main` of this repository is
+  used.** A base goes into published images, and a pull request runs code
+  nobody has reviewed yet. Pull requests build on bases and never store one,
+  so a pull request that changes the OS builds everything on each push, and
+  its merge builds everything once more to store the base.
+- **A push to `dev` or `main` is never cancelled by the next one**, only
+  queued behind it. The full build after an OS change is the one that stores
+  the base; cancelled, the next push would find none and build in full again.
+  Pull request runs are cancelled by a newer push.
+- **A base does not expire while it is used.** A push that finds one over 60
+  days old stores the same bytes again, which starts its 90 days over. The
+  weekly full build (Mondays, from the default branch's copy of the workflow,
+  so only once `card-image.yml` is on `main`) proves the OS still builds from
+  source and stores a fresh base too.
+- **A file Braino's package stops installing stays on a card built on an old
+  base.** Bump `BASE_EPOCH` in `tools/card_inputs.py` when that matters, and
+  the next run builds everything. A manual run of the workflow with *Build
+  everything from source* ticked does the same once.
+- **A post-build step that reads a package's build directory needs that file
+  kept by `os-base.sh trim`.** `rtl8761b_config.bin` is the one there is; a
+  build on a base fails at once, not quietly, when one is missing.
+
+The run's summary says which it did and why: "Braino on a stored OS base" with
+the base's run and age, or "Full build" with the reason.
 
 To publish an image for testers, tag the commit and push the tag:
 
@@ -197,7 +310,12 @@ Every part keeps its own licence. Buildroot's `make legal-info` collects the
 licence texts and the exact sources of everything in the image, and that
 bundle is what a release must offer beside the image.
 
-- Braino: GPL-3.0-or-later (this repository).
+- Braino: GPL-3.0-or-later (this repository). Compiled into its binary: GNU
+  FreeFont's FreeSans, cut to Latin (`host/fonts/`, GPL-3.0-or-later with the
+  font exception; its `COPYING` is in Braino's legal-info), and
+  stb_truetype (`host/third_party/stb/`, public domain or MIT, its text at the
+  end of the header). Both are in Braino's source, so the source offer covers
+  them.
 - Linux, U-Boot, the joypad driver and ROCKNIX's patches: GPL-2.0. The patches
   and device trees in `rocknix/` are ROCKNIX's and their authors', not
   Braino's.
@@ -210,13 +328,27 @@ bundle is what a release must offer beside the image.
 
 - **The display output switching off in sleep is untested on the device.**
   If the panel ever wakes wrong, set `BRAINO_SLEEP_LCD=0` in `braino-run`.
-- **HDMI is untested on the device**, and HDMI sound is not routed: ROCKNIX
-  ships the H700's HDMI audio (its `ahub` sound card) disabled in this
-  device tree.
-- **The Wi-Fi password's Show checkbox is not reached by the d-pad** on the
-  device, though it is drawn as a button. `braino-run` sets
-  `BRAINO_FOCUS_LOG=1` for now, which logs the selector's list on every
-  screen; remove it once that is understood.
+- **HDMI and the headphone jack are untested on the device.** Both are
+  wired as described above, from the kernel and device tree that are built,
+  but no television or headphones have been plugged into a console running
+  this image yet. One thing only a console can answer: the board routes the
+  line output to the speaker and the jack through a 74HC4052 analog switch,
+  and if the speaker's amplifier enable also selects that switch, headphones
+  would go quiet with the speaker. `hardware.txt`'s `== headphone jack` says
+  whether the detect line reads at all.
+- **No sound over HDMI.** ROCKNIX's `0204-dts-Enable-hdmi-sound.patch` turns
+  on device-tree nodes for the H700's audio hub (`ahub1_plat`,
+  `ahub1_mach_hdmi`), but their compatibles (`allwinner,sunxi-snd-plat-ahub`,
+  `allwinner,sunxi-snd-mach`) belong to Allwinner's vendor kernel, and
+  mainline Linux 7.2 has no driver for either, so nothing binds and there is
+  no HDMI sound card. The HDMI controller's side is there
+  (`CONFIG_DRM_DW_HDMI_I2S_AUDIO`, `CONFIG_SND_SOC_HDMI_CODEC`). What it would
+  take is a mainline ASoC driver for the H616/H700 audio hub -- its I2S/TDM
+  block and the routing that feeds the HDMI controller's I2S input -- as a
+  kernel patch of our own, plus a device-tree overlay pointing those nodes at
+  it, and then a choice in Braino of which card to open. That is a driver
+  port, not configuration; until someone writes or upstreams one, the sound
+  stays on the console's speaker or headphones.
 - **Wi-Fi scans use the radio's real hardware address**, as a board's do, so
   anyone in radio range can hear it while the Wi-Fi screen scans or the
   console joins. The driver supports scanning from a random address

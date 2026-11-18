@@ -57,7 +57,9 @@ FetchContent_Declare(map_n_flag
 FetchContent_MakeAvailable(tft_espi arduinojson map_n_flag)
 
 # The firmware, minus what the host replaces: the hardware
-# watchdog and the codec/DAC backend (see host/src/Host*.cpp), and every
+# watchdog, the codec/DAC backend and each ESP32 implementation of a platform
+# interface -- the power probe, suspend and the panel's size (see
+# host/src/Host*.cpp) -- and every
 # standalone bench probe, which has its own setup() and loop().
 file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
   "${REPO_ROOT}/src/engine/*.cpp"
@@ -65,7 +67,8 @@ file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
   "${REPO_ROOT}/src/ui/*.cpp"
   "${REPO_ROOT}/src/hal/*.cpp")
 list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX
-  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32)\\.cpp$")
+  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32|PanelSizeEsp32|SleepPowerEsp32)\.cpp$")
+list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX "/src/ui/PanelArtEsp32\\.cpp$")
 list(APPEND FIRMWARE_SOURCES
   "${REPO_ROOT}/src/main.cpp"
   "${REPO_ROOT}/src/BuildStamp.cpp")
@@ -93,8 +96,20 @@ add_custom_command(
   COMMENT "Embedding the Braino mark")
 add_custom_target(embed_mark DEPENDS ${STAMP_DIR}/BrainoMarkSvg.h)
 
+# The typeface the host draws text in (host/fonts/README.md), compiled in so
+# no device needs a font directory. Rasterised by host/third_party/stb.
+add_custom_command(
+  OUTPUT ${STAMP_DIR}/BrainoFontTtf.h
+  COMMAND ${CMAKE_COMMAND} -DFONT=${CMAKE_CURRENT_SOURCE_DIR}/fonts/FreeSans-Latin.ttf
+          -DOUTPUT=${STAMP_DIR}/BrainoFontTtf.h
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFont.cmake
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/fonts/FreeSans-Latin.ttf
+          ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFont.cmake
+  COMMENT "Embedding the font")
+add_custom_target(embed_font DEPENDS ${STAMP_DIR}/BrainoFontTtf.h)
+
 add_executable(braino ${FIRMWARE_SOURCES} ${HOST_SOURCES} ${MAP_N_FLAG_SOURCES})
-add_dependencies(braino build_stamp embed_mark)
+add_dependencies(braino build_stamp embed_mark embed_font)
 
 # host/ first, so boards/host.h and the shims win; then the firmware's own
 # include roots, as PlatformIO lays them out.
@@ -148,5 +163,49 @@ if(BRAINO_HOST_DRM)
   target_compile_definitions(braino PRIVATE GUME_HOST_DRM=1)
 endif()
 
+# The device part of the version (include/FirmwareVersion.h): "host" on a
+# desktop, the chip family on a handheld image (braino.mk passes h700).
+set(BRAINO_VERSION_TAG "host" CACHE STRING "Device part of the version, after the +")
+if(NOT BRAINO_VERSION_TAG MATCHES "^[0-9a-z-]+$")
+  message(FATAL_ERROR "BRAINO_VERSION_TAG must be lower case [0-9a-z-]: ${BRAINO_VERSION_TAG}")
+endif()
+target_compile_definitions(braino PRIVATE GUME_VERSION_TAG="${BRAINO_VERSION_TAG}")
+
 target_compile_options(braino PRIVATE -Wall)
 target_link_libraries(braino PRIVATE PkgConfig::SDL2 PkgConfig::CURL Threads::Threads m)
+
+# The synthesiser on its own: every cue written to a WAV file, through the
+# firmware's own src/hal/AudioSynth.cpp, BoardAudio.cpp and BoardAudioCues.cpp
+# and nothing else from src/. braino-sounds generates as the codec path does (16-bit,
+# 16 kHz: this program, the Freenove and a bare I2S amplifier);
+# braino-sounds-dac as the E32R28T-1's built-in DAC does (24 kHz, of which
+# the speaker hears the high byte). host/CLAUDE.md, "Hearing the sounds".
+set(SOUND_SOURCES
+  "${REPO_ROOT}/src/hal/AudioSynth.cpp"
+  "${REPO_ROOT}/src/hal/BoardAudio.cpp"
+  "${REPO_ROOT}/src/hal/BoardAudioCues.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundRender.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/sound/SoundStubs.cpp")
+foreach(flavour IN ITEMS codec dac)
+  if(flavour STREQUAL "codec")
+    set(sound_target braino-sounds)
+    set(sound_board "boards/host.h")
+    set(sound_name "Host-SDL")
+  else()
+    set(sound_target braino-sounds-dac)
+    set(sound_board "boards/e32r28t1.h")
+    set(sound_name "E32R28T-1")
+  endif()
+  add_executable(${sound_target} ${SOUND_SOURCES})
+  target_include_directories(${sound_target} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shim"
+    "${REPO_ROOT}/include"
+    "${REPO_ROOT}/src"
+    "${REPO_ROOT}/src/hal")
+  target_compile_definitions(${sound_target} PRIVATE
+    GUME_BOARD_HEADER="${sound_board}"
+    BOARD_NAME="${sound_name}")
+  target_compile_options(${sound_target} PRIVATE -Wall)
+  target_link_libraries(${sound_target} PRIVATE m)
+endforeach()

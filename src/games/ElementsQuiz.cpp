@@ -35,27 +35,30 @@ constexpr const char* LEVEL_LABELS[4] = { "Auto", "Easy", "Common", "All" };
 
 // ---- question construction -------------------------------------------------
 
+namespace EC = ElementsCourse;
+
 void ElementsGame::nextQuestion() {
     const bool wasTable = questionUsesTable();
+    const uint8_t level = quizLevel();
+    const uint8_t tier = activeTier();
+    if (deckTier_ != tier) {
+        deck_.reset(elementPoolSize(tier));
+        deckTier_ = tier;
+    }
 
     if (forcedElement_ >= 0 && forcedElement_ < static_cast<int16_t>(ELEMENT_COUNT)) {
         qElement_ = static_cast<uint8_t>(forcedElement_);
         forcedElement_ = -1;
     } else {
-        const uint16_t picked = progress_.pickWeighted(inPool, this);
-        qElement_ = (picked == 0xFFFF) ? 0 : static_cast<uint8_t>(picked);
+        /* Every element of the pool before any comes back; a missed one
+         * returns after three others. */
+        const uint8_t picked = elementFromPool(deck_.next(esp_random()), tier);
+        qElement_ = picked == 0xFF ? 0 : picked;
     }
 
-    /* "What state is it at room temperature?" is only honest for elements a
-     * player could meet. Beyond tier 2 the answer is a laboratory prediction,
-     * and a quiz that scores a prediction as a fact is teaching the wrong
-     * thing. Everything else works at any tier. */
-    const bool allowState = ELEMENTS[qElement_].tier <= 2;
-    for (uint8_t attempt = 0; attempt < 8; ++attempt) {
-        qType_ = static_cast<QType>(random(static_cast<long>(QType::COUNT)));
-        if (allowState || qType_ != QType::StateOf) break;
-    }
-    if (!allowState && qType_ == QType::StateOf) qType_ = QType::SymbolToName;
+    /* Each element gets each of its level's kinds in turn, so knowing an
+     * element's name is not taken as knowing where it sits. */
+    EC::make(level, qElement_, kindTurn_[qElement_]++, esp_random(), q_);
 
     chosenOption_  = -1;
     pendingCell_   = 0xFF;
@@ -71,117 +74,65 @@ void ElementsGame::nextQuestion() {
 }
 
 void ElementsGame::buildOptions() {
-    if (qType_ == QType::FindIt) {
-        optionCount_ = 0;
-        correctOption_ = 0;
-        return;
+    optionCount_ = q_.count;
+    correctOption_ = 0;
+    if (optionCount_ == 0) return;
+    /* Option 0 of the course's question is the answer; the buttons take
+     * them in a shuffled order. The state buttons used to be Solid, Liquid,
+     * Gas every time, with Solid the answer nineteen times in twenty-six. */
+    uint8_t order[MAX_OPTIONS] = {0, 1, 2, 3};
+    for (int8_t i = static_cast<int8_t>(optionCount_ - 1); i > 0; --i) {
+        const uint8_t j = static_cast<uint8_t>(random(i + 1));
+        const uint8_t t = order[i];
+        order[i] = order[j];
+        order[j] = t;
     }
-    if (qType_ == QType::StateOf) {
-        optionCount_ = ELEMENT_STATE_COUNT;
-        for (uint8_t i = 0; i < ELEMENT_STATE_COUNT; ++i) optionValue_[i] = i;
-        correctOption_ = ELEMENTS[qElement_].state;
-        return;
-    }
-
-    /* Distractors come from the level's own pool, widened if the player pressed
-     * "Quiz me" on something above their level -- otherwise Oganesson would be
-     * the only unfamiliar name among three they know, and the round would be
-     * answerable without reading it. */
-    uint8_t pool = activeTier();
-    if (ELEMENTS[qElement_].tier > pool) pool = ELEMENTS[qElement_].tier;
-    const uint16_t poolSize = elementPoolSize(pool);
-
-    optionCount_ = MAX_OPTIONS;
-    correctOption_ = static_cast<uint8_t>(random(MAX_OPTIONS));
-    for (uint8_t i = 0; i < MAX_OPTIONS; ++i) {
-        if (i == correctOption_) {
-            optionValue_[i] = qElement_;
-            continue;
-        }
-        optionValue_[i] = qElement_;   // overwritten below; never left unset
-        /* Bounded retries. An unbounded while() in a path a frame can reach is
-         * never acceptable, however unlikely the collision run. */
-        for (uint8_t attempt = 0; attempt < 64; ++attempt) {
-            const uint8_t cand = elementFromPool(
-                static_cast<uint16_t>(random(static_cast<long>(poolSize))), pool);
-            if (cand == 0xFF || cand == qElement_) continue;
-            /* For "how many protons", a near miss is the instructive one: four
-             * numbers scattered across the whole table can be answered by
-             * shape alone. Relax the nearness rule late so the loop always
-             * terminates with a real distractor. */
-            if (qType_ == QType::ProtonCount && attempt < 40) {
-                const int16_t gap = static_cast<int16_t>(ELEMENTS[cand].z) -
-                                    static_cast<int16_t>(ELEMENTS[qElement_].z);
-                if (gap > 20 || gap < -20) continue;
-            }
-            bool clash = false;
-            for (uint8_t j = 0; j < i; ++j) {
-                if (optionValue_[j] == cand) { clash = true; break; }
-            }
-            if (!clash) { optionValue_[i] = cand; break; }
-        }
+    for (uint8_t i = 0; i < optionCount_; ++i) {
+        optionValue_[i] = q_.values[order[i]];
+        if (order[i] == 0) correctOption_ = i;
     }
 }
 
 void ElementsGame::writePrompt() {
-    const ElementFact& e = ELEMENTS[qElement_];
-    switch (qType_) {
-        case QType::SymbolToName:
-            snprintf(prompt_, sizeof(prompt_), "Which element is %s?", e.symbol);
-            break;
-        case QType::NameToSymbol:
-            snprintf(prompt_, sizeof(prompt_), "What is the symbol for %s?", e.name);
-            break;
-        case QType::FindIt:
-            snprintf(prompt_, sizeof(prompt_), "Find %s in the table", e.name);
-            break;
-        case QType::ProtonCount:
-            snprintf(prompt_, sizeof(prompt_), "How many protons does %s have?", e.name);
-            break;
-        case QType::FactToElement:
-            snprintf(prompt_, sizeof(prompt_), "%s", e.fact);
-            break;
-        case QType::StateOf:
-            snprintf(prompt_, sizeof(prompt_), "%s in a warm room is a...", e.name);
-            break;
-        default:
-            prompt_[0] = '\0';
-            break;
-    }
+    EC::prompt(q_, prompt_, sizeof(prompt_));
 }
 
 void ElementsGame::optionLabel(uint8_t index, char* out, size_t len) const {
     if (index >= optionCount_) { out[0] = '\0'; return; }
-    const uint8_t value = optionValue_[index];
-    switch (qType_) {
-        case QType::NameToSymbol:
-            snprintf(out, len, "%s", ELEMENTS[value].symbol);
-            break;
-        case QType::ProtonCount:
-            snprintf(out, len, "%u", static_cast<unsigned>(ELEMENTS[value].z));
-            break;
-        case QType::StateOf:
-            snprintf(out, len, "%s", elementStateName(value));
-            break;
-        default:
-            snprintf(out, len, "%s", ELEMENTS[value].name);
-            break;
-    }
+    EC::label(q_, optionValue_[index], out, len);
 }
 
 // ---- answering -------------------------------------------------------------
 
 void ElementsGame::answer(AppContext& host, bool correct) {
+    announce_ = false;
     if (correct) {
-        host.beepOk();
         score_ += 10;
         ++streak_;
     } else {
-        host.beepError();
         streak_ = 0;
     }
-    progress_.record(qElement_, correct);
-    progress_.maybeFlush();
+    /* The ladder moves on Auto only: a level pinned on the Level tab is the
+     * player choosing the pool, not being measured. */
+    Course::Ladder::Step step = Course::Ladder::Step::Stay;
+    if (tierPin_ == 0) {
+        if (!correct && deckTier_ == activeTier()) {
+            /* The deck deals pool positions; find this element's. */
+            const uint16_t n = elementPoolSize(deckTier_);
+            for (uint16_t i = 0; i < n; ++i) {
+                if (elementFromPool(i, deckTier_) == qElement_) { deck_.missed(i); break; }
+            }
+        }
+        step = ladder_.answer(correct);
+        if (step != Course::Ladder::Step::Stay) host.setCourseLevel(ladder_.level());
+    }
+    if (step == Course::Ladder::Step::Up) {
+        announce_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else {
+        correct ? host.beepOk() : host.beepError();
+    }
     host.saveBestScore(elementsAppMetadata().score->bestKey, score_, false);
     /* Hold the right answer on screen either way. A round that only says
      * "wrong" and moves on has scored the player without teaching them. */
@@ -332,8 +283,8 @@ void ElementsGame::renderLevel(AppContext& host) {
 
         /* Say what each one means in elements, not in words like "tier". */
         if (i == 0) {
-            snprintf(buf, sizeof(buf), "follows you - now %u",
-                     static_cast<unsigned>(elementPoolSize(tier)));
+            snprintf(buf, sizeof(buf), "your level - %u of them",
+                     static_cast<unsigned>(elementPoolSize(EC::tierFor(ladder_.level()))));
         } else {
             snprintf(buf, sizeof(buf), "%u elements",
                      static_cast<unsigned>(elementPoolSize(i)));
@@ -343,8 +294,7 @@ void ElementsGame::renderLevel(AppContext& host) {
         tft.setTextDatum(TL_DATUM);
     }
 
-    snprintf(buf, sizeof(buf), "You know %u%% of the easy ones, %u%% of the common",
-             static_cast<unsigned>(tierMastery(1)), static_cast<unsigned>(tierMastery(2)));
+    EC::levelLine(ladder_.level(), buf, sizeof(buf));
     tft.fillRect(8, 230, static_cast<int16_t>(w - 16), 12, Ui::bg());
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.setTextDatum(TC_DATUM);

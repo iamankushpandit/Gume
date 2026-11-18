@@ -9,23 +9,17 @@
 
 #include "BoardAudioInternal.h"
 
-#if GUME_HAS_AUDIO_CODEC
-#include <Wire.h>
-#endif
+/* Nothing here talks to a codec register or a DAC pad -- that is all
+ * BoardAudioBackend.cpp -- so nothing here includes Wire or the DAC and RTC
+ * headers. host/sound/ compiles this file on its own, which keeps it honest. */
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 #include <driver/i2s.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 #include <math.h>
 #include <string.h>
-#endif
-
-#if GUME_HAS_AUDIO_DAC
-#include <driver/dac_common.h>
-#include <driver/rtc_io.h>
-#include <soc/rtc_io_reg.h>
 #endif
 
 /* ------------------------------------------------------------------ audio
@@ -108,230 +102,21 @@
  *     add capture will lose an afternoon to it.
  */
 
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
 namespace audio {
 /* ---------------------------------------------------------------- engine */
 
-Segment script[MAX_SEGMENTS];
-uint8_t scriptLength = 0;
-uint8_t scriptAt = 0;
-int32_t segTotal = 0;        // samples in the segment being played
-int32_t segLeft = 0;         // samples of it still to generate
-bool playing = false;
-/* The script is spent and the last segment is fading out. See nextSample(). */
-bool releasing = false;
+/* The per-sample synthesiser -- the script, the oscillator, the resonators
+ * and the gain -- is AudioSynth.cpp, which is pure so that a PC can render
+ * it. What is here is everything around it: arming, the lock, the task. */
 
 bool codecUp = false;
 bool dacUp = false;
+#if GUME_HAS_AUDIO_I2S
+bool i2sUp = false;
+#endif
 bool ampOn = false;
 
-/* A two-pole resonator. The input coefficient is sin(theta) rather than the
- * textbook (1 - b1 - b2): that normalises the PEAK of the impulse response to
- * roughly 1.0 whatever the centre frequency. Without it F2 comes out several
- * times louder than F1 purely because it sits higher up, and the vowels stop
- * being vowels. */
-struct Resonator {
-    float in = 0.0f, b1 = 0.0f, b2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
-};
-
-Resonator formant[3];
-float phase = 0.0f;          // normalised 0-1, for Tone and Square
-float gain = 0.0f;           // slewed towards the current segment's amplitude
-float gainTarget = 0.0f;
-int pitchCounter = 0;
-uint32_t noiseState = 0x13579BDFu;
-
-/* A monotone excitation is what makes the voice robotic rather than merely
- * synthetic. Real speech moves its pitch on every syllable; holding it
- * perfectly still is the entire effect, and it costs nothing to do. */
-constexpr float VOICE_PITCH_HZ = 112.0f;
-constexpr int VOICE_PERIOD = static_cast<int>(AUDIO_RATE / VOICE_PITCH_HZ);
-
-/* Formant bandwidth, and it is a LOUDNESS control as much as a timbre one.
- *
- * The excitation is an impulse train: one full-scale sample every 143, and
- * silence in between. What fills that gap is the resonators ringing, and how
- * long they ring is set by this. At 90 Hz the ring had decayed to a tenth
- * before the next pulse arrived, so most of a vowel was near-silence and the
- * speech was far quieter than its peak amplitude suggested. Narrowing to 60 Hz
- * roughly doubles the ring time, which raises the average level without
- * touching the peak -- the resonator's input coefficient normalises peak
- * response, so this is close to free.
- *
- * It also sounds more like a voice: a real vocal tract's F1 bandwidth is
- * 50-80 Hz. Do not narrow it much further, or the formants start to whistle. */
-constexpr float FORMANT_BANDWIDTH = 60.0f;
-
-/* Amplitude reaches a new segment's level over about 4ms. On a small driver
- * the click of an abrupt start is louder than the note that follows it, and
- * in speech an abrupt boundary between two phonemes is audible as a tick.
- * Slewing one gain fixes both, and means no segment needs its own envelope
- * or its own ramp length. */
-constexpr float GAIN_SLEW = 1.0f / (0.004f * AUDIO_RATE);
-
-/* THE END OF A SOUND IS FADED TOO, AND FOR THE SAME REASON.
- *
- * The slew above only ever ran towards a segment's level: when a script ran
- * out, the next sample was simply zero, wherever the waveform happened to be.
- * A sine stopped at its crest is a step of the whole amplitude, which is a
- * click -- and it was recorded on the device as one at the end of every piano
- * note, about 300ms after the one at its start. So a finished script keeps its
- * last segment's waveform running while the gain slews to zero, and only
- * stops once it is below this. Six time constants of the 4ms slew, ~25ms,
- * and at OUTPUT_SCALE the residue is under a quarter of one step of the 8-bit
- * DAC: inaudible by construction rather than by ear. */
-constexpr float RELEASE_FLOOR = 0.002f;
-
-/* Noise through a resonator is far quieter than an impulse train through the
- * same one, because its energy is spread rather than concentrated at the
- * pitch harmonics. This is a fudge factor and is meant to be one; it is the
- * knob to turn if the fricatives are lost under the vowels. */
-constexpr float NOISE_MAKEUP = 5.0f;
-
-/* Full-scale amplitude for a segment at amp 100, and the hard ceiling.
- *
- * These are close together on purpose: this is a 1-inch driver behind a
- * plastic case, and headroom that is never used is just quietness. A cue at
- * amp 100 is meant to reach the clip point and a little past it -- the mild
- * squaring that results adds harmonics, which on a speaker this small is
- * audibly LOUDER rather than audibly distorted. The cue tables sit under 100
- * so that the loud ones have somewhere to be loud relative to the quiet ones,
- * which is where the actual dynamic range lives. */
-constexpr float OUTPUT_SCALE = 32000.0f;
-constexpr int32_t OUTPUT_CLIP = 32000;
-
-float whiteNoise() {
-    noiseState ^= noiseState << 13;
-    noiseState ^= noiseState >> 17;
-    noiseState ^= noiseState << 5;
-    return static_cast<int32_t>(noiseState) * (1.0f / 2147483648.0f);
-}
-
-void tuneResonator(Resonator& r, float hz, float bandwidthHz) {
-    /* Above about 7.5kHz there is no resonator worth having at this sample
-     * rate, and a formant slot a phoneme does not use is passed as 0. Both
-     * become silence rather than a filter ringing at Nyquist. */
-    if (hz <= 20.0f || hz >= AUDIO_RATE * 0.47f) {
-        r.in = 0.0f;
-        r.b1 = 0.0f;
-        r.b2 = 0.0f;
-        return;
-    }
-    const float radius = expf(-static_cast<float>(PI) * bandwidthHz / AUDIO_RATE);
-    const float theta = 2.0f * static_cast<float>(PI) * hz / AUDIO_RATE;
-    r.b1 = 2.0f * radius * cosf(theta);
-    r.b2 = -radius * radius;
-    r.in = sinf(theta);
-}
-
-float runResonator(Resonator& r, float x) {
-    const float y = r.in * x + r.b1 * r.y1 + r.b2 * r.y2;
-    r.y2 = r.y1;
-    r.y1 = y;
-    return y;
-}
-
-void startSegment() {
-    const Segment& s = script[scriptAt];
-    segTotal = static_cast<int32_t>(AUDIO_RATE) * s.ms / 1000;
-    if (segTotal < 1) segTotal = 1;
-    segLeft = segTotal;
-    gainTarget = s.amp * 0.01f;
-
-    switch (s.wave) {
-        case Wave::Noise:
-            tuneResonator(formant[0], s.a, s.b > 0 ? s.b : 1500.0f);
-            break;
-        case Wave::Voiced:
-        case Wave::Unvoiced:
-            tuneResonator(formant[0], s.a, FORMANT_BANDWIDTH);
-            tuneResonator(formant[1], s.b, FORMANT_BANDWIDTH * 1.5f);
-            tuneResonator(formant[2], s.c, FORMANT_BANDWIDTH * 2.4f);
-            break;
-        default:
-            break;
-    }
-}
-
-/* Generates one sample and advances the script. Returns false once the whole
- * script is spent, at which point the caller stops asking. */
-bool nextSample(int16_t& out) {
-    while (segLeft <= 0 && !releasing) {
-        if (scriptAt + 1 >= scriptLength) {
-            releasing = true;
-            gainTarget = 0.0f;
-            break;
-        }
-        ++scriptAt;
-        startSegment();
-    }
-    if (releasing && gain < RELEASE_FLOOR) {
-        playing = false;
-        releasing = false;
-        gain = 0.0f;
-        out = 0;
-        return false;
-    }
-
-    const Segment& s = script[scriptAt];
-    if (!releasing) --segLeft;   // a release holds the segment's last pitch
-
-    float value = 0.0f;
-    switch (s.wave) {
-        case Wave::Silence:
-            break;
-
-        case Wave::Tone:
-        case Wave::Square: {
-            /* A sweep is linear across the segment. `progress` runs 0 to 1,
-             * so a segment with a == b costs the same arithmetic and simply
-             * does not move. */
-            const float progress = 1.0f - static_cast<float>(segLeft) / segTotal;
-            const float hz = s.a + (static_cast<float>(s.b) - s.a) * progress;
-            phase += hz / AUDIO_RATE;
-            if (phase >= 1.0f) phase -= 1.0f;
-            value = (s.wave == Wave::Tone)
-                        ? sinf(phase * 2.0f * static_cast<float>(PI))
-                        : (phase < 0.5f ? 0.75f : -0.75f);
-            break;
-        }
-
-        case Wave::Noise:
-            value = s.a > 0 ? runResonator(formant[0], whiteNoise()) * NOISE_MAKEUP
-                            : whiteNoise() * 0.6f;
-            break;
-
-        case Wave::Voiced: {
-            /* An impulse train: one full-scale sample per pitch period and
-             * silence in between. Its spectrum is a flat comb, which is
-             * exactly what a bank of formant filters wants to be handed. */
-            float excitation = 0.0f;
-            if (--pitchCounter <= 0) {
-                pitchCounter = VOICE_PERIOD;
-                excitation = 1.0f;
-            }
-            value = (runResonator(formant[0], excitation)
-                     + runResonator(formant[1], excitation) * 0.70f
-                     + runResonator(formant[2], excitation) * 0.40f) * 0.80f;
-            break;
-        }
-
-        case Wave::Unvoiced: {
-            const float n = whiteNoise();
-            value = (runResonator(formant[0], n)
-                     + runResonator(formant[1], n) * 0.8f
-                     + runResonator(formant[2], n) * 0.5f) * NOISE_MAKEUP * 0.7f;
-            break;
-        }
-    }
-
-    gain += (gainTarget - gain) * GAIN_SLEW;
-    int32_t sample = static_cast<int32_t>(value * gain * OUTPUT_SCALE);
-    if (sample > OUTPUT_CLIP) sample = OUTPUT_CLIP;
-    if (sample < -OUTPUT_CLIP) sample = -OUTPUT_CLIP;
-    out = static_cast<int16_t>(sample);
-    return true;
-}
 
 /* When generation finished, so the amplifier can outlive it by the depth of
  * the DMA. Zero means "still producing". */
@@ -343,8 +128,8 @@ uint32_t ampIdleSinceMs = 0;
 SemaphoreHandle_t audioLock = nullptr;
 TaskHandle_t audioTask = nullptr;
 
-/* The DAC backend scales amplitude in software, so the generator needs the
- * volume without a Board& to read it from. Mirrored rather than read through
+/* The DAC and bare-I2S backends scale amplitude in software, so the
+ * generator needs the volume without a Board& to read it from. Mirrored rather than read through
  * Preferences for the usual reason: this is on the path of every sample. */
 /* [[maybe_unused]] rather than a tighter guard, deliberately. Its reads and
  * writes sit in a mix of GUME_HAS_AUDIO_CODEC and GUME_HAS_AUDIO_DAC blocks
@@ -367,6 +152,16 @@ uint8_t pending[128 * 2 * sizeof(int16_t)];
 size_t pendingLength = 0;
 size_t pendingAt = 0;
 
+/* A held note is re-armed on the wall clock while the generator runs one DMA
+ * ahead of the speaker; the re-arm has to land before that lead has eaten the
+ * note, with two 40ms frames -- the firmware's own threshold for a bad one --
+ * to spare. See SOUND_NOTE_REARM_MS. */
+static_assert(SOUND_NOTE_REARM_MS
+                  + (DMA_BUF_COUNT * DMA_BUF_LEN + BLOCK_FRAMES) * 1000 / AUDIO_RATE
+                  + 2 * 40
+                  <= SOUND_NOTE_MS,
+              "a held note would fade out before PianoGame asks for it again");
+
 /* ------------------------------------------------------------- authoring
  *
  * A cue is a const Segment array; `arm()` copies it in and starts it. Copying
@@ -375,54 +170,25 @@ size_t pendingAt = 0;
  * frame would be a use-after-free waiting for someone to write a cue with a
  * local table. */
 void arm(const Segment* segments, uint8_t count) {
-    if ((!codecUp && !dacUp) || count == 0) return;
+    if ((!codecUp && !dacUp && !i2sUp) || count == 0) return;
     if (count > MAX_SEGMENTS) count = MAX_SEGMENTS;
 
     if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
 
-    /* Is this the SAME script arriving again while it is still sounding?
-     *
-     * That is a held piano key, not a new cue. The synthesiser has no note-on
-     * and no sustain, so PianoGame keeps a held note alive by asking for it
-     * again just before the last one runs out -- and snapping `phase` back to
-     * zero at that seam is a step discontinuity in the waveform, which is a
-     * click. Every 280ms. Which is heard, correctly, as a tone that is not
-     * continuous.
-     *
-     * So a continuation keeps the oscillator running and leaves the resonators
-     * alone; only a genuinely different sound resets them. Comparing the whole
-     * script rather than trusting a flag from the caller means no game has to
-     * know this exists, and a game that asks for a different note gets the
-     * reset it needs. */
-    bool continuation = playing && count == scriptLength;
-    for (uint8_t i = 0; continuation && i < count; ++i) {
-        if (memcmp(&script[i], &segments[i], sizeof(Segment)) != 0) {
-            continuation = false;
-        }
-    }
+    /* The engine decides whether this is a fresh sound or a held note
+     * asked for again; see synthLoad(). */
+    synthSetRate(AUDIO_RATE);
+#if GUME_HAS_AUDIO_DAC
+    /* Just under one step of the DAC's eight bits at full volume: a note left
+     * to fall further there is not quieter, only coarser -- a buzz of the last
+     * step flicking at the note's pitch -- so it is ended where that begins. */
+    synthSetNoteFloor(0.008f);
+#endif
+    synthLoad(segments, count);
 
-    for (uint8_t i = 0; i < count; ++i) script[i] = segments[i];
-    scriptLength = count;
-    scriptAt = 0;
-
-    /* What must NOT be reset: `gain`, so a cue arriving on top of one still
-     * sounding slews between the two instead of clicking. What must be: the
-     * resonators, which otherwise ring the previous phoneme into the new
-     * sound, and the pending tail, which belongs to a sound that has just
-     * been superseded. */
-    if (!continuation) {
-        for (Resonator& r : formant) {
-            r.y1 = 0.0f;
-            r.y2 = 0.0f;
-        }
-        phase = 0.0f;
-        pitchCounter = 0;
-    }
+    /* The pending tail belongs to a sound that has just been superseded. */
     pendingLength = 0;
     pendingAt = 0;
-    playing = true;
-    releasing = false;
-    startSegment();
     ampIdleSinceMs = 0;   // producing again: the tail timer restarts from here
     setAmp(true);
 
@@ -430,6 +196,16 @@ void arm(const Segment* segments, uint8_t count) {
     /* Wake the generator: it is asleep whenever nothing is playing, so without
      * this the sound would not start until its idle poll expired. */
     if (audioTask != nullptr) xTaskNotifyGive(audioTask);
+}
+
+/* A piano key is still down: Sound::NoteHold. Keeps the note held under the
+ * lock, as arming does; see synthHold(). */
+void holdNote() {
+    if (!codecUp && !dacUp && !i2sUp) return;
+    if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
+    synthHold();
+    ampIdleSinceMs = 0;
+    if (audioLock != nullptr) xSemaphoreGive(audioLock);
 }
 
 /* Generate up to `frames` samples into `dst`, in whichever word format this
@@ -441,12 +217,22 @@ void arm(const Segment* segments, uint8_t count) {
  * is the DAC's offset-binary word format. The caller holds audioLock. */
 size_t generateBlock(uint8_t* dst, int frames) {
     if (!playing) return 0;
-#if GUME_HAS_AUDIO_CODEC
+#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_I2S
+    /* Signed 16-bit, both slots. The codec applies volume in its own register;
+     * a bare I2S amplifier has no register, so the level is a LINEAR
+     * multiplier here, exactly as on the DAC -- not applyCodecVolume()'s dB
+     * conversion, which is right only for a logarithmic register. */
+#if GUME_HAS_AUDIO_I2S
+    const int32_t vol = outputVolume;
+#endif
     int16_t* slots = reinterpret_cast<int16_t*>(dst);
     int n = 0;
     for (; n < frames; ++n) {
         int16_t sample = 0;
         if (!nextSample(sample)) break;
+#if GUME_HAS_AUDIO_I2S
+        sample = static_cast<int16_t>(static_cast<int32_t>(sample) * vol / 100);
+#endif
         slots[n * 2] = sample;
         slots[n * 2 + 1] = sample;   // one mono stream on both slots
     }
@@ -541,11 +327,15 @@ void startAudioTask() {
 }
 
 }  // namespace audio
-#endif  /* GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC */
+#endif  /* GUME_HAS_AUDIO */
 
 /* The Board:: members below are the public face of all this; they reach the
- * synthesiser by name, as they did when it was one file. */
+ * synthesiser by name, as they did when it was one file. Guarded like the
+ * namespace itself: on a board with no audio path there is no `audio` to
+ * name, and every member below compiles to its silent arm. */
+#if GUME_HAS_AUDIO
 using namespace audio;
+#endif
 
 /* ------------------------------------------------------- sound settings
  *
@@ -572,7 +362,7 @@ void Board::setSoundEnabled(bool on) {
     cachedSound_ = on;
     soundCached_ = true;
     prefs_.putBool("sndOn", on);
-#if GUME_HAS_AUDIO_CODEC || GUME_HAS_AUDIO_DAC
+#if GUME_HAS_AUDIO
     /* Muting stops what is already sounding rather than letting it finish.
      * The boot phrase is a second and a half long and Mute is exactly the
      * control somebody reaches for while it is playing; "it will stop shortly"
@@ -585,10 +375,7 @@ void Board::setSoundEnabled(bool on) {
      * for. */
     if (!on) {
         if (audioLock != nullptr) xSemaphoreTake(audioLock, portMAX_DELAY);
-        if (playing) {
-            releasing = true;
-            gainTarget = 0.0f;
-        }
+        synthFadeOut();
         pendingLength = 0;
         pendingAt = 0;
         if (audioLock != nullptr) xSemaphoreGive(audioLock);

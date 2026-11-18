@@ -9,9 +9,12 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
 #include "engine/RecentQuestions.h"
 #include "ui/Ui.h"
+
+#include "RomanCourse.h"
 
 struct AppMetadata;
 
@@ -40,6 +43,7 @@ public:
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     static constexpr uint8_t TEXT_MAX = 24;
@@ -49,17 +53,24 @@ private:
     Rect questionRect() const;
     Rect noteRect() const;
 
-    uint8_t level() const;
-    uint16_t levelCeiling() const;
-    uint16_t levelFloor() const;
+    /* The level of the question on screen: the ladder may have moved on the
+     * answer still showing. */
+    uint8_t level() const { return q_.level; }
+    void startLevel();
     void newQuestion();
-    void makeOptions();
-    bool optionExists(const char* candidate, uint8_t upTo) const;
     void drawKey(Ui::Renderer& tft);
     void drawQuestion(Ui::Renderer& tft);
     void drawNote(Ui::Renderer& tft);
 
+    Course::Ladder ladder_;
+    /* Levels 1-3 are numbered and dealt whole; 4-8 draw, and no question
+     * comes back within ten. */
+    Course::QuestionDeck deck_;
     RecentQuestions recent_;
+    RomanCourse::Question q_;
+    uint16_t item_ = 0;
+    bool announce_ = false;
+    bool banner_ = false;
 
     uint16_t value_ = 1;
     /* True: the numeral is shown and the answer is a number. False: the number

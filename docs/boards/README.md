@@ -1,8 +1,10 @@
 # Supported boards
 
-Six boards run Braino!. Five of them have been flashed and run on hardware by
-the maintainer; the sixth, the ST7789 dual-USB CYD, was written from its
-owner's configuration and its page says what has been confirmed on it. This folder has one page per board: how to recognise it, what has
+Seven boards run Braino!. Five have been flashed and run on hardware by
+the maintainer; the Attaky Core was ported from its maker's documents
+before a device was available, and its page lists what still has to be
+seen working; the ST7789 dual-USB CYD was written from its owner's
+configuration and its page says what has been confirmed on it. This folder has one page per board: how to recognise it, what has
 been checked on it, where its facts came from, and -- generated from the
 firmware itself -- every pin the firmware uses.
 
@@ -13,6 +15,7 @@ firmware itself -- every pin the firmware uses.
 | 2.8-inch | capacitive | one USB-C | yes | Freenove FNK0104B / LCDWIKI ES3C28P | [Freenove-FNK0104B](Freenove-FNK0104B.md) |
 | 2.8-inch | resistive | one USB-C | yes | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](E32R28T-1.md) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | **no** -- run it from USB power | ESP32-2432S028, inverted panel | [ESP32-2432S028-inv](ESP32-2432S028-inv.md) |
+| 2.0-inch | capacitive | one USB-C | yes, from the Power module's fuel gauge | Attaky Core 1.0 (Cyber Deck Plus) -- not yet run on hardware | [Attaky-Core](Attaky-Core.md) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | **no** -- run it from USB power | ESP32-2432S028, ST7789 panel (the CYD2USB) | [ESP32-2432S028-st7789](ESP32-2432S028-st7789.md) |
 
 The three 2.8-inch resistive boards look alike; the second USB socket tells

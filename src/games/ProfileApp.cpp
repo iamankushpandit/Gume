@@ -21,15 +21,6 @@ const char* const KEYS[KEY_ROWS] = {
     "ABCDEF", "GHIJKL", "MNOPQR", "STUVWX", "YZ -<>"
 };
 
-/* PIN pad geometry. Four rows: 1-9 then the DEL / 0 / OK row. PIN_PAD_TOP
- * clears the title (font 2, 16px) and the row of PIN dots below it. */
-constexpr uint8_t PIN_PAD_COLS = 3;
-constexpr uint8_t PIN_PAD_ROWS = 4;
-constexpr int16_t PIN_PAD_TOP  = 58;
-constexpr int16_t PIN_DOT_Y    = 38;
-constexpr int16_t PIN_DOT_R    = 7;
-constexpr uint8_t PIN_LENGTH   = 4;
-
 /* Small padlock, centred on (cx, cy): a 9x7 body with a shackle arc above it.
  * Drawn from primitives rather than added to LauncherIcons because it is a
  * row badge, not a launcher tile. */
@@ -94,13 +85,21 @@ Rect ProfileApp::menuRect(uint8_t i, int16_t screenW, int16_t screenH) const {
                 static_cast<int16_t>(rowsTop(tall) + i * rowsPitch(tall)),
                 rowsMenuW(tall), rowsHeight(tall)};
 }
-Rect ProfileApp::addRect(int16_t screenW, int16_t screenH) const {
-    const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
+int16_t ProfileApp::batterySlot(Ui::Renderer& tft) {
+    /* The badge's width at 100 -- the width it always has -- so the slot
+     * does not move as the charge falls. 0 where there is no badge. */
+    const int16_t badge = Ui::batteryBadgeWidth(tft, 100);
+    return badge > 0 ? static_cast<int16_t>(badge + 16) : 0;
+}
+Rect ProfileApp::addRect(int16_t screenW, int16_t screenH, int16_t slot) const {
+    const int16_t gap = slot > 8 ? slot : 8;
+    const int16_t w = static_cast<int16_t>((screenW - 16 - gap) / 2);
     return Rect{8, static_cast<int16_t>(screenH - 30), w, 26};
 }
-Rect ProfileApp::doneRect(int16_t screenW, int16_t screenH) const {
-    const int16_t w = static_cast<int16_t>((screenW - 24) / 2);
-    return Rect{static_cast<int16_t>(16 + w), static_cast<int16_t>(screenH - 30), w, 26};
+Rect ProfileApp::doneRect(int16_t screenW, int16_t screenH, int16_t slot) const {
+    const int16_t gap = slot > 8 ? slot : 8;
+    const int16_t w = static_cast<int16_t>((screenW - 16 - gap) / 2);
+    return Rect{static_cast<int16_t>(screenW - 8 - w), static_cast<int16_t>(screenH - 30), w, 26};
 }
 
 Rect ProfileApp::keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
@@ -138,57 +137,6 @@ Rect ProfileApp::gamesNextRect(int16_t screenW, int16_t screenH) const {
     return Rect{static_cast<int16_t>(screenW - 100), static_cast<int16_t>(screenH - 30), 92, 25};
 }
 
-/* Standard PIN pad: three columns, four rows, stacked vertically and centred.
- *
- * 1 2 3
- * 4 5 6
- * 7 8 9
- * < 0 OK
- *
- * The whole pad is derived from the live width/height so it fits in both
- * orientations. The previous version hard-coded row Y values that ran past
- * 240px in landscape, so the bottom row and both action buttons were drawn
- * off the panel entirely -- there was nothing to press. Anything changed here
- * must still end above screenH. */
-Rect ProfileApp::pinKeyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const {
-    const int16_t top    = PIN_PAD_TOP;
-    const int16_t bottom = static_cast<int16_t>(screenH - 6);
-    const int16_t pitchY = static_cast<int16_t>((bottom - top) / PIN_PAD_ROWS);
-    const int16_t keyH   = static_cast<int16_t>(pitchY - 6);
-
-    const int16_t keyW   = static_cast<int16_t>(min<int16_t>(70, (screenW - 40) / PIN_PAD_COLS - 8));
-    const int16_t pitchX = static_cast<int16_t>(keyW + 8);
-    const int16_t left   = static_cast<int16_t>((screenW - (pitchX * (PIN_PAD_COLS - 1) + keyW)) / 2);
-
-    return Rect{static_cast<int16_t>(left + col * pitchX),
-                static_cast<int16_t>(top + row * pitchY), keyW, keyH};
-}
-
-/* Bottom row, outer two cells. Kept as accessors so the touch handler and the
- * renderer cannot disagree about where they are. */
-Rect ProfileApp::pinDeleteRect(int16_t screenW, int16_t screenH) const {
-    return pinKeyRect(3, 0, screenW, screenH);
-}
-
-Rect ProfileApp::pinConfirmRect(int16_t screenW, int16_t screenH) const {
-    return pinKeyRect(3, 2, screenW, screenH);
-}
-
-/* Top-left, clear of the pad. Without this a player who taps the admin row is
- * stuck on the PIN screen with no way back to the picker. */
-Rect ProfileApp::pinCancelRect(int16_t, int16_t) const {
-    return Rect{6, 6, 52, 22};
-}
-
-void ProfileApp::beginPinEntry(uint8_t profile, PinPurpose purpose) {
-    profileToSwitchTo_ = profile;
-    pinPurpose_ = purpose;
-    adminPinAttempt_ = 0;
-    adminPinDigitCount_ = 0;
-    phase_ = Phase::PinEntry;
-    markFullDirty();
-}
-
 uint8_t ProfileApp::visibleGameRows(int16_t screenH) const {
     const int16_t usable = static_cast<int16_t>(screenH - 92);
     if (usable <= 0) return 3;
@@ -204,8 +152,25 @@ uint8_t ProfileApp::profileForRow(Board& board, uint8_t row) const {
 }
 
 void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
-    if (!touch.justPressed) return;
+    /* The keyboard came off with its field open and the keypad left off:
+     * put the keypad back, so the field can still be finished. */
+    if ((phase_ == Phase::Rename || phase_ == Phase::PinEntry) && keypad_.lost()) {
+        markFullDirty();
+    }
+    const char typed = hostTypedChar(host);
+    if (!touch.justPressed && typed == 0) return;
     if (!host.requireCapability(APP_CAP_PROFILES, "manage profiles")) {
+        return;
+    }
+    /* A typed character goes to the two phases with a field, and never
+     * through the touch tests below: on its frame the touch coordinates are
+     * the last touch's, and would press that again. */
+    if (typed != 0) {
+        if (phase_ == Phase::PinEntry) {
+            typePinChar(host, typed);
+        } else if (phase_ == Phase::Rename) {
+            typeRenameChar(host, typed);
+        }
         return;
     }
     Board& board = host.board();
@@ -245,15 +210,17 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
                 return;
             }
         }
-        if (addRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
+        const int16_t slot = batterySlot(host.display());
+        if (addRect(W, H, slot).contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
             board.playerCount() < Board::MAX_PLAYERS) {
             editing_ = 0xFF;
             draft_ = "";
             phase_ = Phase::Rename;
+            keypad_.begin();
             markFullDirty();
             return;
         }
-        if (doneRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+        if (doneRect(W, H, slot).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             host.goHome();
         }
         return;
@@ -264,6 +231,7 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
             editing_ = menuFor_;
             draft_ = board.profileName(menuFor_);
             phase_ = Phase::Rename;
+            keypad_.begin();
             markFullDirty();
             return;
         }
@@ -328,8 +296,8 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
                     return;
                 }
                 const AppDefinition& app = playableAppAt(gi);
-                board.setGameVisibleFor(app.launcherIndex(), menuFor_,
-                    !board.gameVisibleFor(app.launcherIndex(), menuFor_, app.defaultVisible()));
+                board.setGameVisibleFor(app.visibilityKey(), menuFor_,
+                    !board.gameVisibleFor(app.visibilityKey(), menuFor_, app.defaultVisible()));
                 markFullDirty(); return;
             }
         }
@@ -337,64 +305,7 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
     }
 
     if (phase_ == Phase::PinEntry) {
-        if (pinCancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            phase_ = Phase::Pick;
-            adminPinAttempt_ = 0;
-            adminPinDigitCount_ = 0;
-            markFullDirty();
-            return;
-        }
-        if (pinConfirmRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            /* Judge only a complete entry, so a wrong-length attempt cannot be
-             * used to probe whether a shorter prefix is accepted. */
-            if (adminPinDigitCount_ != PIN_LENGTH) {
-                board.beepError();
-                return;
-            }
-            const bool ok = (adminPinAttempt_ == board.adminPin());
-            adminPinAttempt_ = 0;
-            adminPinDigitCount_ = 0;
-
-            if (!ok) {
-                board.beepError();
-                /* The entered digits have just been reset, so all four dots go
-                 * back to empty. That is a content change and nothing else on
-                 * the pad moves, so it is markDirty() -- and the dots erase
-                 * themselves, each fill covering its own predecessor exactly.
-                 * A rejected PIN is the moment somebody is about to type four
-                 * more digits, so it is the last place to want a full wipe. */
-                markDirty();
-                return;
-            }
-            board.beepOk();
-            if (pinPurpose_ == PinPurpose::OpenMenu) {
-                menuFor_ = profileToSwitchTo_;
-                phase_ = Phase::Menu;
-                markFullDirty();
-            } else {
-                board.setActiveProfile(profileToSwitchTo_);
-                host.goHome();
-            }
-            return;
-        }
-        if (pinDeleteRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            deletePinDigit();
-            return;
-        }
-        /* Rows 0-2 carry 1-9; row 3 middle cell is 0. DEL and OK are the outer
-         * cells of row 3 and were handled above. */
-        for (uint8_t row = 0; row < 3; ++row) {
-            for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
-                if (pinKeyRect(row, col, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                    appendPinDigit(static_cast<uint8_t>(row * PIN_PAD_COLS + col + 1));
-                    return;
-                }
-            }
-        }
-        if (pinKeyRect(3, 1, W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            appendPinDigit(0);
-            return;
-        }
+        updatePinEntry(host, touch);
         return;
     }
 
@@ -402,104 +313,65 @@ void ProfileApp::update(GameHost& host, const TouchPoint& touch) {
     updateRename(host, touch);
 }
 
-/* markDirty(), not markFullDirty(): a digit moves four dots and nothing else,
- * and the dots are the whole of renderDynamic() in this phase. Asking for a
- * full repaint here is what put a Ui::clear() on every keypress. */
-void ProfileApp::appendPinDigit(uint8_t digit) {
-    if (adminPinDigitCount_ < PIN_LENGTH) {
-        adminPinAttempt_ = adminPinAttempt_ * 10 + digit;
-        adminPinDigitCount_++;
-        markDirty();
+bool ProfileApp::renderChrome(GameHost& host) {
+    if (phase_ != Phase::Pick) {
+        return false;   // no badge, no speaker: the old full repaint
     }
-}
-
-void ProfileApp::deletePinDigit() {
-    if (adminPinDigitCount_ > 0) {
-        adminPinAttempt_ /= 10;
-        adminPinDigitCount_--;
-        markDirty();
-    }
-}
-
-/* THE PAD IS DRAWN IN TWO HALVES, AND THE DIVIDING LINE IS "DOES A DIGIT
- * CHANGE IT?".
- *
- * This is the exception to the full-repaint rule stated below, and it earns
- * it: typing a digit changes four small circles and nothing else, and this
- * function used to open with Ui::clear() -- a 320x240 wipe, ~150 KB over SPI
- * and ~30 ms of visible blanking -- once per keypress, on the one screen where
- * the player is deliberately tapping four times in a row. It was the most
- * noticeable flicker in the firmware for exactly that reason.
- *
- * The heading is chrome, not content: this pad only ever asks one question. */
-void ProfileApp::renderPinPadChrome(GameHost& host) {
+    Board& board = host.board();
     Ui::Renderer& tft = host.display();
     const int16_t W = static_cast<int16_t>(tft.width());
     const int16_t H = static_cast<int16_t>(tft.height());
-
-    Ui::drawButton(tft, pinCancelRect(W, H), "Back", Ui::panel(), Ui::outline(),
-                   Ui::text(), false, 1);
-
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TC_DATUM);
-    tft.drawString("Enter Admin PIN", W / 2, 6, 2);
-
-    /* Rows 0-2 are 1-9; row 3 is DEL / 0 / OK. */
-    for (uint8_t row = 0; row < PIN_PAD_ROWS; ++row) {
-        for (uint8_t col = 0; col < PIN_PAD_COLS; ++col) {
-            const Rect r = pinKeyRect(row, col, W, H);
-
-            const char* label;
-            char digitLabel[2] = {0, 0};
-            uint16_t fill = Ui::panel();
-
-            if (row < 3) {
-                digitLabel[0] = static_cast<char>('1' + row * PIN_PAD_COLS + col);
-                label = digitLabel;
-            } else if (col == 0) {
-                label = "DEL";
-                fill  = Ui::rgb(150, 60, 60);
-            } else if (col == 1) {
-                label = "0";
-            } else {
-                label = "OK";
-                fill  = Ui::rgb(45, 154, 96);
-            }
-
-            Ui::drawButton(tft, r, label, fill, Ui::outline(), Ui::text(), false, 2);
-        }
+    bool painted = false;
+    const int8_t pct = board.getBatteryPercent();
+    if (pct != shownPct_) {
+        drawBatterySlot(tft, W, H, pct);
+        painted = true;
     }
+    const bool muted = !board.soundEnabled();
+    if (Board::hasSound() && muted != shownMuted_) {
+        const Rect s = LauncherLayout::pickerSpeakerRect(W);
+        tft.fillRect(s.x, s.y, s.w, s.h, Ui::bg());
+        Ui::drawSpeakerIcon(tft, s, muted, Ui::text());
+        shownMuted_ = muted;
+        painted = true;
+    }
+    /* Neither changed, so it was a notification coming or going over the
+     * header strip: put the strip back. */
+    if (!painted) {
+        drawHeaderStrip(tft, W, H);
+    }
+    return true;
+}
 
+void ProfileApp::drawHeaderStrip(Ui::Renderer& tft, int16_t W, int16_t H) {
+    const Rect header = headerRect(W, H);
+    tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
+    /* The mark rather than the name in font 4 -- the wordmark variant is
+     * cut to that height, so the header's geometry does not move. */
+    Ui::drawLogo(tft,
+                 static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
+                 15, Ui::text(), Ui::Logo::Word);
+    // The mark is the brand's, the copyright is the author's -- two
+    // different facts, and AppVersion.h is where both are spelled.
+    tft.setTextColor(Ui::muted(), Ui::surface());
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(BRAINO_COPYRIGHT_SHORT, W - 8, 15, 1);
     tft.setTextDatum(TL_DATUM);
 }
 
-/* The only thing a keypress changes.
- *
- * Four dots, one per digit, filled from the left as digits arrive. The count
- * is tracked separately from the value because "0000" and an empty field are
- * the same number.
- *
- * They need no erase and must not be given one: each is a filled circle at a
- * fixed centre and radius, so the fill covers its own predecessor exactly --
- * including the backwards case, a dot going from filled to empty on DEL or on
- * a rejected PIN. Clearing a rect around them first would only add a flash. */
-void ProfileApp::renderPinDots(GameHost& host) {
-    Ui::Renderer& tft = host.display();
-    const int16_t W = static_cast<int16_t>(tft.width());
-
-    const int16_t dotPitch = 26;
-    const int16_t dotsX0   = static_cast<int16_t>(W / 2 - (dotPitch * (PIN_LENGTH - 1)) / 2);
-    for (uint8_t i = 0; i < PIN_LENGTH; ++i) {
-        const int16_t x = static_cast<int16_t>(dotsX0 + i * dotPitch);
-        const uint16_t fill = i < adminPinDigitCount_ ? Ui::success() : Ui::panel();
-        tft.fillCircle(x, PIN_DOT_Y, PIN_DOT_R, fill);
-        tft.drawCircle(x, PIN_DOT_Y, PIN_DOT_R, Ui::outline());
-    }
-}
-
-bool ProfileApp::renderChrome(GameHost& host) {
-    (void)host;
-    return false;   // see the header -- nothing here to repaint in isolation
+/* The badge in the gap between Add Player and Done, centred on that row.
+ * Its own small rect is cleared first, so a reading that becomes unusable
+ * leaves nothing behind; nothing else on the screen is touched. */
+void ProfileApp::drawBatterySlot(Ui::Renderer& tft, int16_t W, int16_t H, int8_t percent) {
+    shownPct_ = percent;
+    const int16_t slot = batterySlot(tft);
+    if (slot <= 0) return;
+    const Rect add = addRect(W, H, slot);
+    const int16_t cy = static_cast<int16_t>(add.y + add.h / 2);
+    const int16_t badge = static_cast<int16_t>(slot - 16);
+    tft.fillRect(static_cast<int16_t>(W / 2 - badge / 2 - 1), static_cast<int16_t>(cy - 9),
+                 static_cast<int16_t>(badge + 2), 18, Ui::bg());
+    Ui::drawBatteryBadge(tft, static_cast<int16_t>(W / 2), cy, percent, Ui::bg());
 }
 
 bool ProfileApp::headerControls(int16_t screenW, int16_t screenH, Rect& lock,
@@ -558,20 +430,7 @@ void ProfileApp::renderDynamic(GameHost& host) {
     tft.setTextDatum(TC_DATUM);
 
     if (phase_ == Phase::Pick) {
-        const Rect header = headerRect(W, H);
-        tft.fillRect(header.x, header.y, header.w, header.h, Ui::surface());
-
-        /* The mark rather than the name in font 4 -- the wordmark variant is
-         * cut to that height, so the header's geometry does not move. */
-        Ui::drawLogo(tft,
-                     static_cast<int16_t>(10 + Ui::logoCentre(Ui::Logo::Word)),
-                     15, Ui::text(), Ui::Logo::Word);
-
-        // The mark is the brand's, the copyright is the author's -- two
-        // different facts, and AppVersion.h is where both are spelled.
-        tft.setTextColor(Ui::muted(), Ui::surface());
-        tft.setTextDatum(MR_DATUM);
-        tft.drawString(BRAINO_COPYRIGHT_SHORT, W - 8, 15, 1);
+        drawHeaderStrip(tft, W, H);
 
         /* Both lines below sit on the background between the header and the
          * first row. They used to overlap each other by a pixel, and in
@@ -592,6 +451,7 @@ void ProfileApp::renderDynamic(GameHost& host) {
         if (Board::hasSound()) {
             Ui::drawSpeakerIcon(tft, LauncherLayout::pickerSpeakerRect(W), !board.soundEnabled(),
                                 Ui::text());
+            shownMuted_ = !board.soundEnabled();
         }
 
         const uint8_t active = board.activeProfile();
@@ -625,10 +485,12 @@ void ProfileApp::renderDynamic(GameHost& host) {
         char label[16];
         snprintf(label, sizeof(label), canAdd ? "Add Player" : "Max %u",
                  static_cast<unsigned>(Board::MAX_PLAYERS));
-        Ui::drawButton(tft, addRect(W, H), label,
+        const int16_t slot = batterySlot(tft);
+        Ui::drawButton(tft, addRect(W, H, slot), label,
                        canAdd ? Ui::rgb(45, 154, 96) : Ui::surface(),
                        Ui::outline(), canAdd ? TFT_WHITE : Ui::muted(), false, 2);
-        Ui::drawButton(tft, doneRect(W, H), "Done", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        Ui::drawButton(tft, doneRect(W, H, slot), "Done", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
+        drawBatterySlot(tft, W, H, board.getBatteryPercent());
 
         tft.setTextDatum(TL_DATUM);
         return;
@@ -681,7 +543,7 @@ void ProfileApp::renderDynamic(GameHost& host) {
             if (gi >= playableAppCount()) break;
             const AppDefinition& app = playableAppAt(gi);
             const Rect r = gameCheckRect(row, W);
-            const bool on = board.gameVisibleFor(app.launcherIndex(), menuFor_,
+            const bool on = board.gameVisibleFor(app.visibilityKey(), menuFor_,
                                                  app.defaultVisible());
             const uint16_t tick = canEdit ? Ui::success() : Ui::rgb(70, 96, 78);
             tft.fillRoundRect(r.x, r.y, r.w, r.h, 4, Ui::surface());

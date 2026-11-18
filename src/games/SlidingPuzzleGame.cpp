@@ -47,6 +47,15 @@ void SlidingPuzzleGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* Worth coming back to once a tile has moved, and on any 3x3 at all: begin()
+ * always deals the 2x2, so the bigger board is a place the player earned.
+ * That holds for a solved board too, whose tap deals the next 3x3 -- the only
+ * board begin() would hand back is an untouched 2x2, and that is the one not
+ * kept. */
+Game::Keep SlidingPuzzleGame::keepsGame() const {
+    return moves_ > 0 || size_ > 2 ? Keep::Ask : Keep::No;
+}
+
 void SlidingPuzzleGame::loadBest(AppContext& host) {
     bestMoves_ = static_cast<uint16_t>(host.getScore(size_ == 2 ? "slideB2" : "slideB3", 0));
 }

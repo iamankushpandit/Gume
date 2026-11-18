@@ -12,9 +12,11 @@
 /* The panel without a window system: two dumb buffers on the kernel's own
  * display driver, flipped on vertical blank. Built only with BRAINO_HOST_DRM,
  * for a whole-device image that has no GPU driver, no Mesa and no X or
- * Wayland -- the RG40XX V's Buildroot image (host/rg40xxv). Braino draws a
- * 320x240 picture; scaling it to the panel is a few hundred thousand pixel
- * writes a frame, which a Cortex-A53 does without noticing.
+ * Wayland -- the RG40XX V's Buildroot image (host/rg40xxv). Braino draws at
+ * the panel's own mode (HostPlatform's findPanel()), so on the panel the
+ * frame is copied 1:1; a television that came along later gets it at a whole
+ * scale. Either is a few hundred thousand pixel writes a frame, which a
+ * Cortex-A53 does without noticing.
  *
  * Only the kernel's DRM ioctls are used, not libdrm, so the image carries no
  * library for it. */
@@ -33,9 +35,22 @@ void shutdown();
 int width();
 int height();
 
+/* The built-in panel's mode, whatever is showing: the size the firmware is
+ * laid out on for the whole run. A television plugged in before power-on
+ * does not change it, so unplugging one finds the frame the panel's size. */
+int panelWidth();
+int panelHeight();
+
+/* Whether the built-in panel is what is showing -- false while a television
+ * has the picture. HostScreenPower keeps the panel's lamp off meanwhile. */
+bool panelShown();
+
 /* True when a screen was plugged in or unplugged since the last call and the
  * picture has moved: width() and height() may differ, and both buffers are
- * black. The caller redraws everything. Cheap enough to ask every frame. */
+ * black. The caller redraws everything. Cheap enough to ask every frame.
+ * A television is used in its preferred mode up to 1920x1080 (the largest
+ * progressive mode under that otherwise), and only if that mode holds the
+ * panel's frame; anything else stays on the panel. */
 bool outputChanged();
 
 /* The buffer to draw the next frame into, XRGB8888, `stride` pixels a row.
