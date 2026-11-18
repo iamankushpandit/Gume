@@ -332,6 +332,13 @@ jobs:
           touch "$RUNNER_TEMP/build-started"
           pio run -e ${{ matrix.target.env }}
 
+      # The Attaky-only code is meant to preprocess out of every other image.
+      # check_platforms.py checks the source for that; this reads the image
+      # just built with nm and fails if one of those symbols is in it. A board
+      # this job did not build is skipped, so each job checks its own image.
+      - name: Check the image carries no other platform's code
+        run: python tools/check_platforms.py --elf .pio/build
+
       # SCons stamps every cache entry it reads with the time it read it
       # (os.utime in CacheDir.CacheRetrieveFunc) and writes new ones with the
       # time they were compiled, and this job starts from an empty .pio/build,

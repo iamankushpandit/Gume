@@ -105,8 +105,10 @@ attribution. See `include/AppVersion.h`.
 ## Which rules a machine checks
 
 Each check below passes on a clean tree; run them all before you commit.
-`ci.yml` runs every one on each pull request except `check_contrast.py` and
-`check_platforms.py`, which run locally until the workflow calls them. A rule a machine cannot check is still a
+`ci.yml` runs every one on each pull request -- every `tools/check_*.py`,
+found by name, so a new checker is enforced from the commit that adds it --
+and each board's build job runs `check_platforms.py --elf` on the image it
+just built. A rule a machine cannot check is still a
 rule; the last group is the part only reading catches.
 
 | Rule | Checked by |
