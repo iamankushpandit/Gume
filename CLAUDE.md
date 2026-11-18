@@ -1460,7 +1460,7 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 3. If it records a score, declare one local `AppScoreInfo` and point the metadata at it.
 3b. Say what the game owes a player who leaves in the middle: `keepsGame()` in every state the screen can be in (Ask, Quietly or No -- the rule is in `src/games/CLAUDE.md`), and `resume()` if it has a deadline or a stopwatch. Then leave it in the middle and come back, on the PC build or a board.
 3c. If it asks questions at levels, make it a course rather than working a level out of the score: a `Course::Ladder` started from `courseLevel()` in `begin()`, `setCourseLevel()` when the ladder moves, a `QuestionDeck` for a level that can be numbered or `RecentQuestions` for one that cannot, and the level's real mistakes as the wrong options -- in a pure `<Game>Course.h` with a test in `test/host/`. The wiring is in `src/games/CLAUDE.md`, the invariant under "A quiz that teaches is a course" above.
-4. `src/engine/AppRegistry.cpp` — add a `metadataCatalogApp(...AppMetadata(), instance)` entry at the intended playable position.
+4. `src/games/GameInstances.h` — the game's instance as a member; `src/engine/AppRegistry.cpp` — its one-line accessor, and a `metadataCatalogApp(...AppMetadata(), instance)` entry at the intended playable position.
 5. `src/engine/AppRegistry.h` — update `PLAYABLE_APP_COUNT`.
 
 ### 2. Docs — the part that actually gets forgotten
