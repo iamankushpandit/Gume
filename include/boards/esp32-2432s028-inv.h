@@ -14,6 +14,10 @@
 /* Resistive XPT2046 on its own bit-banged bus. See e32r28t1.h for why this is
  * a macro and not only a profile field. */
 #define GUME_TOUCH_CAPACITIVE 0
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "2432s028-inv"
 
 #define GUME_HAS_AUDIO_CODEC 0
 /* DAC audio on GPIO26, with the touch clock on the other DAC pad, GPIO25.
@@ -106,6 +110,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ PIN_NONE,
         /* scl                */ PIN_NONE,
         /* reset              */ PIN_NONE,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0,
         /* i2cHz              */ 0,
         /* pressureThreshold  */ 350,
@@ -117,6 +123,37 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padLeftLayout    */ nullptr,
+        /* padRightLayout   */ nullptr,
+        /* faceLayout       */ nullptr,
+        /* faceShapes       */ nullptr,
+    },
+
     /* Inherited from the E32R28T-1; not exercised on this board. */
     SdProfile{
         /* cs    */ 5,
@@ -126,12 +163,22 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 16000000,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* The CYD's published order -- see the note above. Common anode. */
     RgbLedProfile{
         /* r           */ 4,
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* GPIO26 (DAC channel 2) feeds an onboard SC8002B amplifier and the JST
@@ -157,11 +204,17 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ PIN_NONE,
         /* dividerRatio  */ 0.0f,
         /* sensorMaxVolts*/ 0.0f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 4 MB part, huge_app.csv: 3 MB for the app. Read back from the chip at
      * boot -- see the [boot] mac=... flash= line. */
     MemoryProfile{
         /* flashBytes */ 4u * 1024u * 1024u,
+    },
+
+    /* No expander to park: nothing on this board is behind one. */
+    ParkedExpanderProfile{
+        /* parkedExpander */ 0,
     },
 };

@@ -28,6 +28,8 @@ name: Release
 
 on:
   push:
+    # v<BRAINO_VERSION>: one version for every platform. An image reports it
+    # with a +device part (include/FirmwareVersion.h); a tag never has one.
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -67,14 +69,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache PlatformIO
-        uses: actions/cache@v4
+      # Restore only, from main's: a cache saved by a run for a tag can be
+      # read by that tag alone, so saving one here stored 1.2 GB that no
+      # other run could ever use.
+      - name: Restore PlatformIO
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: pio-
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
 
       # The compiled-object cache. Separate from the PlatformIO *packages* cache
       # above, which holds the toolchain: this holds build output, and until
@@ -87,17 +92,17 @@ jobs:
       # With the stamp in a generated header instead, the objects are stable
       # across commits and this cache starts paying. It is content-addressed,
       # so a restored entry is either right or is not a hit -- there is no
-      # stale-artifact failure mode to guard against. The key rotates per run
-      # so the cache keeps absorbing new objects; restore-keys is what makes
-      # the previous run's copy the starting point.
-      - name: Cache compiled objects
-        uses: actions/cache@v4
+      # stale-artifact failure mode to guard against. Restored from the
+      # Pages build of main, which built these environments from the same
+      # commit moments before; never saved, for the reason above.
+      - name: Restore compiled objects
+        uses: actions/cache/restore@v4
         with:
           path: .pio/build_cache
-          key: objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+          key: objects-pages-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
           restore-keys: |
-            objects-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
-            objects-${{ runner.os }}-
+            objects-pages-${{ runner.os }}-${{ hashFiles('platformio.ini') }}-
+            objects-pages-${{ runner.os }}-
 
       - name: Install PlatformIO
         run: pip install --upgrade platformio
@@ -120,6 +125,14 @@ jobs:
             echo "::error::Tag $tag does not match BRAINO_VERSION $version (expected v$version). Fix AppVersion.h, or delete and re-cut the tag."
             exit 1
           fi
+          # The +device part is what an image adds when it reports itself;
+          # a published version never carries one (tools/check_docs.py).
+          case "$version$tag" in
+            *+*)
+              echo "::error::$tag / $version carries a '+'. Build metadata names a device and is never part of a published version."
+              exit 1
+              ;;
+          esac
           case "$version" in
             *-SNAPSHOT*|*-snapshot*)
               echo "::error::$version is a snapshot and must not be released. Bump AppVersion.h to a real version first."
@@ -144,7 +157,7 @@ jobs:
           python tools/check_frame_rules.py
           python tools/check_licenses.py
 
-      # The five product environments, derived by tools/envs.py rather than
+      # The product environments, derived by tools/envs.py rather than
       # listed here. It used to be every [env:*] in platformio.ini, which meant
       # a release carried fourteen diagnostic images -- a bringup, a batdiag and
       # an audiodiag per board, plus four boardless probes -- as downloads.

@@ -18,6 +18,10 @@
  * The TouchKind below is derived from this macro rather than stated alongside
  * it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 1
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "fnk0104b"
 
 /* This board has an ES8311 codec. Same reasoning as the macro above:
  * preprocessor, not `if constexpr`, so boards without one carry neither
@@ -86,6 +90,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ 16,
         /* scl                */ 15,
         /* reset              */ 18,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0x38,
         /* i2cHz              */ 400000,
         /* pressureThreshold  */ 0,
@@ -98,6 +104,37 @@ inline constexpr BoardProfile BOARD = {
     ButtonProfile{
         /* bootPin   */ 0,
         /* activeLow */ true,
+    },
+
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padLeftLayout    */ nullptr,
+        /* padRightLayout   */ nullptr,
+        /* faceLayout       */ nullptr,
+        /* faceShapes       */ nullptr,
     },
 
     /* No SD, deliberately, for now.
@@ -116,6 +153,15 @@ inline constexpr BoardProfile BOARD = {
         /* spiHz */ 0,
     },
 
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
+    },
+
     /* No RGB LED that this firmware can drive, for now.
      *
      * The board has ONE WS2812 addressable pixel on GPIO42 -- a timed
@@ -128,6 +174,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ PIN_NONE,
         /* b           */ PIN_NONE,
         /* commonAnode */ false,
+        /* expander    */ 0,
     },
 
     /* ES8311 codec on the SAME I2C bus as touch, at 0x18, plus a five-wire
@@ -166,6 +213,7 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 9,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 16 MB part, read off the chip. Partitioned huge_app.csv for now, which
@@ -173,5 +221,10 @@ inline constexpr BoardProfile BOARD = {
      * variable during bring-up. */
     MemoryProfile{
         /* flashBytes */ 16u * 1024u * 1024u,
+    },
+
+    /* No expander to park: nothing on this board is behind one. */
+    ParkedExpanderProfile{
+        /* parkedExpander */ 0,
     },
 };

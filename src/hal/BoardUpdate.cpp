@@ -14,6 +14,7 @@
 #include <WiFiClientSecure.h>
 
 #include "AppVersion.h"
+#include "FirmwareVersion.h"
 #include "UpdateChannel.h"
 #include "Watchdog.h"
 
@@ -143,6 +144,9 @@ time_t Board::lastUpdateCheckEpoch() {
 bool Board::updateAvailable() {
     loadUpdateState();
     if (latestVersion_[0] == '\0') return false;
+    /* BRAINO_VERSION, not FIRMWARE_VERSION: the device part after "+" says
+     * which board this is, never which release is newer, and the manifest
+     * carries the plain version (include/FirmwareVersion.h). */
     return compareVersions(latestVersion_, BRAINO_VERSION) > 0;
 }
 
@@ -263,7 +267,17 @@ bool Board::fetchUpdateManifest() {
         line = next;
     }
 
+#if GUME_EXPERIMENTAL
+    /* An experimental image (custom_env_kind = experimental, which
+     * tools/envs.py checks against this flag) is never in a release, so the
+     * `*` fallback -- the newest release -- is nothing that can be installed
+     * on it. It takes only an entry naming its own board, which the manifest
+     * does not carry while the board is experimental: "nothing to report". */
+    (void)fallback;
+    const char* picked = mine;
+#else
     const char* picked = (mine[0] != '\0') ? mine : fallback;
+#endif
     if (picked[0] == '\0') {
         Serial.println("[update] manifest had no entry for this board");
         logNetworkActivity("HTTP update no entry");
@@ -280,7 +294,7 @@ bool Board::fetchUpdateManifest() {
                     static_cast<uint32_t>(lastUpdateCheckEpoch_));
 
     Serial.printf("[update] latest for %s is %s (running %s)%s\n",
-                  BOARD_NAME, latestVersion_, BRAINO_VERSION,
+                  BOARD_NAME, latestVersion_, FIRMWARE_VERSION,
                   updateAvailable() ? " -- newer available" : "");
     logNetworkActivity("HTTP update ok %s", latestVersion_);
     return true;

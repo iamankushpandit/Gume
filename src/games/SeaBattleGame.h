@@ -46,7 +46,9 @@ const AppMetadata& seaBattleAppMetadata();
  * them one square at a time, which is exactly how the board game works and
  * happens to be the most private thing this device does. A win is derived on
  * both sides from counting -- eleven hits taken is a loss, eleven scored is a
- * win -- so no result message is needed and none is sent.
+ * win -- so there is no result message. The loser does send one more turn:
+ * an answer otherwise travels on the next shot, and a sunk fleet has no next
+ * shot, so the answer to the last one goes out on a turn of its own.
  *
  * SHIPS ARE PLACED FOR YOU, with a Shuffle button. Tap-to-place with a rotate
  * control is four more controls and a lot of mis-taps at 25 pixels a cell, and
@@ -58,15 +60,27 @@ const AppMetadata& seaBattleAppMetadata();
  */
 class SeaBattleGame : public AppGame {
 public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered (Game.h). */
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    /* Hands the radio back and writes the game out: a turn stays advertised
-     * until it is replaced, so leaving without clearing it would leave this
-     * console broadcasting a game it is no longer in. */
+    /* Writes the game out: one against a nearby console to the console's own
+     * storage, anything else to the player's. Leaving does not end a nearby
+     * game -- its turn stays on the air and this screen keeps the game to
+     * come back to. One that is over leaves the air a minute later. Anything
+     * else hands the radio back. */
     void end(AppContext& host) override;
+    /* A sea being fired on comes back as it was left, with no question
+     * asked: End game is this screen's own way out of one. A fleet still
+     * being laid out has no End game beside it, so that one asks. In
+     * SeaBattleSave.cpp. */
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
     /** Eight, because the wire carries six bits per value. See the class note. */
     static constexpr uint8_t GRID = 8;
@@ -151,9 +165,36 @@ private:
     void renderPass(AppContext& host) const;
     void renderLobby(AppContext& host);
     void updateLobby(AppContext& host, const TouchPoint& touch);
+    /* An invitation not answered yet: Cancel, and the other console asking
+     * us at the same moment. */
+    void updateWaiting(AppContext& host, const TouchPoint& touch);
+    /** Back to the lobby with a fresh sea. Does not touch the radio. */
+    void toLobby();
+    /** Tells the d-pad's selector whether the sea takes a press just now. */
+    void noteStops() const;
+    /* The frame's work; update() calls it and then notes the stops, so they
+     * describe the frame as it ends. */
+    void frame(AppContext& host, const TouchPoint& touch);
 
     // ---- nearby ----------------------------------------------------------
     Rect lobbyRowRect(uint8_t row) const;
+    /* What a lobby row says about one console, first match first. Only the
+     * first and the last two take a press: the two in the middle are news
+     * about somebody else's game, not buttons. */
+    enum class Row : uint8_t { Invites, Asking, Playing, Busy, Free };
+    static Row rowFor(const NearbySeat& seat);
+    static bool rowTakesPress(Row row) {
+        return row != Row::Asking && row != Row::Playing;
+    }
+    /* The invitation `id` has on the air for this console and this game, or
+     * anybody's when `id` is null. */
+    static bool invitedBy(AppContext& host, const char* id, NearbySeat& out);
+    /** Take an invitation up: from a lobby row, or when both consoles asked. */
+    void acceptInvite(AppContext& host, const NearbySeat& seat);
+    /** Each frame of a nearby game: keep its turn on the air, or say its last. */
+    void sayTurn(AppContext& host);
+    /** New game, pressed on a nearby game that is over. */
+    void finishNearby(AppContext& host);
     void pollOpponent(AppContext& host);
     /* The other console going quiet: pause, the card, and its two buttons.
      * True when the press was on (or through) the card and must not reach
@@ -164,6 +205,27 @@ private:
     NearbyWatch watch_;
     bool pausePainted_ = false;
     uint16_t pauseSecondsDrawn_ = 0;
+    /* The last thing said in a nearby game that is over: the answer to the
+     * shot that sank us, our End game, or the turn that acknowledges theirs.
+     * It is said once and put on a minute's timer (nearbyStopLater), so the
+     * other console can still hear it and this one does not look busy for
+     * ever after. `overSaid_`: the finished game on screen has said it.
+     * `lastWord_`: this screen has gone on to the lobby while it may still be
+     * unheard, so nothing here takes it down until they acknowledge it, go
+     * out of range, or the minute is up. A new nearby game takes its place. */
+    bool overSaid_ = false;
+    bool lastWord_ = false;
+    uint32_t lastWordAtMs_ = 0;
+    char lastWordPeer_[5] = {0};
+    uint8_t lastWordSession_ = 0;
+    uint8_t lastWordPly_ = 0;
+    bool lastWordLanded(AppContext& host) const;
+    void tickLastWord(AppContext& host);
+    /* The lobby is up in front of the player's own unfinished game: another
+     * console was inviting this one when the screen opened, or a nearby game
+     * came and went since. The first row goes back to that game instead of
+     * starting a new one over it -- a game is only given up with End game. */
+    bool keptLocal_ = false;
     void startLocal();
     void startRemote(const NearbySeat& seat, uint8_t session, bool weFireFirst);
     bool ourTurn() const;
@@ -174,13 +236,24 @@ private:
     void newGame();
     void fireAt(AppContext& host, uint8_t cell);
     void declareEnd(AppContext& host, bool byUs);
+    /* A game against a nearby console belongs to the console and is kept
+     * apart from every player's own; a game on this console belongs to the
+     * player. Nothing is written from the lobby or while asking. These are
+     * all in SeaBattleSave.cpp. */
     void saveGame(AppContext& host) const;
-    bool restoreGame(AppContext& host);
+    /** The console's nearby game, if one is still in play. */
+    bool restoreNearby(AppContext& host);
+    /** The active player's own game on this console, if one is in play. */
+    bool restoreOwn(AppContext& host);
+    /** Is there one? Asked when the lobby comes up, for its first row. */
+    bool ownGameKept(AppContext& host) const;
+    /** The console's nearby game is finished with. */
+    void forgetNearby(AppContext& host);
     bool gameOver() const {
         return won_ || lost_ || ended_;
     }
     /** Whose sea is on screen: player 1 or 2 locally, always us remotely. */
-    uint8_t viewer() const { return mode_ == Mode::Remote ? 0 : turnPlayer_; }
+    uint8_t viewer() const { return mode_ == Mode::Local ? turnPlayer_ : 0; }
 
     Side side_[2] = {};
     Mode mode_ = Mode::Lobby;
@@ -213,6 +286,9 @@ private:
     uint8_t ourShotCell_ = 0;
     uint8_t ourReplyCode_ = 0;
 
+    /* As many consoles as the lobby has rows for. The list is cut to this
+     * where it is gathered, so a row that is not drawn cannot be tapped. */
+    static constexpr uint8_t LOBBY_PEER_ROWS = 4;
     NearbySeat seats_[6];
     uint8_t seatCount_ = 0;
     uint32_t seatsAtMs_ = 0;
@@ -231,7 +307,9 @@ private:
     /* The whole game, flat, for NVS. Written after every shot and again on the
      * way out, for the same reason Chess does it: the players this is for put
      * the device down constantly, and a game that evaporated is one they stop
-     * starting. Guest drops writes, which is what makes Guest a guest.
+     * starting. Guest drops writes of a game on this console, which is what
+     * makes Guest a guest; a nearby game is the console's, and is kept
+     * whoever is holding it.
      *
      * loadBlob() refuses a blob whose length has changed, so altering this
      * struct retires old saves rather than misreading them; `version` covers
@@ -266,5 +344,14 @@ private:
         uint8_t sunkAgainstUs[2];
     };
     static constexpr uint16_t SAVE_MAGIC = 0x5EA1;
-    static constexpr uint8_t SAVE_VERSION = 1;
+    /* 2 since this game has had a storage key of its own. The layout is the
+     * one version 1 had, which is what lets a game saved under the old key
+     * be read one more time. */
+    static constexpr uint8_t SAVE_VERSION = 2;
+    static constexpr uint8_t OLD_SAVE_VERSION = 1;
+    /** Is this a game of kind `want` that can be gone on with? */
+    static bool inPlay(const Saved& in, Mode want);
+    /** Read the player's own game; true if it is one in play. */
+    static bool loadOwn(AppContext& host, Saved& in);
+    void unpack(const Saved& in);
 };

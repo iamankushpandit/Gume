@@ -47,11 +47,14 @@
 #include "HostFocus.h"
 #include "HostLed.h"
 #include "HostPlatform.h"
+#include "HostScreenPower.h"
+#include "BoardConfig.h"
 
 #include <SDL.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
@@ -59,14 +62,32 @@
 #include <cstring>
 #include <random>
 #include <thread>
+#include <vector>
 
 #include <TFT_eSPI.h>
 
 namespace HostPlatform {
 namespace {
 
-constexpr int FRAME_W = TFT_eSPI::FRAME_W;
-constexpr int FRAME_H = TFT_eSPI::FRAME_H;
+/* The panel, found by begin() (findPanel()) and fixed from then on, in two
+ * sizes. PHYS_W x PHYS_H is what is drawn: real pixels, the panel's own
+ * resolution, the size of the shim's pixel buffer. FRAME_W x FRAME_H is what
+ * the firmware lays out on, in the landscape frame: the physical size divided
+ * by `density`, the UI scale -- 2 on a 640x480 panel, so the screens are
+ * laid out as on the 2.8-inch board and every logical pixel is drawn as a
+ * 2x2 block, with text rasterised smooth at that size. Everything in this
+ * file that the firmware sees -- the cursor, taps, the selector, a contact --
+ * is in FRAME (logical) coordinates; only drawing multiplies by density. */
+int FRAME_W = 320;
+int FRAME_H = 240;
+int density = 2;
+int PHYS_W = 640;
+int PHYS_H = 480;
+/* How many 320x240 canvases the LOGICAL frame holds, as a whole number: the
+ * cursor, its speed and a list's scrolling are stated per canvas pixel and
+ * multiplied by this, so they feel the same whatever the UI scale. 1 unless
+ * BRAINO_UI_SCALE asks for a finer layout than the canvas. */
+int uiScale = 1;
 constexpr uint32_t PRESENT_INTERVAL_MS = 16;
 constexpr int STICK_DEADZONE = 8000;
 /* The stick at full push, in canvas pixels per second. */
@@ -428,12 +449,13 @@ void pumpEvents() {
                 break;
             case SDL_KEYUP: onKey(e.key.keysym.sym, false); break;
             /* With a logical size set, SDL has already mapped mouse
-             * coordinates into the 320x240 frame, letterbox and all. */
+             * coordinates into the panel's pixels, letterbox and all; one
+             * UI-scale division puts them in the frame the firmware sees. */
             case SDL_MOUSEBUTTONDOWN:
                 if (e.button.button == SDL_BUTTON_LEFT) {
                     mouseDown = true;
-                    mouseX = e.button.x;
-                    mouseY = e.button.y;
+                    mouseX = e.button.x / density;
+                    mouseY = e.button.y / density;
                     cursorShownAtMs = 0;
                     focusOn = false;
                 }
@@ -442,8 +464,8 @@ void pumpEvents() {
                 if (e.button.button == SDL_BUTTON_LEFT) mouseDown = false;
                 break;
             case SDL_MOUSEMOTION:
-                mouseX = e.motion.x;
-                mouseY = e.motion.y;
+                mouseX = e.motion.x / density;
+                mouseY = e.motion.y / density;
                 break;
             case SDL_CONTROLLERDEVICEADDED: openController(e.cdevice.which); break;
             case SDL_CONTROLLERBUTTONDOWN: onButton(e.cbutton.button, true); break;
@@ -490,9 +512,9 @@ void stepDrag(int dir, const TFT_eSPI::ScrollArea& area, float dt, uint32_t now)
     if (now < drag.liftedUntilMs) return;
     /* Kept well inside the list: a touch lands within TOUCH_HIT_SLOP of what
      * is next to it, and a grab just under a tab strip pressed the tab. */
-    const float lo = static_cast<float>(area.y0 + SCROLL_INSET);
-    const float hi = static_cast<float>(area.y1 - SCROLL_INSET);
-    if (hi - lo < 8.0f) return;
+    const float lo = static_cast<float>(area.y0 + SCROLL_INSET * uiScale);
+    const float hi = static_cast<float>(area.y1 - SCROLL_INSET * uiScale);
+    if (hi - lo < 8.0f * uiScale) return;
     if (!drag.active) {
         /* The finger moves against the direction of travel, as on glass:
          * to see further down, it pushes the list up. */
@@ -501,7 +523,7 @@ void stepDrag(int dir, const TFT_eSPI::ScrollArea& area, float dt, uint32_t now)
         drag.y = dir > 0 ? hi : lo;
         return;
     }
-    drag.y -= static_cast<float>(dir) * SCROLL_SPEED * dt;
+    drag.y -= static_cast<float>(dir) * SCROLL_SPEED * uiScale * dt;
     if (drag.y < lo || drag.y > hi) {
         drag.active = false;
         drag.liftedUntilMs = now + SCROLL_REGRAB_MS;
@@ -593,6 +615,14 @@ int stepFocus(uint32_t now) {
             panel->scrollArea(area) && area.moreAbove) {
             next = -1;
         }
+        /* Nothing in the cone above or below, and no list to scroll that way:
+         * the nearest control that way, wherever it sits along the row. The
+         * firmware's selector does the same (AppRuntimeSelector.cpp). */
+        if (next < 0 && dy != 0) {
+            const bool listMoves = panel && panel->scrollArea(area) &&
+                                   (dy > 0 ? area.moreBelow : area.moreAbove);
+            if (!listMoves) next = HostFocus::stepBeyond(boxes, count, focusBox, dy);
+        }
         if (next < 0) scroll = dy;
         if (newPress || repeat) {
             if (next >= 0) {
@@ -641,8 +671,8 @@ void stepCursor(uint32_t now) {
         const float sign = v < 0 ? -1.0f : 1.0f;
         return sign * (std::abs(v) - STICK_DEADZONE) / (32767.0f - STICK_DEADZONE);
     };
-    cursorX += axis(stickX) * CURSOR_FAST * dt;
-    cursorY += axis(stickY) * CURSOR_FAST * dt;
+    cursorX += axis(stickX) * CURSOR_FAST * uiScale * dt;
+    cursorY += axis(stickY) * CURSOR_FAST * uiScale * dt;
 
     if (cursorX < 0) cursorX = 0;
     if (cursorY < 0) cursorY = 0;
@@ -663,12 +693,13 @@ void stepCursor(uint32_t now) {
     } else if (!pressing && push != 0.0f && panel && panel->scrollArea(area) &&
         cursorX >= area.x0 && cursorX <= area.x1 && startY >= area.y0 - 1 &&
         startY <= area.y1) {
-        if (push > 0.0f && cursorY >= area.y1 - SCROLL_EDGE && area.moreBelow) {
+        const int edge = SCROLL_EDGE * uiScale;
+        if (push > 0.0f && cursorY >= area.y1 - edge && area.moreBelow) {
             dir = 1;
-            cursorY = static_cast<float>(area.y1 - SCROLL_EDGE);
-        } else if (push < 0.0f && cursorY <= area.y0 + SCROLL_EDGE && area.moreAbove) {
+            cursorY = static_cast<float>(area.y1 - edge);
+        } else if (push < 0.0f && cursorY <= area.y0 + edge && area.moreAbove) {
             dir = -1;
-            cursorY = static_cast<float>(area.y0 + SCROLL_EDGE);
+            cursorY = static_cast<float>(area.y0 + edge);
         }
     }
     stepDrag(dir, area, dt, now);
@@ -691,20 +722,23 @@ void stepCursor(uint32_t now) {
 }
 
 void drawCursor() {
-    const int x = static_cast<int>(cursorX);
-    const int y = static_cast<int>(cursorY);
     const bool pressing = padTouch || padStickClick || keyTouch;
-    /* A plain crosshair in a contrasting pair, so it reads on every theme. */
+    /* A plain crosshair in a contrasting pair, so it reads on every theme:
+     * arms of six canvas pixels, a canvas pixel thick, whatever the panel --
+     * drawn in real pixels, so everything is multiplied by the UI scale. */
+    const int k = uiScale * density, arm = 6 * k;
+    const int x = static_cast<int>(cursorX) * density;
+    const int y = static_cast<int>(cursorY) * density;
+    const SDL_Rect shadow[2] = {{x - arm, y + k, 2 * arm + k, k}, {x + k, y - arm, k, 2 * arm + k}};
+    const SDL_Rect light[2] = {{x - arm, y, 2 * arm + k, k}, {x, y - arm, k, 2 * arm + k}};
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderDrawLine(renderer, x - 6, y + 1, x + 6, y + 1);
-    SDL_RenderDrawLine(renderer, x + 1, y - 6, x + 1, y + 6);
+    SDL_RenderFillRects(renderer, shadow, 2);
     if (pressing) {
         SDL_SetRenderDrawColor(renderer, 255, 210, 0, 255);
     } else {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     }
-    SDL_RenderDrawLine(renderer, x - 6, y, x + 6, y);
-    SDL_RenderDrawLine(renderer, x, y - 6, x, y + 6);
+    SDL_RenderFillRects(renderer, light, 2);
 }
 
 /* A ring two pixels thick, just outside the control and in a contrasting pair,
@@ -720,26 +754,72 @@ SDL_Rect selectorRect() {
     return SDL_Rect{x0, y0, x1 - x0 + 1, y1 - y0 + 1};
 }
 
+/* Where the selector may be drawn: the whole frame, or with a notice up, all
+ * of it but the notice's strip. The runtime keeps every painter out of that
+ * strip through the panel's paint clip, and the selector is the one thing
+ * drawn here rather than through the panel, so it asks. Drawn across a
+ * notice it hid the words; cut off at the strip's edge, it still shows which
+ * control it is on. */
+SDL_Rect selectorField() {
+    int16_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    if (panel && panel->paintClipFrame(x0, y0, x1, y1)) {
+        return SDL_Rect{x0, y0, x1 - x0 + 1, y1 - y0 + 1};
+    }
+    return SDL_Rect{0, 0, FRAME_W, FRAME_H};
+}
+
+/* The parts of these rectangles that lie in the selector's field. Returns how
+ * many are left; `out` holds as many as `in`. */
+int inSelectorField(const SDL_Rect* in, int count, SDL_Rect* out) {
+    const SDL_Rect field = selectorField();
+    int n = 0;
+    for (int i = 0; i < count; ++i) {
+        if (SDL_IntersectRect(&in[i], &field, &out[n])) ++n;
+    }
+    return n;
+}
+
+/* An outline one pixel thick, as its four edges, cut to the field. */
+int outlineInField(const SDL_Rect& r, SDL_Rect out[4]) {
+    const SDL_Rect edges[4] = {{r.x, r.y, r.w, 1},
+                               {r.x, r.y + r.h - 1, r.w, 1},
+                               {r.x, r.y, 1, r.h},
+                               {r.x + r.w - 1, r.y, 1, r.h}};
+    return inSelectorField(edges, 4, out);
+}
+
+/* A rectangle in the frame the firmware sees, in real pixels. */
+SDL_Rect toPhys(const SDL_Rect& r) {
+    return SDL_Rect{r.x * density, r.y * density, r.w * density, r.h * density};
+}
+
+void renderOutline(const SDL_Rect& r) {
+    SDL_Rect edges[4];
+    const int n = outlineInField(r, edges);
+    for (int i = 0; i < n; ++i) edges[i] = toPhys(edges[i]);
+    if (n > 0) SDL_RenderFillRects(renderer, edges, n);
+}
+
 void drawSelector() {
     const bool pressing = padTouch || padStickClick || keyTouch;
     const SDL_Rect outer = selectorRect();
     const SDL_Rect middle{outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2};
     const SDL_Rect inner{outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4};
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderDrawRect(renderer, &inner);
+    renderOutline(inner);
     if (pressing) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     } else {
         SDL_SetRenderDrawColor(renderer, 255, 210, 0, 255);
     }
-    SDL_RenderDrawRect(renderer, &outer);
-    SDL_RenderDrawRect(renderer, &middle);
+    renderOutline(outer);
+    renderOutline(middle);
 }
 
 void saveShot(uint32_t now) {
     if (!panel) return;
     SDL_Surface* frame = SDL_CreateRGBSurfaceWithFormatFrom(
-        const_cast<uint16_t*>(panel->frame()), FRAME_W, FRAME_H, 16, FRAME_W * 2,
+        const_cast<uint16_t*>(panel->frame()), PHYS_W, PHYS_H, 16, PHYS_W * 2,
         SDL_PIXELFORMAT_RGB565);
     if (!frame) return;
     /* A copy, so that the selector can be in the picture and stay out of the
@@ -752,7 +832,10 @@ void saveShot(uint32_t now) {
         const SDL_Rect r = selectorRect();
         const int x = r.x, y = r.y, w = r.w, h = r.h;
         const SDL_Rect edges[4] = {{x, y, w, 2}, {x, y + h - 2, w, 2}, {x, y, 2, h}, {x + w - 2, y, 2, h}};
-        SDL_FillRects(s, edges, 4, ring);
+        SDL_Rect shown[4];
+        const int n = inSelectorField(edges, 4, shown);
+        for (int i = 0; i < n; ++i) shown[i] = toPhys(shown[i]);
+        if (n > 0) SDL_FillRects(s, shown, n, ring);
     }
     char path[512];
     std::snprintf(path, sizeof(path), "%s/shot-%06u.bmp", dataDir().c_str(),
@@ -851,11 +934,11 @@ uint32_t lutR[32], lutG[64], lutB[32];
 
 /* The largest whole-number scale that fits the current output, centred. */
 void drmLayout() {
-    drmScale = HostDrm::width() / FRAME_W;
-    if (HostDrm::height() / FRAME_H < drmScale) drmScale = HostDrm::height() / FRAME_H;
+    drmScale = HostDrm::width() / PHYS_W;
+    if (HostDrm::height() / PHYS_H < drmScale) drmScale = HostDrm::height() / PHYS_H;
     if (drmScale < 1) drmScale = 1;
-    drmOffX = (HostDrm::width() - FRAME_W * drmScale) / 2;
-    drmOffY = (HostDrm::height() - FRAME_H * drmScale) / 2;
+    drmOffX = (HostDrm::width() - PHYS_W * drmScale) / 2;
+    drmOffY = (HostDrm::height() - PHYS_H * drmScale) / 2;
 }
 
 void drmBuildLut(uint8_t mod) {
@@ -872,22 +955,27 @@ void drmBuildLut(uint8_t mod) {
     lutValid = true;
 }
 
-/* A rectangle in canvas pixels, clipped to the canvas. */
+/* A rectangle in the firmware's (logical) frame, clipped to it, drawn at the
+ * UI scale times the output's whole scale. */
 void drmFill(uint32_t* buf, int stride, int x, int y, int w, int h, uint32_t color) {
     int x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
     int x1 = x + w > FRAME_W ? FRAME_W : x + w, y1 = y + h > FRAME_H ? FRAME_H : y + h;
     if (x0 >= x1 || y0 >= y1) return;
-    for (int sy = drmOffY + y0 * drmScale; sy < drmOffY + y1 * drmScale; ++sy) {
+    const int k = drmScale * density;
+    for (int sy = drmOffY + y0 * k; sy < drmOffY + y1 * k; ++sy) {
         uint32_t* row = buf + sy * stride;
-        for (int sx = drmOffX + x0 * drmScale; sx < drmOffX + x1 * drmScale; ++sx) row[sx] = color;
+        for (int sx = drmOffX + x0 * k; sx < drmOffX + x1 * k; ++sx) row[sx] = color;
     }
 }
 
+/* The selector's outlines, and nothing else: each edge is cut to the field
+ * the selector may be drawn in (selectorField()). */
 void drmOutline(uint32_t* buf, int stride, const SDL_Rect& r, uint32_t color) {
-    drmFill(buf, stride, r.x, r.y, r.w, 1, color);
-    drmFill(buf, stride, r.x, r.y + r.h - 1, r.w, 1, color);
-    drmFill(buf, stride, r.x, r.y, 1, r.h, color);
-    drmFill(buf, stride, r.x + r.w - 1, r.y, 1, r.h, color);
+    SDL_Rect edges[4];
+    const int n = outlineInField(r, edges);
+    for (int i = 0; i < n; ++i) {
+        drmFill(buf, stride, edges[i].x, edges[i].y, edges[i].w, edges[i].h, color);
+    }
 }
 
 constexpr uint32_t DRM_BLACK = 0x000000, DRM_WHITE = 0xffffff, DRM_YELLOW = 0xffd200;
@@ -896,11 +984,12 @@ void drmCursor(uint32_t* buf, int stride) {
     const int x = static_cast<int>(cursorX);
     const int y = static_cast<int>(cursorY);
     const bool pressing = padTouch || padStickClick || keyTouch;
-    drmFill(buf, stride, x - 6, y + 1, 13, 1, DRM_BLACK);
-    drmFill(buf, stride, x + 1, y - 6, 1, 13, DRM_BLACK);
+    const int k = uiScale, arm = 6 * k;
+    drmFill(buf, stride, x - arm, y + k, 2 * arm + k, k, DRM_BLACK);
+    drmFill(buf, stride, x + k, y - arm, k, 2 * arm + k, DRM_BLACK);
     const uint32_t c = pressing ? DRM_YELLOW : DRM_WHITE;
-    drmFill(buf, stride, x - 6, y, 13, 1, c);
-    drmFill(buf, stride, x, y - 6, 1, 13, c);
+    drmFill(buf, stride, x - arm, y, 2 * arm + k, k, c);
+    drmFill(buf, stride, x, y - arm, k, 2 * arm + k, c);
 }
 
 void drmSelector(uint32_t* buf, int stride) {
@@ -919,15 +1008,20 @@ void drmPresent(uint32_t now) {
     uint32_t* buf = HostDrm::backBuffer(stride);
     if (!buf) return;
     const int screenW = HostDrm::width(), screenH = HostDrm::height();
+    /* The frame is the size of the panel found at start-up. An output that
+     * came along later and is smaller than it (a television in a mode below
+     * the panel's) cannot hold it, so it stays dark rather than be written
+     * past its edge. */
+    if (screenW < PHYS_W || screenH < PHYS_H) return;
     if (drmBordersDirty > 0) {
         for (int y = 0; y < screenH; ++y) {
-            const bool inRows = y >= drmOffY && y < drmOffY + FRAME_H * drmScale;
+            const bool inRows = y >= drmOffY && y < drmOffY + PHYS_H * drmScale;
             uint32_t* row = buf + y * stride;
             if (!inRows) {
                 std::memset(row, 0, screenW * sizeof(uint32_t));
             } else {
                 std::memset(row, 0, drmOffX * sizeof(uint32_t));
-                const int right = drmOffX + FRAME_W * drmScale;
+                const int right = drmOffX + PHYS_W * drmScale;
                 std::memset(row + right, 0, (screenW - right) * sizeof(uint32_t));
             }
         }
@@ -940,19 +1034,21 @@ void drmPresent(uint32_t now) {
     if (!lutValid || mod != lutMod) drmBuildLut(mod);
 
     const uint16_t* src = panel->frame();
-    uint32_t line[FRAME_W];
-    for (int y = 0; y < FRAME_H; ++y) {
-        const uint16_t* s = src + y * FRAME_W;
-        for (int x = 0; x < FRAME_W; ++x) {
+    static std::vector<uint32_t> lineBuf;
+    lineBuf.resize(PHYS_W);
+    uint32_t* line = lineBuf.data();
+    for (int y = 0; y < PHYS_H; ++y) {
+        const uint16_t* s = src + y * PHYS_W;
+        for (int x = 0; x < PHYS_W; ++x) {
             const uint16_t p = s[x];
             line[x] = lutR[p >> 11] | lutG[(p >> 5) & 63] | lutB[p & 31];
         }
         for (int k = 0; k < drmScale; ++k) {
             uint32_t* d = buf + (drmOffY + y * drmScale + k) * stride + drmOffX;
             if (drmScale == 2) {
-                for (int x = 0; x < FRAME_W; ++x) d[2 * x] = d[2 * x + 1] = line[x];
+                for (int x = 0; x < PHYS_W; ++x) d[2 * x] = d[2 * x + 1] = line[x];
             } else {
-                for (int x = 0; x < FRAME_W; ++x) {
+                for (int x = 0; x < PHYS_W; ++x) {
                     for (int j = 0; j < drmScale; ++j) d[x * drmScale + j] = line[x];
                 }
             }
@@ -978,6 +1074,8 @@ void present(uint32_t now) {
         shownOnce = false;
         presentedAsleep = false;
     }
+    /* The panel's lamp is lit only while the panel has the picture. */
+    HostScreenPower::setPanelShown(HostDrm::panelShown());
 #endif
     if (shotRequested) {
         shotRequested = false;
@@ -1021,7 +1119,7 @@ void present(uint32_t now) {
     ++presents;
     return;
 #endif
-    SDL_UpdateTexture(texture, nullptr, panel->frame(), FRAME_W * sizeof(uint16_t));
+    SDL_UpdateTexture(texture, nullptr, panel->frame(), PHYS_W * sizeof(uint16_t));
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     if (panel->displayOn()) {
@@ -1074,7 +1172,61 @@ void adoptConsole() {
     if (!line.empty()) std::printf("[console] no job:%s\n", line.c_str());
 }
 
+/* The panel's size, from the first of: BRAINO_PANEL=WxH; the display mode,
+ * on a handheld (DRM) or a fullscreen desktop; otherwise 640x480, the
+ * RG40XX V's, so a PC window shows what the handheld will. Clamped up to the
+ * game canvas, which is the smallest panel src/ accepts. A display reported
+ * the other way up is taken as landscape: the frame is landscape at rotation
+ * 1 (host/boards/host.h). */
+void findPanel(int foundW, int foundH, const char* from) {
+    int w = foundW, h = foundH;
+    if (const char* env = std::getenv("BRAINO_PANEL")) {
+        int ew = 0, eh = 0;
+        if (std::sscanf(env, "%dx%d", &ew, &eh) == 2 && ew > 0 && eh > 0) {
+            w = ew;
+            h = eh;
+            from = "BRAINO_PANEL";
+        } else {
+            std::fprintf(stderr, "[host] BRAINO_PANEL=%s is not WxH; ignored\n", env);
+        }
+    }
+    if (h > w) std::swap(w, h);
+    if (w < GAME_CANVAS_WIDTH) w = GAME_CANVAS_WIDTH;
+    if (h < GAME_CANVAS_HEIGHT) h = GAME_CANVAS_HEIGHT;
+    /* The UI scale: the largest whole number that still leaves the firmware
+     * the game canvas to lay out on -- 2 on 640x480, 3 on 1280x720 -- so
+     * text and controls are the size they are on the 2.8-inch board, in
+     * proportion to the panel, and drawn with the panel's own pixels.
+     * BRAINO_UI_SCALE=n asks for another, down to 1: the firmware then lays
+     * out on the panel's full resolution, as the 4-inch board does. */
+    int d = std::min(w / GAME_CANVAS_WIDTH, h / GAME_CANVAS_HEIGHT);
+    if (const char* env = std::getenv("BRAINO_UI_SCALE")) {
+        const int asked = std::atoi(env);
+        if (asked >= 1 && asked <= d) {
+            d = asked;
+        } else {
+            std::fprintf(stderr, "[host] BRAINO_UI_SCALE=%s: must be 1..%d here; ignored\n", env, d);
+        }
+    }
+    if (d < 1) d = 1;
+    density = d;
+    FRAME_W = w / d;
+    FRAME_H = h / d;
+    PHYS_W = FRAME_W * d;
+    PHYS_H = FRAME_H * d;
+    uiScale = std::min(FRAME_W / GAME_CANVAS_WIDTH, FRAME_H / GAME_CANVAS_HEIGHT);
+    if (uiScale < 1) uiScale = 1;
+    cursorX = FRAME_W / 2.0f;
+    cursorY = FRAME_H / 2.0f;
+    std::printf("[host] panel %dx%d (%s), ui scale %d: laid out on %dx%d\n", w, h, from,
+                density, FRAME_W, FRAME_H);
+}
+
 }   // namespace
+
+int panelWidth() { return FRAME_W; }
+int panelHeight() { return FRAME_H; }
+int panelScale() { return density; }
 
 bool begin(int argc, char** argv) {
     (void)argc;
@@ -1090,6 +1242,9 @@ bool begin(int argc, char** argv) {
         return false;
     }
     if (!HostDrm::begin()) return false;
+    /* The built-in panel's mode, even with a television already showing:
+     * the layout is fixed for the run, and the panel is where it returns. */
+    findPanel(HostDrm::panelWidth(), HostDrm::panelHeight(), "display mode");
     drmLayout();
     for (int i = 0; i < SDL_NumJoysticks(); ++i) openController(i);
     parseScripts();
@@ -1106,9 +1261,18 @@ bool begin(int argc, char** argv) {
      * a window. BRAINO_FULLSCREEN=1 forces the first. */
     const char* fs = std::getenv("BRAINO_FULLSCREEN");
     const bool fullscreen = fs && fs[0] == '1';
+    SDL_DisplayMode mode;
+    if (fullscreen && SDL_GetDesktopDisplayMode(0, &mode) == 0) {
+        findPanel(mode.w, mode.h, "desktop");
+    } else {
+        findPanel(640, 480, "default");
+    }
     const uint32_t flags = fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_RESIZABLE;
+    /* A canvas-sized panel would be a postage stamp on a desktop, so its
+     * window opens at twice the size; any other opens at the panel's own. */
+    const int windowScale = PHYS_W <= GAME_CANVAS_WIDTH ? 2 : 1;
     window = SDL_CreateWindow("Braino!", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                              FRAME_W * 2, FRAME_H * 2, flags);
+                              PHYS_W * windowScale, PHYS_H * windowScale, flags);
     if (!window) {
         std::fprintf(stderr, "[host] window: %s\n", SDL_GetError());
         return false;
@@ -1121,10 +1285,10 @@ bool begin(int argc, char** argv) {
     }
     /* Whole multiples only: the firmware draws 1px lines and 5x7 glyphs, and
      * a fractional scale smears them. The window letterboxes instead. */
-    SDL_RenderSetLogicalSize(renderer, FRAME_W, FRAME_H);
+    SDL_RenderSetLogicalSize(renderer, PHYS_W, PHYS_H);
     SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING,
-                                FRAME_W, FRAME_H);
+                                PHYS_W, PHYS_H);
     if (!texture) {
         std::fprintf(stderr, "[host] texture: %s\n", SDL_GetError());
         return false;
@@ -1137,8 +1301,8 @@ bool begin(int argc, char** argv) {
 }
 
 void outputSize(int& w, int& h) {
-    w = FRAME_W * 2;
-    h = FRAME_H * 2;
+    w = PHYS_W;
+    h = PHYS_H;
 #if GUME_HOST_DRM
     w = HostDrm::width();
     h = HostDrm::height();
@@ -1188,7 +1352,7 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
         if (!image) return !quit;
     }
     SDL_UpdateTexture(image, nullptr, rgb, w * 3);
-    /* Step out of the 320x240 logical size for this one picture, and back. */
+    /* Step out of the panel's logical size for this one picture, and back. */
     SDL_RenderSetLogicalSize(renderer, 0, 0);
     SDL_RenderSetIntegerScale(renderer, SDL_FALSE);
     SDL_RenderSetViewport(renderer, nullptr);
@@ -1196,7 +1360,7 @@ bool presentImage(const uint8_t* rgb, int w, int h) {
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, image, nullptr, nullptr);
     SDL_RenderPresent(renderer);
-    SDL_RenderSetLogicalSize(renderer, FRAME_W, FRAME_H);
+    SDL_RenderSetLogicalSize(renderer, PHYS_W, PHYS_H);
     SDL_RenderSetIntegerScale(renderer, SDL_TRUE);
     shownOnce = false;   // the firmware's frame is no longer what is on screen
     return !quit;

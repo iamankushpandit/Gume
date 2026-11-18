@@ -52,56 +52,59 @@ Rect StateFlagGame::answerRect(uint8_t i) const {
                 static_cast<int16_t>(186 + row * 27), 150, 25};
 }
 
-uint8_t StateFlagGame::poolSize() const {
-    uint8_t n = 0;
-    for (uint8_t i = 0; i < STATE_COUNT; ++i) {
-        if (STATE_FACTS[i].tier <= tier_) ++n;
+namespace SIC = StateImageCourse;
+
+/* The states of the ladder's level, in table order; the deck deals
+ * positions in this list. */
+void StateFlagGame::startLevel() {
+    poolSize_ = 0;
+    for (uint8_t i = 0; i < STATE_COUNT && poolSize_ < sizeof(pool_); ++i) {
+        if (SIC::asks(ladder_.level(), STATE_FACTS[i].tier)) pool_[poolSize_++] = i;
     }
-    return n;
+    deck_.reset(poolSize_);
 }
 
-const StateFact* StateFlagGame::fromPool(uint8_t index) const {
-    for (uint8_t i = 0; i < STATE_COUNT; ++i) {
-        if (STATE_FACTS[i].tier > tier_) continue;
-        if (index == 0) return &STATE_FACTS[i];
-        --index;
+bool StateFlagGame::canOffer(const StateFact* cand) const {
+    if (cand == nullptr || cand == current_) return false;
+    if (!SIC::offers(ladder_.level(), cand->tier)) return false;
+    if (false) return false;
+    // Capitals must be distinct too, since the bonus round reuses these.
+    if (strcmp(cand->capital, current_->capital) == 0) return false;
+    for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
+        if (options_[j] == cand) return false;
     }
-    return nullptr;
+    return true;
 }
 
 void StateFlagGame::makeOptions() {
-    const uint8_t pool = poolSize();
     correctBtn_ = static_cast<uint8_t>(random(OPTION_COUNT));
-
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) options_[i] = current_;
-
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         if (i == correctBtn_) continue;
-        for (uint8_t attempt = 0; attempt < 40; ++attempt) {
-            const StateFact* cand = fromPool(static_cast<uint8_t>(random(pool)));
-            if (cand == nullptr || cand == current_) continue;
-            bool dup = false;
-            for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
-                if (j != i && options_[j] == cand) { dup = true; break; }
-            }
-            if (!dup && strcmp(cand->capital, current_->capital) == 0) dup = true;
-            if (dup) continue;
+        for (uint8_t attempt = 0; attempt < 60; ++attempt) {
+            const StateFact* cand = &STATE_FACTS[random(STATE_COUNT)];
+            if (!canOffer(cand)) continue;
             options_[i] = cand;
             break;
         }
+        /* Every question of every level has three to find:
+         * test/host/state_image_course_test.cpp. */
         if (options_[i] == current_) {
-            for (uint8_t k = 0; k < pool; ++k) {
-                const StateFact* cand = fromPool(k);
-                if (cand == nullptr || cand == current_) continue;
-                bool used = false;
-                for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
-                    if (j != i && options_[j] == cand) { used = true; break; }
-                }
-                if (!used) { options_[i] = cand; break; }
+            const uint8_t start = static_cast<uint8_t>(random(STATE_COUNT));
+            for (uint8_t k = 0; k < STATE_COUNT; ++k) {
+                const StateFact* cand = &STATE_FACTS[(start + k) % STATE_COUNT];
+                if (!canOffer(cand)) continue;
+                options_[i] = cand;
+                break;
             }
         }
     }
 }
+
+/* A plain shuffle. State Flags used to force the capital off the button
+ * that had just been right, which gave one of the four away; State Maps did
+ * not shuffle at all, so the capital was always on that button. */
+
 
 void StateFlagGame::shuffleOptionsForBonus() {
     const uint8_t oldCorrect = correctBtn_;
@@ -130,13 +133,9 @@ void StateFlagGame::shuffleOptionsForBonus() {
 }
 
 void StateFlagGame::newQuestion() {
-    const uint8_t pool = poolSize();
-    if (pool == 0) { current_ = nullptr; return; }
-
-    const uint8_t idx = static_cast<uint8_t>(recent_.pickIndex(pool));
-    current_ = fromPool(idx);
-    if (current_ == nullptr) current_ = fromPool(0);
-
+    if (poolSize_ == 0) { current_ = nullptr; return; }
+    item_ = deck_.next(esp_random());
+    current_ = &STATE_FACTS[pool_[item_ % poolSize_]];
     selected_ = -1;
     phase_ = Phase::State;
     feedbackUntil_ = 0;
@@ -145,12 +144,41 @@ void StateFlagGame::newQuestion() {
 }
 
 void StateFlagGame::begin(AppContext& host) {
-    tier_ = static_cast<uint8_t>(host.getScore("sflagTier", 1));
-    if (tier_ < 1 || tier_ > 3) tier_ = 1;
-    recent_.reset();
-    correctStreak_ = 0;
+    uint8_t stored = host.courseLevel();
+    if (stored == 0) {
+        /* A player who climbed the old tiers starts where they were. */
+        const uint8_t tier = static_cast<uint8_t>(host.getScore("sflagTier", 1));
+        stored = tier >= 3 ? 3 : (tier == 2 ? 2 : 1);
+    }
+    ladder_.start(SIC::LEVEL_COUNT, stored);
+    announce_ = false;
     score_ = 0; rounds_ = 0; capBonus_ = 0;
+    startLevel();
     newQuestion();
+}
+
+/* One answer to the ladder. True on a step up, which is announced in place
+ * of the beep. */
+bool StateFlagGame::climb(AppContext& host, bool right) {
+    if (!right) deck_.missed(item_);   // before the ladder moves
+    const Course::Ladder::Step step = ladder_.answer(right);
+    if (step == Course::Ladder::Step::Stay) return false;
+    host.setCourseLevel(ladder_.level());
+    startLevel();
+    if (step != Course::Ladder::Step::Up) return false;
+    announce_ = true;
+    host.pulseRgb(0, 255, 40, 450);
+    host.playSound(Sound::LevelUp);
+    return true;
+}
+
+/* The feedback pause is the only clock: moved on, so the right answer is
+ * still on show when the player comes back. */
+void StateFlagGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital) {
+        movedOn(feedbackUntil_, awayMs);
+    }
 }
 
 void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
@@ -171,45 +199,54 @@ void StateFlagGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (!touch.justPressed) return;
+    if (phase_ != Phase::State && phase_ != Phase::CapitalBonus) return;
 
+    /* The level button steps up one and wraps, as the tier button did. After
+     * the phase test, so a tap during feedback does not throw it away. */
     if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
-        host.setScore("sflagTier", tier_);
-        recent_.reset();
+        ladder_.setLevel(ladder_.atTop() ? 1 : static_cast<uint8_t>(ladder_.level() + 1));
+        host.setCourseLevel(ladder_.level());
+        host.playSound(Sound::Select);
+        startLevel();
+        announce_ = true;
         newQuestion();
         return;
     }
 
-    if (phase_ != Phase::State && phase_ != Phase::CapitalBonus) return;
     if (current_ == nullptr) return;
 
-    for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
+    /* The rows are 2px apart and the slop is 8: a button the press is really
+     * inside wins before the slop is tried. */
+    int8_t hit = -1;
+    for (uint8_t i = 0; i < OPTION_COUNT && hit < 0; ++i) {
+        if (answerRect(i).contains(touch.x, touch.y, 0)) hit = static_cast<int8_t>(i);
+    }
+    for (uint8_t i = 0; i < OPTION_COUNT && hit < 0; ++i) {
+        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) hit = static_cast<int8_t>(i);
+    }
+    if (hit < 0) return;
+    {
+        const uint8_t i = static_cast<uint8_t>(hit);
 
         selected_ = static_cast<int8_t>(i);
         lastCorrect_ = (i == correctBtn_);
 
         if (phase_ == Phase::State) {
+            announce_ = false;   // the level's name has stood over its first picture
             ++rounds_;
-            if (lastCorrect_) {
-                ++score_;
-                ++correctStreak_;
-                host.beepOk();
-                if (correctStreak_ >= 6 && tier_ < 3) {
-                    ++tier_;
-                    correctStreak_ = 0;
-                    host.setScore("sflagTier", tier_);
-                }
-            } else {
-                correctStreak_ = 0;
-                host.beepError();
-            }
+            if (lastCorrect_) ++score_;
+            /* On the last level the picture alone does not move the ladder
+             * up: the capital that follows does. A wrong picture counts. */
+            const bool counts = !SIC::capitalCounts(ladder_.level()) || !lastCorrect_;
+            const bool up = counts && climb(host, lastCorrect_);
+            if (!up) lastCorrect_ ? host.beepOk() : host.beepError();
             host.saveBestScore(stateFlagAppMetadata().score->bestKey, score_, false);
             feedbackUntil_ = now + 1500UL;
             phase_ = Phase::FeedbackState;
         } else {
-            if (lastCorrect_) { ++capBonus_; host.beepOk(); }
-            else              { host.beepError(); }
+            if (lastCorrect_) ++capBonus_;
+            const bool up = SIC::capitalCounts(ladder_.level()) && climb(host, lastCorrect_);
+            if (!up) lastCorrect_ ? host.beepOk() : host.beepError();
             feedbackUntil_ = now + 1600UL;
             phase_ = Phase::FeedbackCapital;
         }
@@ -235,8 +272,9 @@ void StateFlagGame::render(AppContext& host) {
     snprintf(bonusBuf, sizeof(bonusBuf), "+%u", capBonus_);
     tft.drawString(bonusBuf, GAME_CANVAS_WIDTH - 8, 33, 2);
 
-    static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-    Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+    char lv[12];
+    snprintf(lv, sizeof(lv), "Level %u", static_cast<unsigned>(ladder_.level()));
+    Ui::drawButton(tft, tierRect(), lv, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
 
     if (current_ == nullptr) {
         Ui::drawLabel(tft, Rect{20, 110, 280, 20}, "No states available",
@@ -251,11 +289,18 @@ void StateFlagGame::render(AppContext& host) {
 
     const bool capitalRound = (phase_ == Phase::CapitalBonus || phase_ == Phase::FeedbackCapital);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(capitalRound ? Ui::rgb(255, 200, 0) : Ui::text(), Ui::bg());
-    tft.drawString(capitalRound
-                       ? String("Bonus! Capital of ") + current_->name + "?"
-                       : String("Which state?"),
-                   GAME_CANVAS_WIDTH / 2, 176, 2);
+    char prompt[48];
+    if (capitalRound) {
+        snprintf(prompt, sizeof(prompt), "%s%s?",
+                 SIC::capitalCounts(ladder_.level()) ? "Capital of " : "Bonus! Capital of ",
+                 current_->name);
+    } else if (announce_) {
+        SIC::levelLine(ladder_.level(), prompt, sizeof(prompt));   // a step up
+    } else {
+        snprintf(prompt, sizeof(prompt), "Which state?");
+    }
+    tft.setTextColor((capitalRound || announce_) ? Ui::rgb(255, 200, 0) : Ui::text(), Ui::bg());
+    tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 176, 2);
 
     const bool showingFeedback =
         (phase_ == Phase::FeedbackState || phase_ == Phase::FeedbackCapital);

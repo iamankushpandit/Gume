@@ -10,6 +10,7 @@
 #include "Board.h"
 
 #include "BleBeacon.h"
+#include "BoardExpander.h"
 
 /* Feedback that is not sound: the RGB case LED, and the two radio switches
  * that sit beside it as device-wide settings.
@@ -38,12 +39,28 @@ void writeRgbChannel(int8_t pin, uint8_t channel, uint8_t level) {
     if (pin == PIN_NONE) return;
     ledcWrite(channel, BOARD.rgb.commonAnode ? 255 - level : level);
 }
+
+#if GUME_HAS_IO_EXPANDER
+/* An LED on an expander is on or off per channel, so a colour becomes the
+ * channels at least half as bright as its brightest: the lock pulse's grey
+ * stays white, the saver's orange becomes red rather than yellow, and black
+ * is dark. */
+bool litAtAll(uint8_t level, uint8_t brightest) {
+    return level != 0 && static_cast<uint16_t>(level) * 2 >= brightest;
+}
+#endif
 }
 
 /* Common-anode boards sink current, so a channel lights when its line is
  * driven LOW. A board that wires the LED the other way says so in its profile
  * rather than needing this inverted here. */
 void Board::setRgb(bool red, bool green, bool blue) {
+#if GUME_HAS_IO_EXPANDER
+    if (BOARD.rgb.expander != 0) {
+        driveExpanderRgb(red, green, blue);
+        return;
+    }
+#endif
     const uint8_t on = BOARD.rgb.commonAnode ? LOW : HIGH;
     const uint8_t off = BOARD.rgb.commonAnode ? HIGH : LOW;
     if (BOARD.rgb.r != PIN_NONE) digitalWrite(BOARD.rgb.r, red ? on : off);
@@ -187,8 +204,55 @@ bool Board::setPeerName(const char* deviceId, const char* name) {
     return true;
 }
 
+/* Only when the colour changes: the saver sets one per rally and the lock
+ * screen clears it on entry, and each would otherwise be two I2C
+ * transactions to write what is already there.
+ *
+ * WHAT IS REMEMBERED IS WHAT THE PART TOOK, NOT WHAT WAS ASKED FOR. The
+ * colour used to be recorded before the write, and the write says nothing
+ * when the bus does not answer -- so one failed transaction on the way into
+ * sleep left the LED lit, the firmware certain it was off, and every later
+ * "off" skipped as already done. Now a write the part did not take leaves
+ * the state unknown, and unknown matches no colour, so the next call tries
+ * again. */
+#if GUME_HAS_IO_EXPANDER
+void Board::driveExpanderRgb(bool red, bool green, bool blue) {
+    const uint8_t bits = static_cast<uint8_t>((red ? 4 : 0) | (green ? 2 : 0) | (blue ? 1 : 0));
+    if (bits == rgbExpanderBits_) return;
+    rgbExpanderBits_ = BoardExpander::driveLed(red, green, blue) ? bits : RGB_EXPANDER_UNKNOWN;
+}
+
+/* Dark for as long as the panel is: a console that has been locked and put
+ * down shows no light of the firmware's.
+ *
+ * Board::displaySleep() calls it with `recheck`, which forgets the remembered
+ * state so that the part's own output register is read -- one transaction,
+ * and a write only if it disagrees. tickRgb() then calls it on every poll of
+ * the sleeping loop, which is free once off has been confirmed and is the
+ * retry when it has not. A pulse that arrives while the panel sleeps is put
+ * out on the next poll; the one that matters, the find alert's, wakes the
+ * panel in the same frame and so is never touched. */
+void Board::keepExpanderRgbDark(bool recheck) {
+    if (!displayAsleep_ || BOARD.rgb.expander == 0) return;
+    if (recheck) rgbExpanderBits_ = RGB_EXPANDER_UNKNOWN;
+    rgbR_ = rgbG_ = rgbB_ = 0;
+    rgbHoldUntilMs_ = 0;
+    driveExpanderRgb(false, false, false);
+}
+#endif
+
 void Board::setRgbColor(uint8_t r, uint8_t g, uint8_t b) {
     if (!BOARD.hasRgbLed()) return;
+#if GUME_HAS_IO_EXPANDER
+    if (BOARD.rgb.expander != 0) {
+        rgbR_ = r;
+        rgbG_ = g;
+        rgbB_ = b;
+        const uint8_t top = max(r, max(g, b));
+        driveExpanderRgb(litAtAll(r, top), litAtAll(g, top), litAtAll(b, top));
+        return;
+    }
+#endif
     if (!rgbReady_) {
         attachRgbChannel(BOARD.rgb.r, RGB_CH_R);
         attachRgbChannel(BOARD.rgb.g, RGB_CH_G);
@@ -210,6 +274,7 @@ void Board::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
 }
 
 void Board::tickRgb() {
+    keepExpanderRgbDark(false);   // nothing, except on an expander while asleep
     if (rgbHoldUntilMs_ == 0) return;
     if (millis() >= rgbHoldUntilMs_) {
         rgbHoldUntilMs_ = 0;

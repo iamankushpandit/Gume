@@ -12,7 +12,7 @@
 // PowerProbe would produce them. It will not compile if Arduino reaches the
 // ledger, which is what keeps the analysis the same on every platform.
 //
-// Not run by CI and not picked up by pio test. From the repository root:
+// Run by CI (tools/run_host_tests.py), not by pio test. From the repository root:
 //   g++ -std=c++17 -Isrc/hal test/host/power_ledger_test.cpp src/hal/PowerLedger.cpp -o /tmp/ledger && /tmp/ledger
 
 #include <cstdio>

@@ -10,8 +10,8 @@
 
 """Which PlatformIO environments are the product, and which are bench tools.
 
-`platformio.ini` declares fifteen environments and only five of them are
-Braino!. The other ten are hardware probes -- bringup, batdiag, audiodiag,
+`platformio.ini` declares one product environment per supported board and
+rather more besides. The rest are hardware probes -- bringup, batdiag, audiodiag,
 wifidiag, s3diag, diag4, diag32p and their per-board copies -- and they exist to
 be flashed at a board on a desk when something is wrong with it. Nobody
 downloads one from the installer, and nobody wants one in a release.
@@ -29,18 +29,40 @@ So the list lives in `platformio.ini`, beside the environments, as
 environment is an error rather than a default, because the failure of a default
 is silent in whichever direction it guesses.
 
+There are three kinds:
+
+- `product` -- Braino! for a board people can install. CI builds it and
+  attaches its image to the run; a release, the web installer and the update
+  manifest carry it.
+- `experimental` -- Braino! for a board that is not offered yet. CI builds it
+  exactly as it builds a product and attaches its image to the run, so a
+  tester holding the board can flash it; nothing public carries it -- no
+  release, no installer, no `latest.txt`. Its build flags carry
+  `-D GUME_EXPERIMENTAL=1` and nothing else may: that is what the firmware
+  knows of it, and classify() refuses the one without the other. Publishing
+  it is changing the word to `product` and dropping the flag.
+- `diagnostic` -- a bench probe, built when its own source moves.
+
     python tools/envs.py --product              app app_e32r32p ...
     python tools/envs.py --product --pio-args   -e app -e app_e32r32p ...
+    python tools/envs.py --experimental
     python tools/envs.py --diagnostic
     python tools/envs.py --all
     python tools/envs.py --for-changes file [file ...]
+    python tools/envs.py --for-changes --reaches-host file [file ...]
 
 `--for-changes` is what CI asks: given the paths a push or a pull request
 touched, which environments actually need building? The product side answers
-conservatively (a board header or platformio.ini means all of them); the
-diagnostic side answers from each environment's own `build_src_filter`, so
-touching `src/battery_diag.cpp` builds the four batdiag environments and
-nothing else.
+conservatively -- `app` for any firmware source, every board for
+platformio.ini, the shared board contract or src/hal/ -- except that one
+board's own header, include/boards/<id>.h, builds only the environments whose
+board section names it. host/ and test/ build no board at all: nothing under
+them is in a board's image. The diagnostic side answers from each
+environment's own `build_src_filter`, so touching `src/battery_diag.cpp`
+builds the four batdiag environments and nothing else.
+
+`--for-changes --reaches-host` answers the same question for the PC build of
+host/: true or false.
 """
 
 import argparse
@@ -53,8 +75,13 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 PRODUCT = "product"
+EXPERIMENTAL = "experimental"
 DIAGNOSTIC = "diagnostic"
-KINDS = (PRODUCT, DIAGNOSTIC)
+KINDS = (PRODUCT, EXPERIMENTAL, DIAGNOSTIC)
+# The kinds that are Braino! for a board: built like the product on every
+# push, and attached to the CI run for testers. Only PRODUCT is published.
+FIRMWARE_KINDS = (PRODUCT, EXPERIMENTAL)
+EXPERIMENTAL_FLAG = re.compile(r"-D\s*GUME_EXPERIMENTAL\s*=\s*1\b")
 
 # A change to any of these changes every board's build, so every product
 # environment is rebuilt rather than reasoned about. `src/hal/` is here because
@@ -62,7 +89,6 @@ KINDS = (PRODUCT, DIAGNOSTIC)
 # where the board is described.
 PRODUCT_WIDE = (
     "platformio.ini",
-    "include/boards/",
     "include/BoardProfile.h",
     "include/BoardConfig.h",
     "src/hal/",
@@ -81,6 +107,25 @@ DIAGNOSTIC_WIDE = ("platformio.ini",)
 # request needs; the other six boards differ only in flags and are covered on
 # the push to dev.
 REFERENCE_ENV = "app"
+
+# A board's own profile header, include/boards/<id>.h, is compiled by the
+# environments whose [board_*] section names it in GUME_BOARD_HEADER, and by
+# nothing else: BoardConfig.h includes exactly that one. So a change to one
+# board's header builds that board, not all of them.
+BOARD_HEADERS = "include/boards/"
+
+# Paths that are not ESP32 firmware source. host/ adapts to src/, never the
+# reverse, so nothing under it reaches a board's image; test/host/ is built by
+# g++ on the runner. Neither builds `app` to prove it still compiles.
+NOT_FIRMWARE = re.compile(r"^(docs/|cases/|site/|tools/|host/|test/|\.github/|LICENSE$)")
+
+# What the PC build (host/, ci.yml's `host` job) is compiled from: Braino's
+# source, the host's own, the product mark it embeds and the library versions
+# platformio.ini pins. Not the card image's Buildroot tree, not the muOS
+# packer, not Markdown.
+HOST_BUILD = ("src/", "include/", "lib/", "host/", "tools/braino-badge.svg",
+              "platformio.ini")
+NOT_HOST_BUILD = ("host/rg40xxv/", "host/muos/")
 
 # A bringup environment builds the whole tree with -D CYD_BRINGUP_ONLY, so its
 # build_src_filter names no file of its own. What is actually distinct about it
@@ -129,6 +174,17 @@ def classify(ini=None):
             problems.append("[env:%s] has custom_env_kind = %s; expected one of %s"
                             % (env, match.group(1), ", ".join(KINDS)))
             continue
+        # The firmware's half of the same fact, in both directions: an
+        # experimental image with no flag would offer its owner a release it
+        # is not in, and a flag on a product would hide every update.
+        flagged = bool(EXPERIMENTAL_FLAG.search(body))
+        if flagged != (match.group(1) == EXPERIMENTAL):
+            problems.append(
+                "[env:%s] is custom_env_kind = %s but %s -D GUME_EXPERIMENTAL=1; "
+                "an experimental environment carries the flag and nothing else "
+                "may" % (env, match.group(1),
+                         "carries" if flagged else "does not carry"))
+            continue
         kinds[env] = match.group(1)
     if problems:
         die("\n  ".join(["platformio.ini:"] + problems))
@@ -158,6 +214,12 @@ def board_name(env, ini=None):
         return None
     name = re.search(r'BOARD_NAME=\\"([^\\"]+)\\"', section.group(1))
     return name.group(1) if name else None
+
+
+def published(env, ini=None):
+    """Whether an environment's image is offered publicly: in a release, on
+    the web installer and in the update manifest. Only `product` is."""
+    return classify(ini).get(env) == PRODUCT
 
 
 def of_kind(kind, ini=None):
@@ -216,14 +278,21 @@ def for_changes(paths, ini=None, with_product=False):
                    for path in paths for prefix in prefixes)
 
     product_wide = touched(PRODUCT_WIDE)
+    owners = board_header_envs(ini)
     code = any(path not in probe_only
-               and not re.match(r"^(docs/|cases/|site/|tools/|\.github/|LICENSE$)", path)
+               and path not in owners
+               and not NOT_FIRMWARE.match(path)
                and not path.endswith(".md") for path in paths)
 
     for env, kind in kinds.items():
-        if kind == PRODUCT and (with_product or product_wide
+        if kind in FIRMWARE_KINDS and (with_product or product_wide
                                 or (code and env == REFERENCE_ENV)):
             add(env)
+
+    for path in paths:
+        for env in owners.get(path, ()):
+            if kinds[env] in FIRMWARE_KINDS:
+                add(env)
 
     # A probe is built when its own source moves, or when the file its flags
     # live in does. Not otherwise: that is the whole point.
@@ -235,11 +304,55 @@ def for_changes(paths, ini=None, with_product=False):
     return [env for env in kinds if env in wanted]
 
 
+def board_header_envs(ini=None):
+    """{"include/boards/<file>": [environments that compile it]}.
+
+    Followed from each environment's `${board_<id>.build_flags}` to the
+    GUME_BOARD_HEADER that board section states. A header no environment
+    names is not in the map, so a change to it counts as ordinary source.
+    """
+    ini = read_ini() if ini is None else ini
+    headers = {}
+    for section, body in re.findall(r"^\[board_(\w+)\](.*?)(?=^\[|\Z)", ini,
+                                    re.M | re.S):
+        match = re.search(r'GUME_BOARD_HEADER=\\"([^\\"]+)\\"', body)
+        if match:
+            headers[section] = "include/" + match.group(1)
+    owners = {}
+    for env, body in sections(ini):
+        ref = re.search(r"\$\{board_(\w+)\.build_flags\}", body)
+        if ref and ref.group(1) in headers:
+            owners.setdefault(headers[ref.group(1)], []).append(env)
+    return owners
+
+
+def reaches_host(paths, with_product=False):
+    """Whether these changed paths reach the PC build of host/.
+
+    `with_product` says yes regardless, as a push to main or dev does for the
+    boards. The host TESTS are not decided here: they run on every pull
+    request, because they need nothing but the runner's g++.
+    """
+    if with_product:
+        return True
+    for path in (path.replace("\\", "/") for path in paths):
+        if path.endswith(".md") or path.startswith(NOT_HOST_BUILD):
+            continue
+        if path == "platformio.ini" or path.startswith(HOST_BUILD):
+            return True
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--product", action="store_const", const=PRODUCT,
-                       dest="kind", help="the environments that are Braino!")
+                       dest="kind", help="the environments that are Braino! "
+                                         "and published")
+    group.add_argument("--experimental", action="store_const",
+                       const=EXPERIMENTAL, dest="kind",
+                       help="Braino! for a board not offered yet: built and "
+                            "attached by CI, never published")
     group.add_argument("--diagnostic", action="store_const", const=DIAGNOSTIC,
                        dest="kind", help="the bench probes")
     group.add_argument("--all", action="store_true", help="every environment")
@@ -248,11 +361,16 @@ def main():
                             "reads one path per line from stdin if none given")
     parser.add_argument("--with-product", action="store_true",
                         help="with --for-changes: union in every product "
-                             "environment, whatever the change was")
+                             "and experimental environment, whatever the "
+                             "change was")
+    parser.add_argument("--reaches-host", action="store_true",
+                        help="with --for-changes: print true or false -- "
+                             "whether the change reaches the PC build of "
+                             "host/ -- instead of environments")
     parser.add_argument("--pio-args", action="store_true",
                         help="print as `-e name` arguments for `pio run`")
     parser.add_argument("--matrix", action="store_true",
-                        help="print a JSON list of {env, board, name} for a CI "
+                        help="print a JSON list of {env, board, kind, name} for a CI "
                              "matrix; name is what the job is called")
     args = parser.parse_args()
 
@@ -262,6 +380,9 @@ def main():
     elif args.for_changes is not None:
         paths = args.for_changes or [line.strip() for line in sys.stdin
                                      if line.strip()]
+        if args.reaches_host:
+            print("true" if reaches_host(paths, args.with_product) else "false")
+            return
         envs = for_changes(paths, ini, with_product=args.with_product)
     else:
         envs = of_kind(args.kind, ini)
@@ -270,10 +391,14 @@ def main():
         # "E32R28T-1 (app)": the board first, because that is what a person
         # reading a red job needs; the environment beside it, because that is
         # what they type to reproduce it. A boardless probe is its env alone.
+        # `kind` rides along so a job can tell a product build, worth
+        # attaching to the run for a tester, from a probe nobody downloads.
+        kinds = dict(classify(ini))
         rows = []
         for env in envs:
             board = board_name(env, ini)
             rows.append({"env": env, "board": board or "",
+                         "kind": kinds.get(env, ""),
                          "name": "%s (%s)" % (board, env) if board else env})
         print(json.dumps(rows))
     elif args.pio_args:

@@ -4,7 +4,7 @@ The only place that talks to hardware. Ordinary games should not reach this dire
 
 ## Which board, and how this code knows
 
-**Nothing in here may name a GPIO number, a panel size or a divider ratio.** Every hardware fact comes from `BOARD`, the one `BoardProfile` constant selected at compile time by `GUME_BOARD_HEADER` and defined in `include/boards/<id>.h`. That is what lets a second board be a header rather than a patch, and it is the rule that stops this directory becoming board-specific again.
+**Nothing in here may name a GPIO number, a panel size or a divider ratio.** Every hardware fact comes from `BOARD`, the one `BoardProfile` constant selected at compile time by `GUME_BOARD_HEADER` and defined in `include/boards/<id>.h` (the Linux build's is `host/boards/host.h`, outside `include/boards/` because a header there is a claim of support). That is what lets a second board be a header rather than a patch, and it is the rule that stops this directory becoming board-specific again.
 
 A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()`, `hasBacklightControl()`. Degrade quietly rather than fail -- a board with no battery sense (`adcPin = PIN_NONE`, the dual-USB CYD) shows no battery badge anywhere, raises no low-battery warning and starts no sampling task -- `Ui::batteryBadgeWidth()` returns 0 and `drawBatteryBadge()` draws nothing, so every header reclaims the space -- and needs no code change here at all. Adding a field to the contract means filling it in for every existing board in the same commit; `tools/check_boards.py` is what notices when that did not happen. `docs/PORTING.md` has the rest.
 
@@ -20,10 +20,19 @@ A peripheral the board does not wire is `PIN_NONE`, and the caller guards: `BOAR
 - `BoardNetwork.cpp` - Wi-Fi credentials, timezone, NTP sync, network activity log
 - `BoardUpdate.cpp` - the update-availability check: fetch, parse, version
   compare, and the once-a-day gate. A notice, never an update -- nothing here
-  downloads or installs firmware. See `include/UpdateChannel.h`
+  downloads or installs firmware. See `include/UpdateChannel.h`. It compares
+  `BRAINO_VERSION`, the one place under `src/` that reads it: everything that
+  shows a version shows `FIRMWARE_VERSION`, which adds `+<device>`. An
+  experimental image (`GUME_EXPERIMENTAL`) takes only its own board's line of
+  the manifest, never the `*` fallback
 - `BoardFeedback.cpp` - RGB LED, BLE and Nearby enable switches
-- `BoardAudio.cpp` - the sound engine: codec bring-up, the cue tables, the
-  phoneme table for the spoken boot phrase, and the per-sample synthesiser
+- `AudioSynth.cpp` - the per-sample synthesiser: script, oscillator,
+  resonators, gain. Pure C++, rendered off the device by
+  `test/host/audio_synth_test.cpp`
+- `BoardAudio.cpp` - arming the synthesiser, and the `braino-audio` task
+  that runs it
+- `BoardAudioCues.cpp` - the cue tables and the phoneme table for the
+  spoken boot phrase
 - `Sound.h` - the cue vocabulary, shared with app code without pulling in
   `Board.h`
 - `BoardStorage.cpp` - scoped persistence, schema versioning, migration
@@ -38,7 +47,15 @@ NVS via `Preferences`, in the legacy application namespace.
 
 Five player slots plus a permanent Guest (`MAX_PLAYERS = 5`, `GUEST_INDEX = 5`, names capped at `PROFILE_NAME_MAX = 9` — `NAME_MAX` is a POSIX macro, hence the odd name). **Guest drops every write** through the scoped setters; that is deliberate, not a bug to fix.
 
-Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Global: theme, layout, screen flip, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+Per-profile: scores, best/worst, mastery blobs, game visibility (`gameVisibleFor`). Visibility is one `p<N>_gvis` blob keyed by each game's id, never its launcher index -- `GameVisibility.h` is the table, pure and host-tested, and `Board` keeps the active player's in RAM because the launcher asks it for every tile. Schema 3 (`migrateGameVisibility()`, called by the runtime after `begin()` because only it knows which game is at which index) folds the old per-index `p<N>_gv<I>` bools in. Global: theme, layout, screen flip, brightness, Wi-Fi credentials, NTP, NTP resync interval, timezone.
+
+**One slot is the console's own.** `loadConsoleBlob()` / `saveConsoleBlob()` /
+`clearConsoleBlob()` keep a blob under `CONSOLE_SLOT` (9), outside the players'
+slots: the state of a game being played against another console. It is not a
+player's data -- the other console is playing this console, whoever is holding
+it -- so a change of player does not touch it, removing a player does not move
+or clear it, and Guest's rule that nothing is written does not apply to it.
+Scores and progress never go there, and nothing in it is transmitted.
 
 Deleting a player is a storage operation, not a name-list edit. `removePlayer()` clears the deleted slot's `pN_` keys, moves every later slot down by enumerating NVS entries in the application namespace, copies supported NVS types with fixed static scratch buffers, and clears the old last slot. Deleting the active player switches to Guest; deleting a lower slot shifts the active index down so the same real player stays active.
 
@@ -50,7 +67,7 @@ Deleting a player is a storage operation, not a name-list edit. `removePlayer()`
 
 **Two kinds of controller, one coordinate.** `BOARD.touch.kind` says which the board wires, and `pollTouch()`'s rotation switch is shared by both — game code never adjusts coordinates itself either way.
 
-*Resistive (XPT2046).* Bit-banged SPI (the TFT owns HSPI). `readResistiveTouch()` averages samples and applies `BOARD.touch.pressureThreshold`; `mapTouch()` runs the 3-point affine fit, which persists in NVS behind a magic number. `runTouchCalibration()` re-runs the wizard.
+*Resistive (XPT2046).* Two wirings. On the E32R32P and the E32R40T (`TOUCH_CS` defined) it shares the display's SPI bus through TFT_eSPI's touch extension; on the E32R28T-1 and the inverted-panel ESP32-2432S028 (no `TOUCH_CS`) it is bit-banged, because the TFT owns HSPI. `readResistiveTouch()` averages samples and applies `BOARD.touch.pressureThreshold`; `mapTouch()` runs the 3-point affine fit, which persists in NVS behind a magic number. `runTouchCalibration()` re-runs the wizard.
 
 *Capacitive (FT6336U).* I²C. `readCapacitiveTouch()` does one 5-byte read from `TD_STATUS`, which is immediately followed by the first touch point — count and coordinates in a single transaction per frame. Two things about it are load-bearing:
 
@@ -85,13 +102,18 @@ Panel sleep/wake is observable: `displaySleepTelemetry()` reports sleep count, w
 
 ### Sound
 
-`Sound.h` is the vocabulary; `BoardAudio.cpp` is everything else. Read the
-header comment in that file before changing it -- three of its decisions look
+`Sound.h` is the vocabulary; `BoardAudio.cpp` arms the cues and runs the
+`braino-audio` task; `BoardAudioCues.cpp` holds every cue and the spoken
+phrase; `AudioSynth.cpp` generates the samples; `BoardAudioBackend.cpp`
+(with `BoardAudioInternal.h`) is the codec, I2S and DAC hardware, which the
+Linux build replaces with `host/src/HostAudio.cpp`. Read the header comment
+in `BoardAudio.cpp` before changing it -- three of its decisions look
 arbitrary and are not.
 
 **Nothing here is a recording and nothing here may become one.** Every sound is
-generated a sample at a time from a script of `Segment`s: sine or square with
-an optional linear sweep, band-passed noise, and three formant resonators
+generated a sample at a time from a script of `Segment`s: struck notes that
+ring and glide, sine or square with an optional linear sweep, band-passed
+noise, and three formant resonators
 driven either by a monotone impulse train (voiced) or by noise (unvoiced).
 That is a flash decision -- a second of 16-bit 16 kHz mono is 32 KB against a
 budget already at 76.0% -- and it is also what makes a spoken phrase possible
@@ -130,13 +152,37 @@ dropping them is audible as a stutter on anything long enough to fill the DMA.
 `src/s3_diag.cpp` blocks the whole way through a note, and is right to: a
 bring-up probe has no frame budget.
 
-**Re-arming the same script while it is still sounding is a continuation, not a
-restart.** `arm()` compares the incoming script with the current one and keeps
-the oscillator phase and the resonators when they match. That exists for the
-piano: the synthesiser has no note-on and no sustain, so a held key is kept
-alive by asking for the same note again just before the last one ends, and
-snapping `phase` back to zero at that seam is a step in the waveform -- a click,
-every 280 ms, heard as a tone that is not continuous.
+**Most cues are Notes: struck, left to ring, often gliding.** `Wave::Note`
+(`AudioSynth.cpp`) is the smooth set the owner chose on 2026-11-15. A Note
+takes one of `NOTE_VOICES` (4) voices of its own, rises over its timbre's
+attack, falls exponentially towards its sustain (zero for all but the piano's
+KEYS), glides linearly from `a` to `b` across its segment -- or across the
+timbre's own `glideMs` -- and rings on under whatever segment follows. A
+segment's `ms` is when the NEXT thing starts, not when the note stops. The
+timbres are a table in `AudioSynth.cpp`, named by `audio::Timbre`; all are
+pure sines except BELL's soft octave. Five things are load-bearing:
+
+- **A script with no Note in it generates bit for bit what it did before.**
+  Notes are summed after the shared gain and only while one sounds, so
+  GameOver and the spoken phrase were not touched.
+- **A taken voice is faded, not cut** (`declick`), and the sum of voices
+  goes through a soft ceiling from 75% of full scale rather than the hard
+  clip, which would square the peaks a chord makes.
+- **A script of Notes is never a continuation of itself.** The same note
+  asked for again is struck again -- a key pressed twice. A key still down
+  is `Sound::NoteHold` (`synthHold()`), which gives the note its segment
+  again without striking it; PianoGame sends it every
+  `SOUND_NOTE_REARM_MS`, and the static_assert in `BoardAudio.cpp` still
+  states the margin. Re-arming any OTHER script while it sounds is still a
+  continuation that keeps the phase and the resonators.
+- **A Note ends at a floor**: -66 dB of full scale on the codec and the I2S
+  amplifier, just under one 8-bit step at full volume on the built-in DAC
+  (`synthSetNoteFloor()`), where a note left to fall further only buzzes.
+- **Mute fades the notes in 4 ms**, as `synthFadeOut()` fades the rest.
+
+`host/sound/` renders every cue to WAV through these same files (see
+`host/CLAUDE.md`), and `test/host/audio_synth_test.cpp` fails on a step any
+Note shape makes.
 
 **The voice is a phoneme table, not text-to-speech.** `PHRASE_LETS_PLAY_BRAINO`
 spells "Let's play Braino!" out as L EH T S / P L EY / B R EY N OW, each entry
@@ -157,7 +203,7 @@ sounding, because Mute is the control somebody reaches for *while* the boot
 phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
 `BOARD.audio.maxVolume`).
 
-**The audio backend is now three-state, not binary.**
+**The audio backend is one of three, or none.**
 
 - `GUME_HAS_AUDIO_CODEC 1` — ES8311 codec (Freenove FNK0104B). Requires
   `Wire` + `driver/i2s.h`. Volume via register 0x32 (logarithmic — see
@@ -171,15 +217,35 @@ phrase is playing. `setVolume()` clamps to `AUDIO_VOLUME_MAX` (now read from
   Only the high 8 bits reach the DAC, giving 8-bit resolution. `maxVolume` =
   75 on these boards (the DAC feeds an onboard amplifier; the 1-inch driver
   distorts above 75%).
-- Neither defined — no audio. No supported board is in that state today.
+- `GUME_HAS_AUDIO_I2S 1` — a bare I2S amplifier with no codec (Attaky
+  Core: the Media I/O module's NS4168). The codec path with the codec taken
+  out: no Wire, no register writes, no MCLK (`i2sMclk = PIN_NONE` routes
+  none), the same 16-bit `STAND_I2S` frame on both slots that is known good on
+  the FNK0104B, so whichever slot the amplifier's CTRL strap picks carries the
+  sound. Volume is the DAC's linear multiplier, applied to the signed sample in
+  `generateBlock()` -- not the codec's dB maths. `tx_desc_auto_clear` is on,
+  because signed zero is silence here. `AUDIO_RATE` is 16000, **chosen rather
+  than measured**: the S3's I2S clock is 160 MHz through a fractional divider
+  and 16000 x 256 is 39 1/16 of it, exact on paper, but the drain timing the
+  DAC's table came from has not been done on this board. `maxVolume` = 50,
+  provisional until set by ear.
+- None defined — no audio. No supported board is in that state now, but the
+  Attaky Core was until it had the I2S backend, and it was the first board
+  to compile this arm at all: three `using namespace audio;` directives sat
+  outside the guard that defines the namespace, and every build failed. They
+  are guarded now. If you touch these files, build with the board header's
+  audio macro removed as well.
+
+Every guard here tests `GUME_HAS_AUDIO` -- defined in `BoardConfig.h` as any of
+the three -- rather than a list of backends, and `BoardConfig.h` static_asserts
+that a board states at most one.
 
 `AUDIO_VOLUME_MAX` is now `BOARD.audio.maxVolume`, set per-board in
 `BoardProfile`. A board that gains a louder amplifier sets its own ceiling;
 a board with no speaker path sets it to 0.
 
-`Board::hasSound()` covers both codec and DAC: a settings screen can offer
-the mute switch and volume slider on any audio-capable board, not just
-codec boards.
+`Board::hasSound()` is `GUME_HAS_AUDIO`: a settings screen can offer the mute
+switch and volume slider on any audio-capable board, not just codec boards.
 
 **Register 0x32 is logarithmic and was being driven as if it were linear.**
 Half a decibel per step, `0xBF` unity, `0x00` silence -- so scaling the
@@ -216,13 +282,33 @@ reach the speaker? Is output level audible? Where does distortion begin?
 
 ### RGB LED
 
-LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudio.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
+LEDC PWM, common anode (inverted drive). `setRgbColor()` holds a colour, `pulseRgb()` shows one briefly, `tickRgb()` fades it and must be called every frame from the main loop. `beepOk()`/`beepError()` live in `BoardAudioCues.cpp` now and are the two cues that also pulse the LED; a screen wanting any other sound calls `playSound()` and pulses the LED itself if the moment deserves a colour. On a board with no audio path the pulse is the whole of the feedback, which is why the ones that replace a `beepOk()` keep it by hand. Whether the drive is inverted comes from `BOARD.rgb.commonAnode`, not from an assumption in the driver.
+
+**On an I2C expander it is on or off.** When `BOARD.rgb.expander` is set -- the Attaky Core, red P1_0, green P1_1, blue P1_2 on the AW9523 at 0x59 -- `r`/`g`/`b` are that expander's ports and there is no LEDC: `Board::begin()` calls `BoardExpander::setupLed()` once the touch reset has been released (that release writes the whole bank), and `setRgb()`/`setRgbColor()` go through `driveExpanderRgb()`. A colour is shown as the channels at least half as bright as its brightest (`litAtAll()`), so grey is white and orange is red. Every write is a read-modify-write of the LED's own bits -- P1_3 beside them is the touch reset -- and a failed read writes nothing rather than guessing the rest of the byte. `rgbExpanderBits_` skips the bus entirely when the colour has not changed, which matters because the saver sets one per rally and the lock screen clears it on entry. GPIO mode, not the AW9523's LED current mode: dimming would be a register per channel and a second way to get the anode wrong, for a status light.
+
+**`rgbExpanderBits_` records what the part took, never what was asked for.** `BoardExpander::driveLed()` returns whether the bus answered, and a write it did not take leaves the state `RGB_EXPANDER_UNKNOWN`, which matches no colour, so the next call reaches the bus again. It used to be recorded before the write: one failed transaction on the way into sleep left the LED lit, the firmware sure it was off, and every later "off" skipped as already done. **And off is confirmed, not trusted, while the panel sleeps**: `displaySleep()` calls `keepExpanderRgbDark(true)`, which forgets the remembered state so the part's own output register is read (and written only if it disagrees), and `tickRgb()` calls it again on every 100 ms poll of the sleeping loop -- no bus traffic once off is confirmed, and the retry when it is not. A pulse arriving while the panel sleeps is put out on the next poll; the find alert's is not, because it wakes the panel in the same frame. On every other board `keepExpanderRgbDark()` is an inline no-op.
 
 The E32R28T-1's LED is red IO22, green IO16, blue IO17, per the vendor's table; IO4 is the amplifier enable, active low. It used to be declared `rgb.r = 16`, `rgb.g = 4` as "crossed" -- the evidence for that was IO16 being green, and driving IO4 as an LED held the amplifier in shutdown.
 
 ### Wi-Fi and time
 
 Wi-Fi exists only to set the clock. `tickTimeSync()` drives a non-blocking `Idle → Connecting → Syncing → Synced` state machine from the main loop. The success-path automatic resync interval is a write-through cached setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. `ntpUdpProbe()` queries NTP over raw UDP and doubles as a diagnostic and a fallback that sets the clock directly when lwIP's SNTP never answers.
+
+**The station is named `braino`, and it has to be named before it starts.**
+Unnamed, the Arduino core calls it `esp32-` plus the low three bytes of the
+Wi-Fi MAC and lwIP sends that to the router as DHCP option 12 -- half of an
+identifier this repository's rules keep off the boot banner, in a name the
+router records and System Info displays. `Board::WIFI_HOSTNAME` is the one
+definition and `Board::applyWifiHostname()` the one setter.
+`WiFi.setHostname()` only fills a buffer; the core hands it to the interface
+inside `WiFi.mode()`, on a transition into station mode, and `mode()` returns
+early when the mode is already the one asked for. So `Board::begin()` names
+the station before any radio code runs, and every `WiFi.mode(WIFI_STA)` and
+`WiFi.begin()` in the product is preceded by the call as well.
+`tools/check_privacy.py` fails on a start without it, on a second setter and
+on a name that is not a literal. A console is told apart by
+`Board::deviceId()`, never by this name. Whether the name reaches a given
+router can only be read off that router's client list or a packet capture.
 
 **These, the opt-in BLE beacon and the update check in `BoardUpdate.cpp` are the only outbound flows the firmware has, and that list is closed.** No analytics, no usage or crash reporting, no other HTTP/UDP/DNS request, and nothing transmitted that carries a player's name, profile name, score, progress or typing. `BoardNetwork.cpp` and `BoardUpdate.cpp` are where such a thing would be added, so they are where it gets refused: a fifth flow needs agreement in an issue before the code exists. See [CONTRIBUTING.md](../../CONTRIBUTING.md#no-data-collection).
 
@@ -234,19 +320,264 @@ Timezone is stored in **minutes** to support :30 and :45 zones, and comes from a
 
 ## BoardButton.cpp
 
-The BOOT key — the only input on these boards that is not the touchscreen. A GPIO with an internal pull-up, sampled once per frame by the runtime, edge-detected in `pollBootButton()`. No interrupt and no task: the debounce *is* the sampling rate, and a tactile switch settles well inside a 20 ms frame. Poll it faster and it will need a real one.
+The BOOT key — on the CYD boards and the FNK0104B, the only input that is not the touchscreen (the Attaky Core also has keys, `BoardKeys.cpp` below; on Linux the gamepad's B is BOOT). A GPIO with an internal pull-up, sampled once per frame by the runtime, edge-detected in `pollBootButton()`. No interrupt and no task: the debounce *is* the sampling rate, and a tactile switch settles well inside a 20 ms frame. Poll it faster and it will need a real one.
 
 Two things it deliberately does not do. It never reads the key during boot — BOOT is a strapping pin, the ROM samples it at reset to choose serial download mode, and that decision is made before `setup()` runs. And it does not time the press: a hold is not a gesture this firmware recognises, and a `heldMs` nobody reads would claim otherwise. The runtime acts on the press edge, so anyone adding a hold has to move that to the release edge first — you cannot both go home on the press and later decide the same press was the start of something longer.
 
 `PIN_NONE` is a supported profile. The event is all-false on a board with no key, so callers need no `hasBootButton()` guard of their own.
 
+## Code only some boards carry
+
+Five macros say what a board's image carries beyond the common firmware, and every one of them is defined in a board header and nowhere else. `GUME_TOUCH_CAPACITIVE` (Wire, the FT6336U) is stated by every board header -- 1 on the Attaky Core and the FNK0104B, and on the Linux build's `host/boards/host.h`. The other four are switched on only in `attaky-core.h`: `GUME_HAS_IO_EXPANDER` (`BoardExpander.cpp`), `GUME_HAS_NAV_KEYS` (`BoardKeys.cpp`), `GUME_HAS_KEYBOARD` and `GUME_HAS_ATTAKY_MODULES` (`modules/`, `BoardModules.cpp`). `BoardConfig.h` defaults those four to 0 and static_asserts that the profile agrees with it in both directions, and the board header writes the dependent profile fields from the macro, as it writes `TouchKind`.
+
+**Attaky code compiles only into the Attaky image.** That is checked, not intended: on every other product environment `xtensa-esp32-elf-nm -C` on `firmware.elf` shows none of `pollControls`, `pollTypedChar`, `typedChar`, `selectorFrame`, `Focus::`, `BoardExpander`, `sampleModuleBattery`, `Modules::`, `i2sUp`, and its RAM is `dev`'s. `python tools/check_platforms.py --elf .pio/build` reads every built image and fails on any of those names outside the Attaky image, and without `--elf` checks that the four macros are switched on in `attaky-core.h` alone. The way to keep it true is **whole files that compile to nothing** -- `#if GUME_HAS_X` round the entire body -- with the declarations they need behind the same macro, and an inline no-op in the header where shared code has to call across (`Modules::probeAll()`, `Modules::allows()`, `Modules::panelSleep()`, `Board::keepExpanderRgbDark()`, `hostTypedChar()` in `Game.h`, the `Focus::note*()` calls in `TftRenderer.h`, `SystemInfoApp::addModuleRows()`, `AboutApp::renderModules()`). A shared file that grows a scattered `#if` is the thing to avoid; a profile `if (BOARD.hasX())` is not a substitute, because both arms of it still compile and every declaration it needs stays in every class.
+
+## The Attaky Core (experimental): standing rules
+
+*Moved here from the root `CLAUDE.md`'s architecture invariants, verbatim.
+The Attaky Core is `custom_env_kind = experimental`: built by CI, never
+published. `docs/boards/Attaky-Core.md` is the board itself.*
+
+- **An LED can live on an I2C expander, and then it is on or off.**
+  `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)
+  or an AW9523's address, with `r`/`g`/`b` as its ports -- the Attaky Core's
+  P1_0..P1_2. `BoardExpander::driveLed()` reads, modifies and writes only
+  those bits, because P1_3 beside them is the touch reset, and
+  `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
+  the channels at least half as bright as its brightest, and the bus is
+  written only when that changes -- the saver sets a colour per rally.
+  **What is remembered is what the part took, not what was asked**:
+  `driveLed()` says whether the bus answered, and a write it did not take
+  leaves the state unknown, so the next call tries again. Recorded before
+  the write, one failed transaction on the way into sleep left the LED lit
+  and the firmware sure it was off. While the panel sleeps, off is read
+  back from the part and held (`Board::keepExpanderRgbDark()`, from
+  `displaySleep()` and every `tickRgb()`), at no bus cost once confirmed.
+- **The firmware's lights are out while the panel sleeps -- on the Attaky
+  Core, where there is more than one.** The status LED as above; and each
+  module that is clipped on is told through `Modules::Driver::panelSleep`,
+  called from `Board::displaySleep()` and `displayWake()`, so the keyboard
+  puts its caps-lock light out and brings it back on wake. The battery
+  pack's light is the charging hardware's and no line of the host's reaches
+  it; do not go looking for one. The gamepad's LEDs are left inputs, and
+  the probe logs what those lines read (`[gamepad] leds as inputs: ...`)
+  -- **they are not to be driven until that has been read on a device**.
+- **An expander the firmware drives no port of is parked, not ignored.**
+  An AW9523 strapped to 0x58 powers up with all sixteen ports outputs
+  driving LOW, and the Core's is wired to the other chips' interrupt
+  lines, so a firmware that never wrote to it held them all low.
+  `BoardProfile::parked.parkedExpander` names it (0 on every other board),
+  `Board::begin()` calls `BoardExpander::park()` before the touch reset is
+  released -- every port an input, the part's own interrupt output off --
+  and logs `[expander] 0x58 inputs P0=0x.. P1=0x..`. See `src/hal/CLAUDE.md`.
+- **Neither the SD slot nor the speaker is brought up over another
+  module's lines.** On the Attaky Core three Expand modules share IO5-8, and
+  the speaker's I2S (IO17/IO18/IO21) is the LoRa/GPS module's GPS UART and
+  radio interrupt and the FM/AM module's I2S; this firmware is built for
+  Media I/O. The three are the module table's `expand` slot, decided once
+  in `begin()` by `Modules::probeAll()`, before `beginAudio()` and
+  `mountSd()`, from `ExpandProbeProfile`: an address write to the FM/AM
+  tuner on that module's own bus, then a passive `GPS_LISTEN_MS` (1.5 s)
+  listen for a checksummed NMEA sentence on IO17, the UART's receiver only.
+  Either found, or the radio's bus failing to start, leaves the slot down
+  and the I2S backend uninstalled for the boot -- `mountSd()` and
+  `beginAudio()` ask `Modules::allows()` for Storage and Sound, which only
+  Media I/O provides -- and logs
+  `[expand] module=... sd=skipped audio=skipped`. Silent is the state an I2S
+  install failure already produced, so nothing downstream is new. Media I/O
+  has no host-readable identity, so finding neither is the only answer that
+  brings either up. Nothing it touches is driven, and it must stay ahead of
+  `beginAudio()`: on Media I/O, IO17 is the amplifier's bit clock.
+- **A power key's short press is the Lock button.** `KeysProfile::keyPower`
+  names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
+  `NavKey::Power`, which the runtime consumes above the active screen --
+  on the launcher too -- and turns into `lockAndSleepNow()`; no screen ever
+  sees it. It follows BOOT's rules: it counts as activity, wakes a sleeping
+  panel and dismisses the saver like any key, does nothing on the lock
+  screen, and reaches nothing the padlock does not. The long press switches
+  the power in hardware and never reaches the firmware -- build nothing on
+  it.
+- **A physical keyboard types into the text fields, and while it does, the
+  on-screen keypad is off -- one tap away, never gone.** `KeyboardProfile` names the two halves
+  of Attaky's clip-on keyboard and spells out each half's 25 positions;
+  the module table probes both at boot and the keyboard is off unless both
+  answer, because the module is detachable. `Board::pollTypedChar()` reads one
+  register a half per frame while nobody types -- the rows are held low,
+  so any key shows on the columns -- and walks the rows only while a key
+  is down. The runtime hands the character to the active screen through
+  `GameHost::typedChar()`, beside `navKey()`. Five fields take it: a
+  player's name and a Nearby peer's (through `Ui::Keypad::fromTyped()`,
+  so they accept exactly the keypad's capitals, digits and space), both
+  admin PIN pads (digits, Delete, Enter), and the Wi-Fi password (what was
+  typed, case and punctuation included). The keyboard's one Shift is
+  printed as a phone's up arrow and is pressed like one: tapped alone it
+  toggles caps lock, held with a letter it shifts that letter. Caps lock is
+  shown on the left half's own LED, which shares the AW9523's P1 with the
+  matrix rows -- so every row write carries the LED bits (`rowsLow()`), or
+  the scan would put the light out on the first key. **A screen must handle a typed
+  character apart from the touch**: on its frame the touch coordinates are
+  the last touch's, and running the hit tests would press that again.
+  Each screen reads it through `hostTypedChar()`, a constant 0 where
+  `GUME_HAS_KEYBOARD` is off, so the boards without one carry none of this.
+  **With the keyboard found at boot, those five fields draw no keypad**
+  (`ui/TypingPanel.h`): the field is drawn larger, the PIN's dots too, with
+  "Type on the keyboard" under it, and only what is not a key stays -- OK or
+  JOIN, Cancel or Back, Show. No DEL: the keyboard has Delete. Three things
+  are load-bearing. **Each screen keeps a `Ui::KeypadChoice`, decided as
+  the field opens**, so the choice is per visit and the next visit asks
+  again. **A keyboard button on every one of them brings the keypad back
+  for that visit** -- the module comes off and boot is the only time
+  anybody looks, so without it a field could be reachable only by key.
+  **A field that takes what the keyboard cannot type keeps it on screen**:
+  the keyboard has letters, digits, space and only `,` `.` `#` of the
+  punctuation, so the Wi-Fi password keeps the on-screen symbol page's three
+  rows where the keys were (`WifiPassword.cpp`); the names and PINs take
+  nothing the keyboard lacks. A new field, or a keyboard with a different
+  layout, has to be checked the same way. **And the
+  keypad comes back by itself when the keyboard stops answering**:
+  `Modules::keyboardAnswering()` counts the per-frame scan's own failures
+  (five in a row is gone), and each screen asks `KeypadChoice::lost()`
+  every frame and repaints fully on a yes. Elsewhere `KeypadChoice` is an
+  empty class with a constant-false `hidden()` and the drawing helpers are
+  inline no-ops, so every screen's branch folds away.
+- **The profile says where a module could be; boot decides whether it is
+  there.** A board that takes plug-in modules -- the Attaky Core's keyboard,
+  gamepad, Power module and Expand modules all come off -- states in its
+  profile what it would need to know about each one it can carry, and
+  nothing about whether one is attached. `src/hal/modules/` holds one driver
+  file per module: a `Modules::Driver` (name, the `ModuleCapability` bits it
+  provides, a boot probe, per-frame or battery hooks, a slot for modules that
+  share lines) and a `Modules::Registration` that puts it in the table from
+  its own file. `Modules::probeAll()` runs every probe once in
+  `Board::begin()`, and nothing a module provides is used unless its probe
+  found it. **Supporting a new module is one driver file plus its facts in
+  the profile**: the boot sequence, the navigation-key stream, typing, the
+  battery path, the SD and speaker gates, System Info's Board tab and
+  About's Modules page all read the table, so none of them changes. See
+  `src/hal/CLAUDE.md`.
+- **Attaky code compiles only into the Attaky image.** Five board-header
+  macros -- `GUME_TOUCH_CAPACITIVE`, `GUME_HAS_IO_EXPANDER`,
+  `GUME_HAS_NAV_KEYS`, `GUME_HAS_KEYBOARD`, `GUME_HAS_ATTAKY_MODULES` -- are
+  defined only in `include/boards/attaky-core.h` (the first also in
+  `fnk0104b.h`), default to 0 in `BoardConfig.h`, which static_asserts the
+  profile agrees with them both ways, and preprocess out everything behind
+  them: whole files, `Board`'s members and accessors, `GameHost`'s
+  `typedChar()` virtual, the runtime's key routing and its selector, the
+  focus recorder, the screens' typed paths, the gauge and the module
+  table. **Prefer a whole file that compiles to nothing** over an `#if` in a
+  shared file, and where shared code must call across, an inline no-op
+  beside the declaration (`hostTypedChar()`, `Modules::allows()`, the
+  recorder's `Focus::note*()` calls in `TftRenderer`). A `BOARD.hasX()`
+  test is not enough -- both arms still compile and its declarations stay
+  in every class. Checked rather than hoped: on each other product
+  environment `xtensa-esp32-elf-nm -C firmware.elf` finds none of
+  `pollControls`, `pollTypedChar`, `typedChar`, `selectorFrame`,
+  `Focus::`, `BoardExpander`, `sampleModuleBattery`, `Modules::` or
+  `i2sUp`, and it carries no RAM beyond what the shared code costs.
+  **One stated exception: `src/ui/Stops.{h,cpp}`**, what a game says about
+  its board (`Ui::setBoardStops()`) and a card over it. It compiles on every
+  board because the PC and RG40XX V builds read it (`HostTftFocus.cpp`), and
+  they define no `GUME_HAS_NAV_KEYS` -- their selector is the host's. It is
+  two rectangles and a flag, assigned per frame and drawn by nothing.
+
+## modules/ + BoardModules.cpp -- what is clipped on
+
+**The profile says where it could be; boot decides whether it is there.** A board that takes plug-in modules states in its profile everything about each one it *can* carry -- addresses, ports, layouts -- and nothing about whether one is attached, because that is not a fact about the board. Each module has a driver in `modules/`, one file a module, and `Modules::probeAll()` runs every driver's probe once in `Board::begin()`, after the touch bus is up and before `beginAudio()` and `mountSd()`. A module is used only if its probe found it.
+
+A driver is a `Modules::Driver` constant -- name, log tag, order, the `ModuleCapability` bits it provides, a slot, a probe and up to five hooks -- and a `Modules::Registration` beside it at namespace scope. The registration is a static object, so **the driver's own file puts it in the table**: there is no list to edit. Supporting a new module is that file plus its facts in the profile; the boot sequence, the input stream, the battery path, System Info and About all read the table, so none of them changes. The table is a fixed array of pointers (`MAX_DRIVERS` 12) kept in `order` as registrations arrive; it allocates nothing.
+
+What a capability does:
+
+- `NavKeys` -- `heldControls()` adds what the module holds to `pollControls()`'s set every frame, beside the board's own keys and **before** `turnForScreen()`. So a gamepad and the Core's keys are one held set above the HAL, turned for the rotation the same way, and nothing upstream can tell them apart.
+- `Typing` -- `typedChar()` is `pollTypedChar()`'s answer.
+- `Battery` -- `readBattery()` is what `Board::sampleModuleBattery()` publishes, from the battery task.
+- `Storage`, `Sound` -- `mountSd()` and the I2S branch of `beginAudio()` ask `Modules::allows()`, which is a constant true on a board without a table.
+
+**Slots are for modules that share lines.** In a slot the first driver by `order` whose probe answers is the module there, and the rest are not asked; a probe that could not run (`Probe::Unknown`) decides the slot as unknown and nothing in it is used, because a guess about who owns a line is how a line gets driven into somebody else's chip. A `byElimination` driver -- Media I/O, which has no identity a host can read -- is present only when nothing else in its slot was found. Each slot logs one line, `[expand] module=<tag> sd=allowed|skipped audio=allowed|skipped`, which is the line the Expand check always printed.
+
+**A `live` driver is asked again by its own hook rather than trusted from boot**: the battery module, which can come off while the console runs from USB. Its presence follows `readBattery()`'s answer, so System Info and About follow it too.
+
+**A module with a light puts it out while the panel sleeps.** `panelSleep(bool asleep)` is the fifth hook, optional like the rest: `Board::displaySleep()` and `displayWake()` call `Modules::panelSleep()`, which tells every module that is present, on the loop task and between frames. A locked console that has been put down shows no light of the firmware's, and a module is the only code that knows where its own light is. A light the host has no line to -- the Power module's charge light, which is the charging hardware's -- is not the firmware's and gets no hook. On a board with no table `Modules::panelSleep()` is an inline no-op.
+
+**A module with a light can show which one it is.** `lightSteps` and `lightStep(step, on, name, cap)` are the sixth hook, for the serial console's `lights` (`engine/AppRuntimeLights.cpp`): one step for each thing the driver can do to a light of its own, done or undone on request, and named. The keyboard's six are its two halves' three channels driven low, the bit riding in `rowsLow()` beside the caps-lock light's so that a scan does not put it out. The gamepad's twelve are each channel driven low and then high, and they are the only place those ports are outputs: the driver itself leaves them inputs until somebody has watched which level lights them. A module with no light the host can reach gives 0 and `nullptr`.
+
+The drivers, today all Attaky's:
+
+- **`KeyboardModule.cpp`** -- Attaky's two-half keyboard, each half an AW9523 scanning a 5x5 matrix. `KeyboardProfile` gives both addresses and a 25-character layout per half, with four codes for keys that type nothing (`^` Shift, `<` Delete, `>` Enter, `~` unused). The probe sets both halves up with every row driven LOW and says `[keyboard] attached|absent`; both or neither. **Idle, it costs one register read a half**: with every row low any key pulls its column down, so the frame's read stops there when they are all high, and only a key down makes it walk the rows -- about a millisecond. One character a frame: a letter (upper while Shift is held), a digit, space or the punctuation as itself, `'\b'` for Delete (repeating while held), `'\n'` for Enter. Its AW9523 writes are its own, not `BoardExpander`'s: the module is not the board. **The caps-lock light shares P1 with the matrix rows**, so it is never written alone: `rowsLow()` is the one statement of that register between scans, every row write carries it, and `panelSleep()` changes what it says (light out while the panel sleeps, back on wake if caps lock is still on) and writes the whole value. A light write the bus did not take is retried from the next frame's `typedChar()`, since an idle scan only reads. **It also says whether it is still there**: `Modules::keyboardAnswering()` is false once five scans in a row have failed -- the module coming off, a tenth of a second -- and true again on the next scan that succeeds, logged as `[keyboard] not answering` / `answering again`. It is a count of the scan that runs anyway, so it costs nothing; `ui/TypingPanel.h` brings a text field's on-screen keypad back on it. The module is not re-probed: put back while running, it answers again but stays as the probe set it only if it kept its power.
+- **`GamepadModule.cpp`** -- Attaky's Control: Gamepad (Bottom), a TCA9555 a half at 0x22 and 0x26. `GamepadProfile` is the whole module as a layout string a half, P0_0..P0_7 (`SODRLU<{` and `}>XABYMT`): the map is Attaky's own, from their Retro-Go patch for this module, not their datasheet, which named only six keys. All active low on the part's own pull-ups. The probe writes both halves' configuration registers to all-inputs -- which is also what leaves each half's RGB LED off, if it is wired as Attaky document it (active low on P1_5..P1_7) -- then logs `[gamepad] leds as inputs: left P1=0x.. right P1=0x..`, each half's port-1 input register: all three top bits high is the documented wiring at rest, and a bit reading low is a channel wired the other way round, glowing through the part's pull-up. **Those ports are not driven until that line has been read on a device**; a light was seen on the module with the console locked, and a guess at the polarity is how it would be lit for certain. The frame read is one input register a half, held or idle, because every key is on port 0. **Seen on a Cyber Deck Plus**: the D-pad on left bits 2-5, and bits 0, 1, 6 and 7 of both halves answering; which key does what is `hal/ControlJobs.h`'s business, not this file's.
+- **`FuelGaugeModule.cpp`** -- the Power module's gauge, whichever of
+  MAX17048, INA226 and INA219 is fitted (see Battery sensing).
+- **`ExpandFmAm.cpp`, `ExpandLoraGps.cpp`, `ExpandMediaIo.cpp`** -- the three Expand modules on the `expand` slot, which share IO5-8 and the speaker's I2S lines. Passive-first, after Attaky's `shared/module-detection-and-safe-boot.md`: FM/AM (order 40) is one address write to its tuner (0x64) on that module's private bus (`Wire1`, IO42/IO41), torn down after and left as inputs, and a bus that will not start is `Unknown`; LoRa/GPS (order 50) attaches the UART's receiver alone to IO17 for `GPS_LISTEN_MS` (1.5 s) and wants one NMEA sentence whose checksum adds up -- not just a `$`, because on Media I/O that line is the amplifier's idle bit clock -- and leaves IO17 `INPUT_PULLDOWN`, Attaky's park for it; Media I/O (order 60) is by elimination and provides `Storage` and `Sound`. Neither of the other two provides anything: finding one is what keeps the SD slot and the speaker down. **Keep `probeAll()` ahead of `beginAudio()`**: an I2S backend clocking IO17 while the GPS probe listens would be both a wrong answer and a noise through the speaker.
+
+Everything a driver does at boot is on the loop task; `heldControls()` and `typedChar()` run on it every frame; `readBattery()` runs on the battery task, sharing the bus with touch under `TwoWire`'s own lock.
+
+## BoardKeys.cpp + BoardExpander.cpp + HeldControls.h + ControlJobs.h
+
+The keys, on the boards that have them -- today the Attaky Core, whose own keys are ports of an AW9523 on the touch bus, plus whatever a module with `NavKeys` holds. `Board::pollControls()` reads one input register per frame from the loop, beside the BOOT key and for the same reason touch is read there, and returns **what is held** as a `HeldControls`: the buttons as `1 << ControlJobs::Control`, the directions as four bits, and the power key. Presses, releases and repeats are the selector's (`engine/AppRuntimeSelector.cpp`), as they are the Linux host's. A failed read keeps the last state, so a bus glitch cannot invent a press.
+
+`KeysProfile` names the Core's ports: the D-pad, the centre key -- Select, or A on a deck with no gamepad, so a press still exists -- the top-left shoulder (L1) and `keyPower`. The power key's short press comes back as `held.power` and the runtime takes it as Lock; a long press that switches the power in hardware is invisible to this code by construction. **The Core's own keys have not yet been seen to answer on a device**: on the first Cyber Deck Plus the expander's port never changed while its strip was pressed. `[keys] core 0x59 P0=..` is logged on every change of that port, and is the line that will show them.
+
+`ControlJobs.h` decides what each control is for from the controls the console has, top to bottom by how much a job is missed -- the Linux host's table, moved here so both consoles share it. `Board::controlsPresent()` says what this one has. **`maskOf()`, not `bit()`**: Arduino defines `bit` as a macro.
+
+**The direction comes back in screen terms.** The keys are stated as they point at the board's landscape rotation, and `turnForScreen()` turns the held set by the rotation that is current, using the convention `pollTouch()`'s transform establishes -- each step of TFT_eSPI rotation is a quarter-turn of the picture anticlockwise. No screen corrects for rotation. **Seen right at the landscape rotation only**: if portrait or flipped is wrong, the sign in that one function is the whole fix.
+
+`BoardExpander.cpp` holds the Core's own AW9523 writes -- the status LED's (see RGB LED above), and at boot the touch reset (`driveTouchReset()`, which also leaves every other port an input -- so the Core's keys need nothing more), `allInputs()` for a key expander that is not the reset's, and `park()` for an expander the firmware drives no port of. `GUME_HAS_IO_EXPANDER` only.
+
+**An expander nobody drives still has to be written once.** An AW9523 does not power up as inputs: strapped to 0x58 it comes up with all sixteen ports outputs driving LOW (datasheet Table 1), and the Core's 0x58 is where the other chips' interrupt lines arrive -- touch on P0_4, the gauge's alert on P0_2, the IMU on P1_5 and P1_6, the 0x59 expander's own interrupt on P1_7, the gamepad's halves on P1_4 and P0_7, the keyboard's left half on P0_1. The firmware used to leave that part alone, which meant holding every one of those lines low against its owner's output or pull-up for as long as it ran. `BoardProfile::parked.parkedExpander` names such a part (0 on every other board; `BoardConfig.h` refuses the address of an expander the firmware does drive), and `Board::begin()` calls `BoardExpander::park()` on it as soon as the bus is up and **before the touch reset is released**, since one of those lines is the touch controller's interrupt. `park()` is `allInputs()` plus the part's interrupt enables switched off (0x06 and 0x07 to 0xFF): interrupts fire only for inputs, so parking is what would start them, and a latched INTN is a line held low until its input registers are read, which nothing here does. It then logs `[expander] 0x58 inputs P0=0x.. P1=0x..`, both input registers, which is where the levels of those lines can be read on a bench (`not answering` if the part did not). **Leaving a part alone is not leaving its lines alone**: a new expander in a profile is either driven or parked.
+
 ## Clock.{h,cpp}
 
-Time/date formatting and sync-state helpers over the ESP32 RTC.
+Time/date formatting and sync-state helpers over `getLocalTime()` -- the ESP32's RTC on a board, the system clock through the shim on Linux.
 
 ## Battery sensing
 
-`BOARD.battery.adcPin` is GPIO34 on this board = **ADC1**_CH6, and that matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
+A board describes its battery in one of two shapes, never both (`BoardConfig.h`
+asserts it): an ADC sense line behind a divider, which is everything below, or
+a **gauge on I2C** -- `BOARD.battery.fuelGaugeAddress`, which only the Attaky
+Core has. Its Power module carries a MAX17048 (0x36), an INA219 or an INA226
+(0x40/0x44/0x45) depending on which module it is, and `FuelGaugeModule.cpp`
+identifies the part by a register only it answers that way; an INA's
+percentage comes from the LiPo curve, the MAX17048's from itself. `hasBatterySense()` is
+true for either; `hasBatteryAdc()` and `hasFuelGauge()` say which, and
+anything that touches the ADC pin keys on the first.
+
+**The fuel gauge rides the same task and publishes the same snapshot.**
+`sampleModuleBattery()` (`BoardModules.cpp`) replaces the ADC branch of
+`sampleBattery()` on such a board: it asks the module table, whose
+`FuelGaugeModule.cpp` reads VCELL (0x02, 78.125 uV per LSB) and SOC (0x04,
+whole percent in the high byte, 1/256 in the low), and feeds SOC to
+`settleDisplayPercent()`, the deadband the ADC path uses too. The gauge is a
+`live` module: asked every sample whatever boot found, and its presence on the
+System Info and About lists follows the answer. There is no LiPo curve and no gauge filter on
+this path -- they exist to make a percentage out of a noisy voltage, and the
+chip has already done that with a better model. SOC above 100 (it can, just
+after a full charge) is clamped. Four things are load-bearing:
+
+- **A gauge that does not answer publishes what a board with no sense line
+  publishes**: a zeroed sample and -1. The module is detachable, so a NACK is
+  an ordinary state, and the two tempting answers are both wrong -- a zeroed
+  SOC is 0% and raises the critical banner on a console running from USB, and
+  holding the last reading claims a charge nobody is measuring. Every reader
+  already treats -1 as "nothing to show". `[battery] fuel gauge at 0x36
+  answering|not answering` is logged on each change, from the task.
+- **It shares the bus with touch, from another task.** The battery task is on
+  core 0, `pollTouch()` on the loop on core 1. Arduino-ESP32 2.0's `TwoWire`
+  holds its own mutex from `beginTransmission()` through the repeated-start
+  `requestFrom()`, so the two transactions cannot interleave; the cost to a
+  frame is waiting out one few-byte gauge read at 400 kHz. Do not add a second
+  lock, and do not read the gauge from the loop instead.
+- **The monitor starts after Wire is up**, later in `Board::begin()` than on an
+  ADC board, because the first sample is synchronous and the bus is not
+  brought up until the touch reset is released. ADC boards still start it
+  where they always did.
+- **Everything is under `#if GUME_HAS_ATTAKY_MODULES`**, so no other image
+  carries a line of it -- see "Code only some boards carry". A board that
+  names a gauge without the macro, or the macro without a module, is refused
+  by `BoardConfig.h`.
+
+The rest of this section is the ADC path.
+
+`BOARD.battery.adcPin` is GPIO34 (**ADC1**_CH6) on the E32R28T-1, E32R32P and E32R40T, GPIO9 on the FNK0104B, and `PIN_NONE` on the inverted-panel ESP32-2432S028 and the Attaky Core (whose battery is a fuel gauge). ADC1 matters: ADC2 is unusable while Wi-Fi is associated, and this radio comes up for NTP. Don't move battery sensing to an ADC2 pin.
 
 **Sampling runs on its own task and never on a render path.** `sampleBattery()` is called every `BATTERY_SAMPLE_MS` (2s) by a priority-1 task pinned to core 0 — the same shape as Watchdog's monitor, and away from the Arduino loop task on core 1. It takes the eight ADC reads, advances both filters, applies the display deadband, and publishes `batteryPublished_` under a `portMUX`. Every accessor — `readBatteryTelemetry()`, `getBatteryVoltage()`, `getBatteryPercent()`, `isBatteryLow()`, `isBatteryCritical()` — does nothing but copy that snapshot. **Keep it that way.**
 
@@ -264,9 +595,9 @@ Every crossing invalidates the header, which is why this mattered enough to fix 
 
 **There is no `isBatteryPresent()`, and there must not be one.** It used to exist and was a constant `true`. Measured on hardware 2026-08-24 with `batdiag` (8s averaged): pack + USB **4.224 V**, USB with **no pack 4.159 V**, pack alone **4.066 V**. The no-pack case sits *between* the other two, because the TP4054 holds BAT at float voltage with or without a cell — so no threshold separates them in either direction. This is measured, not inferred; do not reintroduce the question in a new form or retune a constant to answer it.
 
-`V_SENSOR_MAX` (4.50V) is the plausibility ceiling that replaced `V_NO_BATTERY` (4.35V). It means **the ADC is faulty**, not "no pack": 4.35V was above anything this board produces, so it never fired, which left `getBatteryPercent()` unable to return -1 and the blank-digit rendering in `Ui::drawBatteryBadge` unreachable. With no pack the gauge reads *high*, near full.
+`V_SENSOR_MAX` -- now the per-board profile field `BOARD.battery.sensorMaxVolts`, 4.50V on every ADC board -- is the plausibility ceiling that replaced `V_NO_BATTERY` (4.35V). It means **the ADC is faulty**, not "no pack": 4.35V was above anything this board produces, so it never fired, which left `getBatteryPercent()` unable to return -1 and the blank-digit rendering in `Ui::drawBatteryBadge` unreachable. With no pack the gauge reads *high*, near full.
 
-Still assumed and still needing a meter: `DIVIDER_RATIO` (100k/100k).
+Still assumed and still needing a meter: the divider ratio, now `BOARD.battery.dividerRatio` (2.0, 100k/100k, on every ADC board).
 
 ## Where the battery went: PowerProbe, PowerMonitor, PowerLedger
 
@@ -332,6 +663,27 @@ The runtime owns when (`BrainoApp::tickDeepSleep()`,
 `SystemSuspend::AFTER_ASLEEP_MS`), the platform owns how and may decline.
 `enter()` blocks for as long as the device sleeps, so its caller holds a
 `Watchdog::Pause`.
+
+## SleepPower: what panel sleep switches off besides the panel
+
+`SleepPower.h`, shaped like `SystemSuspend`: `SleepPowerEsp32.cpp` lowers the
+processor to 80 MHz (`lowerClock()` / `restoreClock()`) and stops and starts
+the Wi-Fi station (`stopStation()` / `startStation()`); the host's answers
+no, since `HostSleep` does the Linux equivalent. The runtime decides when
+(`enterSleep()`, `tickStationRest()`, `wakeFromSleep()`), and `Board::
+restWifiForSleep()` / `wakeWifiFromSleep()` keep the time sync state machine
+still while the station is down and set it going again after.
+
+**Stop, never `WiFi.mode(WIFI_OFF)`.** The core's `mode(WIFI_OFF)` follows
+`esp_wifi_stop()` with `esp_wifi_deinit()`, and a de-init beside a live
+Bluetooth controller is the teardown that has panicked this device (see
+BleBeacon below). `esp_wifi_stop()` keeps the driver and its netif. The
+core's own started flag stays set, so `WiFi.getMode()` still reads STA:
+`BleBeacon::tickRadio()` therefore keeps any deferred controller teardown
+deferred, which is the safe direction, and the next `WiFi.mode(WIFI_STA)`
+returns early as it always did. `esp_wifi_start()` raises STA_START, where
+the core re-applies its stored modem-sleep choice -- which is why
+`WifiApp::end()` must put that choice back to on.
 
 ## No charge detection
 
@@ -406,6 +758,13 @@ Separately, and on both backends, **a sound fades out as well as in**: a
 spent script keeps its last waveform running while the gain slews to zero
 (`RELEASE_FLOOR`, ~25ms), because stopping a sine at its crest is a step of
 the full amplitude. Mute uses the same fade rather than cutting.
+A rest inside a script fades the same way: it keeps the last sounding
+segment's waveform running while the gain falls, because a rest that
+outputs zero from its first sample is the same step (`AudioSynth.cpp`;
+`test/host/audio_synth_test.cpp` fails on it). And a held note is held
+again (`Sound::NoteHold`) every `SOUND_NOTE_REARM_MS`, well inside
+`SOUND_NOTE_MS`, because the generator runs a DMA ahead of the speaker --
+`BoardAudio.cpp` static_asserts the margin.
 
 **The sample rate is not the same on both backends, and this is measured.** The
 built-in DAC's clock divider cannot reach low rates: below 22050 Hz it wraps
@@ -508,11 +867,138 @@ Two contracts worth respecting:
 
 Use `setContext()` to label the current screen so a post-crash report says where it happened. The runtime sets it on every screen change from the active app definition, or to `Launcher` for the home screen.
 
-`pause()`/`resume()` are reference counted and `Watchdog::Pause` is the RAII form — prefer it, because several of these call sites have early returns. Three places in `Board` already use it: `runTouchCalibration()` (waits for a finger), `ntpUdpProbe()` (DNS plus a 4s reply wait) and `detectTimezone()` (DNS plus a 5s HTTP round trip). Add the guard to anything new that blocks the loop task for seconds.
+`pause()`/`resume()` are reference counted and `Watchdog::Pause` is the RAII form — prefer it, because several of these call sites have early returns. It is used wherever the loop blocks on purpose -- for example `runTouchCalibration()` (waits for a finger), `ntpUdpProbe()` (DNS plus a 4s reply wait), `detectTimezone()` (DNS plus a 5s HTTP round trip), the update-manifest fetch, the BLE beacon and scanner start-up and the screen saver's entry. On Linux the watchdog is `host/src/HostWatchdog.cpp`, which `host/CMakeLists.txt` puts in place of `Watchdog.cpp`. Add the guard to anything new that blocks the loop task for seconds.
 
-The crash record uses its **own** NVS namespace, separate from the application data, and `factoryReset()` deliberately leaves it alone — a parent resetting a device that keeps crashing is exactly when that history matters. It is written only after an unclean reset, so flash wear is a non-issue; the per-second breadcrumb goes to RTC memory, which costs nothing.
+The crash record uses its **own** NVS namespace, separate from the application data, and `factoryReset()` deliberately leaves it alone — an administrator resetting a device that keeps crashing is exactly when that history matters. It is written only after an unclean reset, so flash wear is a non-issue; the per-second breadcrumb goes to RTC memory, which costs nothing.
 
 `begin()` is called from `BrainoApp::begin()` right after `Board::begin()` (so the crash report is the first thing in the log) and `feed()` is the first statement in `BrainoApp::loop()`. The bringup env is wired the same way.
+
+## ESP32 boards: hardware notes
+
+*Moved here from the root `CLAUDE.md`, verbatim. They are facts about the
+ESP32 boards' silicon and wiring; the Linux platform's are in
+`host/CLAUDE.md`, and each board's own page is in `docs/boards/`.*
+
+Pins live in `include/boards/<board>.h` -- one profile header per supported
+board, and the only place in the tree that names a GPIO. Read the profile
+rather than trusting generic ESP32 pinouts online, and never copy a pin map
+between CYD variants: GPIO34 is battery sense here and the light sensor on the
+ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
+
+- **A panel can be colour-inverted, and TFT_eSPI's macro will not fix it.**
+  A CYD panel can invert every channel relative to the driver it is built
+  with: the board comes up with backlight, touch, layout and a clean serial
+  log, and only the colours are wrong, which reads as a theme bug. `TFT_INVERT_COLORS` is consulted **only** by TFT_eSPI's ST7789 and
+  ST7735 init paths, so defining it on an ILI9341 build does nothing at all --
+  that was tried on the bench and looked like the flag being ignored. The fix
+  is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
+  `invertDisplay()` after `init()` and before anything is drawn.
+- **The boot log states what the board IS.** `[boot] device=...` is the
+  firmware's own id (`Board::deviceId()`), never the MAC -- see "No identifiers
+  in this repository". `board=` and `panel=` are compiled in and therefore
+  describe the firmware, not the hardware, which is exactly how a 2.8-inch
+  board reported itself as a 4-inch for half an hour.
+- **A running board answers `identify` with the same facts, unreset.** One
+  line, every value quoted; `ESP32_boardUtil.py` asks before it resets
+  anything. It carries **only the banner's facts** (no MAC, profile, score or
+  SSID) and needs no PIN. Open the port with DTR and RTS already low, or
+  opening it resets the board and defeats the point.
+- **An EN reset can strand an E32R40T, and the flash tool now recovers it.**
+  After the reset button, an RTS reset from a serial tool, a USB power surge
+  -- and, most often, the hard reset at the end of an upload -- the ROM loops
+  `flash read err, 988` or `invalid header: 0x20000368` / `RTCWDT_RTC_RESET`
+  every ~350ms with the panel dark. **It is not the GPIO12 strap**, which was
+  the first guess (GPIO12 is also the shared MISO): the ROM prints
+  `boot:0x17`, whose MTDI bit is clear, so 3.3V flash was selected. **Nor is
+  the image damaged**: read back while looping, the bootloader at 0x1000 was
+  byte for byte correct, and the failing read differed from it by three bits
+  at the same address -- a marginal read at the moment of some resets. Cause
+  not yet found. What recovers it without a battery pull is a reset that comes
+  *from download mode*: `esptool --after no_reset flash_id`, then `esptool
+  --before no_reset --after hard_reset read_mac`, repeating the pair (never
+  the second step alone) if it fails. `ESP32_boardUtil.py --flash` asks every
+  board it flashed for its build afterwards and runs that recovery on any
+  whose serial shows the loop (`check_boot()`), so a flash no longer leaves a
+  dark 4-inch board behind. By hand: capture the serial passively before
+  reflashing; it cannot be flashed while looping.
+- **There is no `id=` field in the banner, and putting one back needs more
+  care than it looks.** 5.9.0 printed the controller's ID register and broke the
+  display on two of the seven boards: `tft.readcommand8()` writes an
+  undocumented 0xD9, toggles CS mid-sequence and restores neither the address
+  window nor MADCTL, so a panel whose MISO is not wired back is left
+  mid-command and the next write inherits it. The symptom is the top bar
+  crushed into a band at one edge and the rest of the screen never painted,
+  while the loop reports 48fps, a 23ms worst frame and a flat heap -- every
+  instrument saying the firmware is healthy, because it is. The corruption was
+  in the panel, put there by the diagnostic. Across all seven boards the field
+  only ever answered `00:00:00` or `FF:FF:FF`; not one returned a real ID, so
+  it could not do the job it cost a panel to attempt. The remaining three lines
+  turn "which board is this?" into a paste rather than an afternoon.
+- **The E32R28T-1's RGB LED is red IO22, green IO16, blue IO17**, from the vendor's pin table, and **IO4 is its amplifier enable, active low** -- not an LED. It was once declared `rgb.r = 16`, `rgb.g = 4` on the belief that red and green were crossed; the observations behind that (orange came out green, purple came out cyan) are exactly what IO16 being green produces, and driving IO4 as an LED held the speaker's amplifier in shutdown. Common anode, so drive is inverted -- which the profile states rather than the driver assuming.
+- Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
+  (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
+  display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
+  is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
+  3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
+- **A touch reset can be an expander port rather than a GPIO.** The Attaky
+  Core wires its FT6636's reset to port P1_3 of an AW9523 at 0x59, so
+  `TouchProfile` carries `resetExpanderAddress` and `resetExpanderPort` beside
+  `reset`, and `Board::begin()` brings I2C up early to hold it through the
+  panel init and release it after -- the same pulse a GPIO reset gets. It
+  writes every AW9523 register it depends on rather than issuing a software
+  reset, because that part wants a settle and a boot-time `delay()` is what
+  `check_frame_rules.py` refuses here; and it leaves every other port an
+  input, since the firmware reads none of them. That board was ported from
+  Attaky's documents before a device existed here -- see
+  `docs/boards/Attaky-Core.md` for what is still unchecked.
+- **A battery can be a gauge on I2C rather than a divider.** The Attaky Core's
+  Power module reports the cell on the touch bus, so `BatteryProfile` carries
+  `fuelGaugeAddress` (0 on every other board) beside the ADC fields, and a
+  board states one or the other, never both. `hasBatterySense()` covers
+  either; `hasBatteryAdc()` is what guards the ADC pin. **Attaky make three
+  power modules with three different chips**, and `FuelGaugeModule.cpp`
+  identifies the one fitted the way Attaky's own Retro-Go does: a MAX17048 at
+  0x36 by its VERSION register, an INA226 by its die ID, an INA219 by a config
+  write it reads back -- never by a bare address ack, because the INA parts'
+  addresses overlap and their voltage maths differs. The first module seen on
+  a device was the INA219 one, not the MAX17048 the catalog documents; that
+  is why. A MAX17048's state of charge goes to the percentage directly; an
+  INA reports only the voltage (`Modules::PERCENT_FROM_VOLTS`) and goes
+  through the LiPo curve -- **with its top at the module's own full
+  voltage** (`Modules::gaugeFullVolts()`, `Board::curvePercentTo()`): the
+  Standard Cell 1.1 reads 4.07 V with its full-charge light lit, which the
+  curve's 4.20 V showed as 87%. Only the part above the curve's 70% point
+  moves, so the low and critical warnings are where they were. Same task, same snapshot, same deadband and
+  thresholds. **A gauge
+  that does not answer is no reading** -- -1, no badge, no warning -- never an
+  empty cell, because the module unclips. See `src/hal/CLAUDE.md`.
+- Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` — at lower duty the panel is unreadable and a player could not see the slider to undo it.
+- `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
+  variant, E32R32P and E32R40T
+  reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
+  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on all of them; the I2S
+  peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
+  codec. The full cue vocabulary and the spoken boot phrase play from the same
+  synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
+  1` (FNK0104B only). The third is `GUME_HAS_AUDIO_I2S 1` (Attaky Core only):
+  a bare I2S amplifier, the Media I/O module's NS4168, on BCLK IO17, word
+  select IO21 and data IO18 with no codec, no MCLK and no enable line -- the
+  codec path without the I2C, standard I2S at 16 kHz, volume as a linear
+  multiplier in software like the DAC's. `GUME_HAS_AUDIO` (`BoardConfig.h`)
+  is the one "has any audio path" test, every audio guard uses it, and a board
+  stating two backends fails to compile; boards with none have no audio.
+  `maxVolume` in `BoardProfile.audio` is 85 for the codec board and 75 for the
+  built-in-DAC boards, which feed an onboard amplifier (the 1-inch driver
+  distorts above 75%), and a provisional 50 on the Attaky Core, which nobody
+  has heard yet -- it is to be set by ear on the device, as the others were.
+  See `src/hal/CLAUDE.md`.
+  Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
+  whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
+  `beginAudio()` powers that channel down and returns the pad to the GPIO
+  matrix, logging `[audio] GPIO25 released: ...`, and `Board::begin()`
+  re-applies the touch pins after it; `BoardConfig.h` allows a touch pin on
+  the non-speaker DAC pad and nothing else.
+- Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup — routers don't advertise one in practice.
 
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->

@@ -189,15 +189,21 @@ def read(*parts):
 
 
 def firmware_version():
-    """The version the firmware reports, which is the release's identity."""
+    """The release's identity: BRAINO_VERSION, the same on every platform.
+
+    An image reports it with a +device part (include/FirmwareVersion.h). That
+    part is build metadata and never belongs to a published version, so a
+    version carrying a "+" is refused here as well as in check_docs.py."""
     match = re.search(r'BRAINO_VERSION\s+"([^"]+)"', read("include", "AppVersion.h"))
     if not match:
         die("include/AppVersion.h: BRAINO_VERSION not found")
     return match.group(1)
 
 
-def environments(ini):
-    """Every product [env:*] in platformio.ini, with the board each one composes.
+def environments(ini, kinds=(env_kinds.PRODUCT,)):
+    """Every [env:*] of these kinds, with the board each one composes. A
+    release is the product environments; `--only` may also name an
+    experimental one, for a CI run's testers.
 
     An environment that references no [board_*] section is board-agnostic --
     wifidiag builds src/wifi_diag.cpp alone and touches no board peripheral.
@@ -207,7 +213,7 @@ def environments(ini):
     """
     boards = re.findall(r"^\[board_(\w+)\]", ini, re.M)
     found = []
-    for env in env_kinds.of_kind(env_kinds.PRODUCT, ini):
+    for env in [e for kind in kinds for e in env_kinds.of_kind(kind, ini)]:
         body = re.search(r"^\[env:%s\](.*?)(?=^\[|\Z)" % re.escape(env),
                          ini, re.M | re.S).group(1)
         used = [b for b in boards
@@ -409,14 +415,29 @@ def flashing_notes(version, built, entries):
     return "\n".join(lines)
 
 
-def pack(version, out_dir, built, strict):
+def pack(version, out_dir, built, strict, only=None):
+    """Pack every product environment, or with `only` just that one.
+
+    `only` is for a build that is not a release: a CI job that built one
+    environment and wants to hand that one image to a tester, in the same
+    four-parts-plus-merged shape a release ships, with the same FLASHING.txt.
+    The release workflow never passes it -- a release missing a board is
+    exactly what the "every product environment has to be built" refusal
+    below exists to catch.
+    """
     ini = read("platformio.ini")
     stock_boot_app0 = boot_app0()
     os.makedirs(out_dir, exist_ok=True)
 
     entries = []
     missing_blurb = []
-    for env, board in environments(ini):
+    # A release is the product environments. `only` may also name an
+    # experimental one: a CI run attaches it for testers, and that run is the
+    # only place it is ever packed.
+    kinds = env_kinds.FIRMWARE_KINDS if only else (env_kinds.PRODUCT,)
+    for env, board in environments(ini, kinds):
+        if only and env != only:
+            continue
         env_dir = os.path.join(ROOT, ".pio", "build", env)
         if not os.path.isdir(env_dir):
             die("no build for [env:%s] at %s -- every product environment in "
@@ -448,6 +469,10 @@ def pack(version, out_dir, built, strict):
         if env_role(env, board) not in ENV_BLURBS:
             missing_blurb.append(env)
         entries.append((env, board, parts))
+
+    if only and not entries:
+        die("--only %s names no product or experimental environment in "
+            "platformio.ini" % only)
 
     if missing_blurb and strict:
         die("no description in ENV_BLURBS for: %s -- a release that offers a "
@@ -481,6 +506,11 @@ def main():
                         help="how the binaries were built, for FLASHING.txt")
     parser.add_argument("--strict", action="store_true",
                         help="fail if an environment has no description")
+    parser.add_argument("--only", metavar="ENV",
+                        help="pack this one product or experimental "
+                             "environment rather than all of them -- for "
+                             "handing a CI build to a tester, never for a "
+                             "release")
     args = parser.parse_args()
 
     version = args.version or firmware_version()
@@ -489,9 +519,13 @@ def main():
         die("asked to pack %s but include/AppVersion.h says %s -- the "
             "firmware's own version is the release's identity"
             % (version, stated))
+    if "+" in version:
+        die("%s carries a '+': the +device part is what an image adds when it "
+            "reports itself, and a published version never has one" % version)
 
     out_dir = args.out if os.path.isabs(args.out) else os.path.join(ROOT, args.out)
-    entries, binaries = pack(version, out_dir, args.built, args.strict)
+    entries, binaries = pack(version, out_dir, args.built, args.strict,
+                             args.only)
 
     print("Packed %s: %d environment(s), %d binaries -> %s"
           % (version, len(entries), len(binaries), out_dir))

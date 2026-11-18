@@ -96,28 +96,55 @@ enum class Sound : uint8_t {
     NoteB4,
     NoteC5,
 
+    /* Keep the note just struck sounding: a piano key still held down.
+     *
+     * Not a sound of its own. A note is struck, so asking for the same note
+     * again strikes it again -- right for a key pressed twice, wrong for a
+     * key that never came up, which would re-strike every few hundred
+     * milliseconds. The two look identical from the synthesiser, so the game
+     * that knows which it is says so: PianoGame sends this instead of the
+     * note while a finger stays down, every SOUND_NOTE_REARM_MS. With nothing
+     * held it does nothing. */
+    NoteHold,
+
     /* THE ONE CUE MEANT TO BE HEARD FROM ANOTHER ROOM.
      *
      * Every other sound here is feedback for somebody already holding the
      * console, so it is short and quiet on purpose. This one answers "find my
      * Braino": it is a struck bell, loud, with a long enough tail to carry
      * through a cushion, and the runtime repeats it on a cadence for as long
-     * as the alert lasts. It stays under 700ms so that each repeat restarts
-     * the script rather than being taken for a held note -- arm() treats the
-     * same script arriving while it is still sounding as a continuation, which
-     * is what keeps a piano key from clicking and would here swallow the gap
-     * between rings. */
+     * as the alert lasts. Each repeat strikes it again: a script of Notes is
+     * never taken for a continuation of itself. */
     Bell,
 
     Boot,       // the spoken startup phrase
 };
 
-/* How long one note sounds. Stated here rather than inside the synthesiser
- * because a caller that wants a note to keep sounding while a key is held has
- * to know when to ask for it again -- the synthesiser has no concept of sustain
- * and a cue is a fixed script, not a note-on. Change it in one place or the
- * re-trigger drifts out of step with the sound and you get a stutter. */
+/* How long a note is held without being asked again. A key that stays down
+ * sends Sound::NoteHold within this long of the strike, and again within this
+ * long of each hold, or the note is let go and falls away. Stated here rather
+ * than inside the synthesiser because the caller has to know when to ask. */
 constexpr uint16_t SOUND_NOTE_MS = 320;
+
+/* How often a caller asks for a held note again. NOT "a little before
+ * SOUND_NOTE_MS", which is what it was, and why a held piano key fell silent
+ * once, about a third of a second in, and then held perfectly.
+ *
+ * The note is generated ahead of the speaker, not with it. When a sound is
+ * armed on a quiet console the generator fills the whole DMA at once -- 96ms
+ * on the codec, 64ms on the built-in DAC, plus a block -- and from then on
+ * stays that far ahead. So at the first re-arm, 280ms of wall time after the
+ * press, the engine had already made 384ms of a 320ms note, faded it out,
+ * and stopped; the re-arm started a fresh note after a gap. Later re-arms
+ * found the generator paced by the DMA and arrived in time, so it happened
+ * exactly once per held key.
+ *
+ * The re-arm therefore has to land before the note ends by the DMA's lead
+ * and a slow frame or two. BoardAudio.cpp static_asserts exactly that against
+ * the real DMA size, and test/host/audio_synth_test.cpp replays a held key on
+ * that timeline. Asking more often costs nothing audible: a hold strikes
+ * nothing and changes no sample. */
+constexpr uint16_t SOUND_NOTE_REARM_MS = 120;
 
 /** Number of entries in the NoteC4..NoteC5 run. */
 constexpr uint8_t SOUND_NOTE_COUNT =

@@ -5,6 +5,13 @@ description: Identify which Braino board is on which serial port, and flash the 
 
 # Which board is on which port — never ask
 
+This skill is for the **ESP32 boards**: the product boards and the
+experimental Attaky Core, which `ESP32_boardUtil.py` flashes like any other.
+The **Linux platform** is not flashed over a serial port: the PC build runs
+where it is built (`host/CLAUDE.md`), and the RG40XX V takes a card image,
+written on Windows with `host/rg40xxv/write-card.ps1` (see
+`host/rg40xxv/README.md`). Nothing below applies to either.
+
 **Do not ask the owner to identify a port.** It has been asked three times in a
 single session and it is answerable in about ten seconds. Run this instead:
 

@@ -10,7 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/Progress.h"
+#include "engine/Course.h"
+#include "ElementsCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -42,27 +43,22 @@ const AppMetadata& elementsAppMetadata();
  */
 class ElementsGame : public AppGame {
 public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered (Game.h). */
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
-    void end(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Tab : uint8_t { Explore, Quiz, Level };
 
     /* Question shapes. All six are generated from ElementData, so adding an
      * element adds its questions and nothing has to be written twice. */
-    enum class QType : uint8_t {
-        SymbolToName = 0,   // "Which element is Fe?"       -> four names
-        NameToSymbol,       // "Symbol for Gold?"           -> four symbols
-        FindIt,             // "Tap Oxygen in the table"    -> the chart
-        ProtonCount,        // "Protons in Carbon?"         -> four numbers
-        FactToElement,      // the fact itself              -> four names
-        StateOf,            // "Mercury at room temp?"      -> solid/liquid/gas
-        COUNT
-    };
-
     enum class CellStyle : uint8_t { Normal, Dimmed, Selected, Pending, Correct, Wrong };
 
     static constexpr uint8_t MAX_OPTIONS = 4;
@@ -85,11 +81,12 @@ private:
     static uint16_t categoryColor(uint8_t category);
 
     // ---- level ----
-    /** 1..3. Follows mastery while tierPin_ is 0, otherwise the pinned value. */
+    /** The level questions are asked at: the ladder's, or 3 / 6 / 9 while
+     * the Level tab pins Easy / Common / All. */
+    uint8_t quizLevel() const;
+    /** 1..3: the elements that level asks about. */
     uint8_t activeTier() const;
     /** Percent of elements at or below `tier` that have been answered right. */
-    uint8_t tierMastery(uint8_t tier) const;
-    static bool inPool(uint16_t index, void* ctx);
 
     // ---- quiz ----
     void nextQuestion();
@@ -98,7 +95,7 @@ private:
     void answer(AppContext& host, bool correct);
     /** True when the current question is answered on the chart rather than on
      *  four buttons. Drives whether a tab switch needs a full repaint. */
-    bool questionUsesTable() const { return qType_ == QType::FindIt; }
+    bool questionUsesTable() const { return q_.kind == ElementsCourse::Kind::FindIt; }
     void optionLabel(uint8_t index, char* out, size_t len) const;
     void updateQuiz(AppContext& host, const TouchPoint& touch);
     void updateLevel(AppContext& host, const TouchPoint& touch);
@@ -118,7 +115,12 @@ private:
     static void wrapInto(const char* src, char dst[FACT_LINES][FACT_COLS + 1],
                          uint8_t& lineCount);
 
-    Progress progress_;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    uint8_t  deckTier_ = 0;           // the pool the deck was dealt for
+    uint8_t  kindTurn_[ELEMENT_COUNT] = {};   // each element gets each kind in turn
+    ElementsCourse::Question q_ = {};
+    bool     announce_ = false;       // the score line names the new level
     Tab      tab_       = Tab::Explore;
     uint8_t  tierPin_   = 0;          // 0 = auto, else 1..3
     uint32_t score_     = 0;
@@ -130,7 +132,6 @@ private:
     bool    cardOpen_     = false;
 
     // Quiz
-    QType    qType_         = QType::SymbolToName;
     uint8_t  qElement_      = 0;
     uint8_t  optionCount_   = MAX_OPTIONS;
     uint8_t  optionValue_[MAX_OPTIONS] = {};   // element index, or state id for StateOf

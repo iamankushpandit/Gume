@@ -184,7 +184,12 @@ void NearbyApp::rebuildRows(GameHost& host) {
             rows_.addRow("Playing", peer.gameTitle);
 
             char theirs[SCORE_TEXT_CAP];
-            scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
+            if (peer.haveTheirScore) {
+                scoreText(theirs, sizeof(theirs), peer.theirScore, peer.unit);
+            } else {
+                /* A move or a poke has the score's place on the air. */
+                snprintf(theirs, sizeof(theirs), "--");
+            }
             rows_.addRow("Their best", theirs, peer.beatsYou ? Ui::warning() : 0);
 
             char yours[SCORE_TEXT_CAP];
@@ -264,21 +269,42 @@ void NearbyApp::updateName(GameHost& host, const TouchPoint& touch) {
     const int16_t W = static_cast<int16_t>(host.display().width());
     const int16_t H = static_cast<int16_t>(host.display().height());
 
-    if (!touch.justPressed) {
-        return;
-    }
-    if (nameCancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        phase_ = Phase::List;
-        clearDraft();
-        rowsStale_ = true;
+    /* The keyboard came off with the keypad left off: put it back. */
+    if (keypad_.lost()) {
         markFullDirty();
-        return;
     }
 
-    const char ch = Ui::Keypad::hit(touch.x, touch.y, W, H,
-                                    Ui::Keypad::FOOTER_BUTTON);
+    /* A keyboard's character is a press of the keypad key it maps to, and
+     * skips the touch tests entirely -- the touch's coordinates are stale on
+     * its frame. */
+    char ch = Ui::Keypad::fromTyped(hostTypedChar(host));
     if (ch == 0) {
-        return;
+        if (!touch.justPressed) {
+            return;
+        }
+        if (nameCancelRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            phase_ = Phase::List;
+            clearDraft();
+            rowsStale_ = true;
+            markFullDirty();
+            return;
+        }
+        if (keypad_.hidden()) {
+            /* A keyboard is typing the name: the keyboard button and OK,
+             * beside Cancel, are all there is to press. */
+            if (Ui::Typing::toggleRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+                keypad_.show();
+                markFullDirty();
+                return;
+            }
+            ch = Ui::Typing::acceptRect(W, H).contains(touch.x, touch.y, TOUCH_HIT_SLOP)
+                     ? Ui::Keypad::ACCEPT : 0;
+        } else {
+            ch = Ui::Keypad::hit(touch.x, touch.y, W, H, Ui::Keypad::FOOTER_BUTTON);
+        }
+        if (ch == 0) {
+            return;
+        }
     }
     if (ch == Ui::Keypad::BACKSPACE) {
         if (draftLen_ > 0) {
@@ -319,14 +345,24 @@ void NearbyApp::renderName(GameHost& host) {
         tft.drawString(heading, static_cast<int16_t>(W / 2), 8, 2);
         Ui::drawButton(tft, nameCancelRect(W, H), "Cancel", Ui::panel(),
                        Ui::outline(), Ui::text(), false, 1);
-        Ui::Keypad::draw(tft, W, H, Ui::Keypad::FOOTER_BUTTON);
+        if (keypad_.hidden()) {
+            Ui::Typing::drawHint(tft, W, static_cast<int16_t>(
+                Ui::Typing::fieldRect(W, H, 28).y + Ui::Typing::fieldRect(W, H, 28).h + 10));
+            Ui::Typing::drawToggle(tft, Ui::Typing::toggleRect(W, H));
+            Ui::Typing::drawAccept(tft, Ui::Typing::acceptRect(W, H), "OK");
+        } else {
+            Ui::Keypad::draw(tft, W, H, Ui::Keypad::FOOTER_BUTTON);
+        }
     }
 
     /* Only the field repaints per keystroke. The keyboard is 39 buttons and
      * redrawing it for every letter is most of a frame budget spent on pixels
      * that did not change. */
     const int16_t fieldW = static_cast<int16_t>(min<int16_t>(240, W - 40));
-    const Rect field{static_cast<int16_t>((W - fieldW) / 2), 28, fieldW, 30};
+    /* With the keypad off the field takes its space: larger, mid-panel. */
+    const Rect field = keypad_.hidden()
+        ? Ui::Typing::fieldRect(W, H, 28)
+        : Rect{static_cast<int16_t>((W - fieldW) / 2), 28, fieldW, 30};
     tft.fillRoundRect(field.x, field.y, field.w, field.h, 4, Ui::surface());
     tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
     tft.setTextColor(Ui::text(), Ui::surface());
@@ -431,6 +467,7 @@ void NearbyApp::update(GameHost& host, const TouchPoint& touch) {
                 snprintf(draft_, sizeof(draft_), "%s", existing != nullptr ? existing : "");
                 draftLen_ = static_cast<uint8_t>(strlen(draft_));
                 phase_ = Phase::Name;
+                keypad_.begin();
                 markFullDirty();
                 return;
             }

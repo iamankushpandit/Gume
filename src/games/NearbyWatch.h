@@ -24,8 +24,14 @@
  * card, so five games cannot each answer "how long is too long" differently.
  *
  *   Present   heard within NearbyPlay::PEER_QUIET_MS. Play on.
- *   Quiet     not heard for longer than that. Missing one scan window is
- *             ordinary; six seconds is several. The game PAUSES -- it cannot
+ *   Away      heard, but saying no move in this game for
+ *             NearbyPlay::PEER_AWAY_MS: it lost the game, started another or
+ *             switched Nearby off. (A console that only left the screen keeps
+ *             its move on the air and stays Present.) Paused like Quiet, and
+ *             the card says so -- the only other sign would be a turn that
+ *             never comes.
+ *   Quiet     not heard for longer than that. Missing a few advertisements
+ *             is ordinary; fifteen seconds is many. The game PAUSES -- it cannot
  *             proceed anyway, nothing of theirs is arriving -- and the card
  *             says who it is waiting for and for how long.
  *   Gone      the scanner has dropped the peer (BleScan::SIGHTING_TTL_MS).
@@ -48,10 +54,16 @@
  * is already there. */
 class NearbyWatch {
 public:
-    enum class State : uint8_t { Present, Quiet, Gone };
+    enum class State : uint8_t { Present, Away, Quiet, Gone };
     enum class Press : uint8_t { None, Wait, End, Extra };
 
-    /* Forget everything: a game just started, or this console left one. */
+    /* Forget everything: a game just started, or this console left one.
+     * The first NearbyPlay::PEER_QUIET_MS of ticks after it are a grace for
+     * a peer not heard at all: a console just switched on, or a game just
+     * restored, has not had a scan yet, and "out of range" on the first
+     * frame is a card that flashes up and goes as soon as the scanner
+     * catches the peer. A peer still unheard when the grace is over is
+     * waited for as usual; Quiet and Away are never graced. */
     void reset();
 
     /* One peer, every frame. Returns true when something the screen shows
@@ -102,4 +114,8 @@ private:
     uint8_t who_ = 0;
     uint16_t seconds_ = 0;
     bool resumed_ = false;
+    /* When the grace after reset() began: set by the first tick after it,
+     * since reset() is not handed the time. */
+    bool graceArmed_ = true;
+    uint32_t graceFromMs_ = 0;
 };

@@ -46,9 +46,9 @@ applied; delete what did not.
 
 # The two rules that outrank everything
 
-- [ ] **This adds no new outbound flow.** Exactly three things leave the
-      device — an NTP query, one `ip-api.com` timezone lookup, and the opt-in
-      BLE beacon. If this PR changes that, stop and open an issue first: it is
+- [ ] **This adds no new outbound flow.** Exactly four things leave the
+      device — an NTP query, one `ip-api.com` timezone lookup, the opt-in
+      BLE beacon and the daily update-availability check. If this PR changes that, stop and open an issue first: it is
       a change to what the product promises, not a feature to be reviewed on
       merit. If it changes what is transmitted or stored, the About radio page,
       the README privacy section and the installer page are part of *this*

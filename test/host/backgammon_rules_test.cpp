@@ -10,7 +10,7 @@
 // Host-side test of the Backgammon rules and computer player, compiled against
 // the real src/games/BackgammonRules.cpp and BackgammonAi.cpp. Both are pure
 // C++ with no Arduino in them; this file is what proves it, since it will not
-// compile otherwise. Not run by CI; build it with any host C++17 compiler:
+// compile otherwise. Run by CI (tools/run_host_tests.py); build it by hand with any host C++17 compiler:
 //
 //   g++ -std=c++17 -O2 -Wall -Wextra -I src/games test/host/backgammon_rules_test.cpp src/games/BackgammonRules.cpp src/games/BackgammonAi.cpp -o bg_test && ./bg_test
 //

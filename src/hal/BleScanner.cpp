@@ -16,11 +16,22 @@
 namespace BleScan {
 namespace {
 
-/* Scan window/interval, in milliseconds. 300ms of listening every 900ms is
- * enough to catch a 1000ms beacon within a couple of cycles while leaving the
- * radio idle two thirds of the time -- this shares an antenna with Wi-Fi. */
-constexpr uint16_t SCAN_INTERVAL_MS = 900;
-constexpr uint16_t SCAN_WINDOW_MS = 300;
+/* Scan window/interval, in milliseconds: a third of the time listening,
+ * because this shares an antenna with Wi-Fi.
+ *
+ * The interval is chosen against the beacon's, not on its own. A peer
+ * advertises every BleBeacon::ADV_INTERVAL_MS (1000ms), so each advertisement
+ * lands 1000 mod interval later in our cycle than the last. At 900ms that is
+ * 100ms a time: three advertisements fall in the 300ms window, then six in a
+ * row fall outside it, and a console sitting right beside us went unheard for
+ * six seconds every nine -- exactly NearbyPlay::PEER_QUIET_MS, so a nearby
+ * game kept pausing to wait for somebody who had never left. At 780ms the
+ * step is 220ms and, simulated with the beacon's own 0-10ms jitter, nothing
+ * is unheard for longer than four seconds with no packet lost. Intervals
+ * that divide 1000ms nearly evenly (500, 990, 1020) are far worse -- a
+ * beacon can stay out of the window for minutes -- so do not round this. */
+constexpr uint16_t SCAN_INTERVAL_MS = 780;
+constexpr uint16_t SCAN_WINDOW_MS = 260;
 
 /* AD types we care about (Core Supplement, Part A). */
 constexpr uint8_t AD_NAME_SHORT = 0x08;
@@ -54,6 +65,14 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     for (uint8_t i = 0; i < used_; ++i) {
         if (strncmp(table_[i].deviceId, obs.deviceId, sizeof(table_[i].deviceId)) == 0) {
             table_[i].sharesActivity = obs.sharesActivity;
+            /* A score belongs to the game it was heard with. A peer that
+             * changes game while a move has its score's place on the air --
+             * one left in the middle of a nearby game -- has sent no number
+             * for the new game, and the old one must not be read as it. */
+            if (!obs.haveScore && table_[i].gameIndex != obs.gameIndex) {
+                table_[i].haveScore = false;
+                table_[i].bestScore = 0;
+            }
             table_[i].gameIndex = obs.gameIndex;
             /* A peer that is poking has displaced its score to make room, so
              * this advertisement carries no number. Keep the last one we heard
@@ -75,6 +94,14 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
                 snprintf(table_[i].inviteTarget, sizeof(table_[i].inviteTarget),
                          "%s", obs.inviteTarget);
                 table_[i].inviteSession = obs.inviteSession;
+                /* A console that invites has no move on the air, so a move
+                 * still remembered from it under the number it now offers is
+                 * an old game's. Kept, it would be read as the first move of
+                 * the new one by whoever accepts. */
+                if (table_[i].hasTurn &&
+                    table_[i].turnSession == (obs.inviteSession & 0x3F)) {
+                    table_[i].hasTurn = false;
+                }
             }
             /* A move is a state, so the last one heard is kept even once the
              * peer stops advertising it -- unlike a poke, which is an event
@@ -86,6 +113,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
                 table_[i].turnFrom = obs.turnFrom;
                 table_[i].turnTo = obs.turnTo;
                 table_[i].turnAck = obs.turnAck;
+                table_[i].lastTurnMs = nowMs;
             }
             table_[i].rssi = rssi;
             table_[i].lastSeenMs = nowMs;
@@ -132,6 +160,7 @@ void record(const BleBeacon::Observation& obs, int8_t rssi, uint32_t nowMs) {
     s.turnFrom = obs.turnFrom;
     s.turnTo = obs.turnTo;
     s.turnAck = obs.turnAck;
+    s.lastTurnMs = obs.hasTurn ? nowMs : 0;
     s.rssi = rssi;
     s.lastSeenMs = nowMs;
     ++generation_;

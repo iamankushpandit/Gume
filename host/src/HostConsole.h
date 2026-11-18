@@ -35,7 +35,7 @@ namespace HostConsole {
 struct Profile {
     std::string name;                   // "Anbernic RG40XX V"
     std::vector<std::string> match;     // device-tree compatible strings
-    uint32_t controls = 0;              // HostControls::bit() of each control on the case
+    uint32_t controls = 0;              // HostControls::maskOf() of each control on the case
 };
 
 enum class Source {

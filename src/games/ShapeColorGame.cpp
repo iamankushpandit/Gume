@@ -26,44 +26,25 @@ constexpr AppMetadata SHAPE_COLOR_METADATA = {
     "Shape & Color",
     "match outlines",
     "Shapes",
-    "Match shapes to outlines, four levels.",
+    "Shapes by outline, sides, name and turn.",
     &SHAPE_COLOR_SCORE,
     LauncherIcon::ShapeColor,
     14,
     true,
 };
 
-/* What a shape IS, beside how it is drawn. `concave` is the level 4 lesson
- * and `sides` is the level 2 one, so both are facts about the shape rather
- * than something a level decides -- a star is concave in every round it
- * appears in, including the first one. */
-struct ShapeFact {
-    const char* name;
-    uint8_t sides;      // 0 for anything with a curve in it
-    bool concave;
-};
+namespace SC = ShapesCourse;
+using Shape = ShapeColorGame::Shape;
 
-/* Indexed by Shape, and asserted below to stay that way. */
-const ShapeFact SHAPE_FACTS[] = {
-    {"circle",    0, false},
-    {"square",    4, false},
-    {"triangle",  3, false},
-    {"star",      10, true},
-    {"pentagon",  5, false},
-    {"hexagon",   6, false},
-    {"heptagon",  7, false},
-    {"octagon",   8, false},
-    {"oval",      0, false},
-    {"rectangle", 4, false},
-    {"diamond",   4, false},
-    {"trapezium", 4, false},
-    {"cross",     12, true},
-    {"arrow",     7, true},
-    {"pinwheel",  8, true},
-};
-static_assert(sizeof(SHAPE_FACTS) / sizeof(SHAPE_FACTS[0]) ==
-                  static_cast<size_t>(ShapeColorGame::Shape::Count),
-              "SHAPE_FACTS must have one row per Shape, in enum order");
+/* The round colours, in ShapesCourse::COLOUR_NAMES order: level 1 names the
+ * colour, so the two must agree. */
+uint16_t roundColour(uint8_t i) {
+    static const uint16_t COLOURS[SC::COLOUR_COUNT] = {
+        Ui::rgb(225, 60, 80), Ui::rgb(42, 117, 213), Ui::rgb(39, 157, 112),
+        Ui::rgb(244, 188, 48), Ui::rgb(168, 96, 220), Ui::rgb(244, 130, 60),
+    };
+    return COLOURS[i % SC::COLOUR_COUNT];
+}
 
 /* Polygons, as hundredths of the radius, walked anticlockwise from twelve
  * o'clock. Every one of these is star-shaped about its own centre, which is
@@ -97,13 +78,35 @@ const PolyPoint TRAPEZIUM[4] = {
     {-55, -60}, {55, -60}, {100, 60}, {-100, 60},
 };
 
+/* Leaning right, so a half turn is the same shape -- which is why Shapes
+ * never turns it half way (ShapesCourse::FACTS). */
+const PolyPoint PARALLELOGRAM[4] = {
+    {-55, -55}, {100, -55}, {55, 55}, {-100, 55},
+};
+
+/* Point up, the long point down. */
+const PolyPoint KITE[4] = {
+    {0, -100}, {62, -30}, {0, 100}, {-62, -30},
+};
+
+/* A quarter turn clockwise on the panel, where y grows downwards. */
+PolyPoint turned(PolyPoint p, uint8_t turns) {
+    for (uint8_t t = 0; t < (turns & 3); ++t) {
+        const int8_t x = p.x;
+        p.x = static_cast<int8_t>(-p.y);
+        p.y = x;
+    }
+    return p;
+}
+
 void fillPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
-              const PolyPoint* pts, uint8_t count, uint16_t color, bool filled) {
+              const PolyPoint* pts, uint8_t count, uint16_t color, bool filled,
+              uint8_t turns = 0) {
     auto px = [&](uint8_t i) {
-        return static_cast<int16_t>(cx + pts[i].x * size / 100);
+        return static_cast<int16_t>(cx + turned(pts[i], turns).x * size / 100);
     };
     auto py = [&](uint8_t i) {
-        return static_cast<int16_t>(cy + pts[i].y * size / 100);
+        return static_cast<int16_t>(cy + turned(pts[i], turns).y * size / 100);
     };
     if (filled) {
         for (uint8_t i = 0; i < count; ++i) {
@@ -135,7 +138,7 @@ void fillPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
 void regularPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
                  uint8_t n, uint16_t color, bool filled,
                  int16_t xScale = 100, int16_t yScale = 100,
-                 bool flatBottom = true) {
+                 bool flatBottom = true, uint8_t turns = 0) {
     PolyPoint pts[20];
     if (n > 20) n = 20;
     const float turn = 2.0f * PI / n;
@@ -148,7 +151,7 @@ void regularPoly(Ui::Renderer& tft, int16_t cx, int16_t cy, int16_t size,
         pts[i].x = static_cast<int8_t>(cosf(start + i * turn) * xScale);
         pts[i].y = static_cast<int8_t>(sinf(start + i * turn) * yScale);
     }
-    fillPoly(tft, cx, cy, size, pts, n, color, filled);
+    fillPoly(tft, cx, cy, size, pts, n, color, filled, turns);
 }
 }
 
@@ -162,117 +165,34 @@ const char* ShapeColorGame::title() const {
         : shapeColorAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the level is the
+ * player's, kept by the runtime. It used to be the rounds played this visit,
+ * so every visit dealt the same three rounds in the same order. */
 void ShapeColorGame::begin(AppContext& host) {
     bestTaps_ = static_cast<uint16_t>(host.getScore(shapeColorAppMetadata().score->bestKey, 0));
     rounds_ = 0;
+    climbed_ = false;
+    ladder_.start(SC::LEVEL_COUNT, host.courseLevel());
+    deck_.reset(SC::poolSize(ladder_.level()));
     newRound();
     markDirty();
 }
 
-uint8_t ShapeColorGame::level() const {
-    return min<uint8_t>(4, static_cast<uint8_t>(1 + rounds_));
+/* A round with a tap in it, or a round finished: the level is kept by the
+ * runtime now, but the round on the panel and the tally are this screen's.
+ * Nothing here runs on a clock, so there is nothing for resume() to do. */
+Game::Keep ShapeColorGame::keepsGame() const {
+    return (taps_ > 0 || rounds_ > 0) ? Keep::Ask : Keep::No;
 }
 
 void ShapeColorGame::newRound() {
-    static const uint16_t ROUND_COLORS[6] = {
-        Ui::rgb(225, 60, 80), Ui::rgb(42, 117, 213), Ui::rgb(39, 157, 112),
-        Ui::rgb(244, 188, 48), Ui::rgb(168, 96, 220), Ui::rgb(244, 130, 60),
-    };
-    const uint8_t lvl = level();
-    Shape deal[4];
-
-    switch (lvl) {
-        case 1:
-            deal[0] = Shape::Circle;
-            deal[1] = Shape::Square;
-            deal[2] = Shape::Triangle;
-            deal[3] = Shape::Star5;
-            break;
-        case 2:
-            deal[0] = Shape::Pentagon;
-            deal[1] = Shape::Hexagon;
-            deal[2] = Shape::Heptagon;
-            deal[3] = Shape::Octagon;
-            break;
-        case 3:
-            deal[0] = Shape::Oval;
-            deal[1] = Shape::Rectangle;
-            deal[2] = Shape::Diamond;
-            deal[3] = Shape::Trapezium;
-            break;
-        default: {
-            /* Two of each family, always. Four concave shapes would make the
-             * word on the row useless -- it is only a lesson when it tells
-             * two rows apart. */
-            static const Shape CONCAVE[4] = {Shape::Cross, Shape::Arrow,
-                                             Shape::Star5, Shape::Star4};
-            static const Shape CONVEX[4] = {Shape::Pentagon, Shape::Hexagon,
-                                            Shape::Octagon, Shape::Diamond};
-            const uint8_t a = static_cast<uint8_t>(random(4));
-            const uint8_t b = static_cast<uint8_t>((a + 1 + random(3)) % 4);
-            const uint8_t c = static_cast<uint8_t>(random(4));
-            const uint8_t d = static_cast<uint8_t>((c + 1 + random(3)) % 4);
-            deal[0] = CONCAVE[a];
-            deal[1] = CONVEX[c];
-            deal[2] = CONCAVE[b];
-            deal[3] = CONVEX[d];
-            break;
-        }
-    }
-
-    /* Shuffle the deal so the same shape is not always on the same row, then
-     * hand each one a colour. Level 1 pins its colours to its names. */
-    for (uint8_t i = 3; i > 0; --i) {
-        const uint8_t j = static_cast<uint8_t>(random(i + 1));
-        const Shape tmp = deal[i];
-        deal[i] = deal[j];
-        deal[j] = tmp;
-    }
-
-    uint8_t colorPick[6] = {0, 1, 2, 3, 4, 5};
-    for (uint8_t i = 5; i > 0; --i) {
-        const uint8_t j = static_cast<uint8_t>(random(i + 1));
-        const uint8_t tmp = colorPick[i];
-        colorPick[i] = colorPick[j];
-        colorPick[j] = tmp;
-    }
-
-    static const char* const LEVEL1_NAMES[4] = {
-        "red circle", "blue square", "green triangle", "yellow star"
-    };
-    static const Shape LEVEL1_SHAPES[4] = {
-        Shape::Circle, Shape::Square, Shape::Triangle, Shape::Star5
-    };
-
+    SC::deal(ladder_.level(), deck_, esp_random(), round_);
     for (uint8_t i = 0; i < 4; ++i) {
-        items_[i].shape = deal[i];
-        if (lvl == 1) {
-            /* Name and colour have to agree, so level 1 looks its shape up in
-             * its own table rather than taking whatever the shuffle dealt. */
-            for (uint8_t k = 0; k < 4; ++k) {
-                if (LEVEL1_SHAPES[k] == deal[i]) {
-                    snprintf(items_[i].name, sizeof(items_[i].name), "%s", LEVEL1_NAMES[k]);
-                    items_[i].color = ROUND_COLORS[k];
-                    break;
-                }
-            }
-        } else {
-            snprintf(items_[i].name, sizeof(items_[i].name), "%s",
-                     SHAPE_FACTS[static_cast<uint8_t>(deal[i])].name);
-            items_[i].color = ROUND_COLORS[colorPick[i]];
-        }
-        targetOrder_[i] = i;
         matched_[i] = false;
-    }
-
-    for (int i = 3; i > 0; --i) {
-        const uint8_t j = random(i + 1);
-        const uint8_t tmp = targetOrder_[i];
-        targetOrder_[i] = targetOrder_[j];
-        targetOrder_[j] = tmp;
     }
     selected_ = -1;
     taps_ = 0;
+    wrongs_ = 0;
 
     /* Nothing on the panel survives a new round: four new shapes, four new
      * labels, a new level in the header and a win card that has to go. That is
@@ -284,6 +204,30 @@ void ShapeColorGame::newRound() {
     }
     drawnTaps_ = 0xFFFF;
     drawnWin_ = false;
+}
+
+/* One verdict a round, when its last shape is matched: right with no wrong
+ * match, wrong with two or more. A round is minutes of play rather than one
+ * press, so it is the round the ladder hears about, not each tap. */
+void ShapeColorGame::finishRound(AppContext& host) {
+    climbed_ = false;
+    const SC::Verdict verdict = SC::judge(wrongs_);
+    if (verdict == SC::Verdict::Neither) {
+        host.beepOk();
+        return;
+    }
+    const Course::Ladder::Step step = ladder_.answer(verdict == SC::Verdict::Right);
+    if (step != Course::Ladder::Step::Stay) {
+        host.setCourseLevel(ladder_.level());
+        deck_.reset(SC::poolSize(ladder_.level()));
+    }
+    if (step == Course::Ladder::Step::Up) {
+        climbed_ = true;
+        host.pulseRgb(0, 255, 40, 450);
+        host.playSound(Sound::LevelUp);
+    } else {
+        host.beepOk();
+    }
 }
 
 bool ShapeColorGame::allMatched() const {
@@ -319,7 +263,8 @@ uint8_t ShapeColorGame::choiceState(uint8_t index) const {
     return selected_ == static_cast<int8_t>(index) ? 1 : 0;
 }
 
-void ShapeColorGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy, int16_t size, uint16_t color, bool filled) const {
+void ShapeColorGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16_t cy,
+                               int16_t size, uint16_t color, bool filled, uint8_t turns) const {
     switch (shape) {
         case Shape::Circle:
             if (filled) {
@@ -338,52 +283,69 @@ void ShapeColorGame::drawShape(Ui::Renderer& tft, Shape shape, int16_t cx, int16
             }
             break;
         case Shape::Triangle:
-            Ui::drawTriangleShape(tft, cx, cy, size, color, filled);
+            /* Upright, the triangle every round has drawn; turned, the
+             * same three points walked as a polygon. */
+            if (turns == 0) {
+                Ui::drawTriangleShape(tft, cx, cy, size, color, filled);
+            } else {
+                regularPoly(tft, cx, cy, size, 3, color, filled, 100, 100, true, turns);
+            }
             break;
         case Shape::Star5:
-            fillPoly(tft, cx, cy, size, STAR5, 10, color, filled);
+            fillPoly(tft, cx, cy, size, STAR5, 10, color, filled, turns);
             break;
         case Shape::Star4:
-            fillPoly(tft, cx, cy, size, STAR4, 8, color, filled);
+            fillPoly(tft, cx, cy, size, STAR4, 8, color, filled, turns);
             break;
         case Shape::Cross:
-            fillPoly(tft, cx, cy, size, CROSS, 12, color, filled);
+            fillPoly(tft, cx, cy, size, CROSS, 12, color, filled, turns);
             break;
         case Shape::Arrow:
-            fillPoly(tft, cx, cy, size, ARROW, 7, color, filled);
+            fillPoly(tft, cx, cy, size, ARROW, 7, color, filled, turns);
             break;
         case Shape::Trapezium:
-            fillPoly(tft, cx, cy, size, TRAPEZIUM, 4, color, filled);
+            fillPoly(tft, cx, cy, size, TRAPEZIUM, 4, color, filled, turns);
+            break;
+        case Shape::Parallelogram:
+            fillPoly(tft, cx, cy, size, PARALLELOGRAM, 4, color, filled, turns);
+            break;
+        case Shape::Kite:
+            fillPoly(tft, cx, cy, size, KITE, 4, color, filled, turns);
             break;
         case Shape::Pentagon:
-            regularPoly(tft, cx, cy, size, 5, color, filled);
+            regularPoly(tft, cx, cy, size, 5, color, filled, 100, 100, true, turns);
             break;
         case Shape::Hexagon:
-            regularPoly(tft, cx, cy, size, 6, color, filled);
+            regularPoly(tft, cx, cy, size, 6, color, filled, 100, 100, true, turns);
             break;
         case Shape::Heptagon:
-            regularPoly(tft, cx, cy, size, 7, color, filled);
+            regularPoly(tft, cx, cy, size, 7, color, filled, 100, 100, true, turns);
             break;
         case Shape::Octagon:
             regularPoly(tft, cx, cy, size, 8, color, filled);
             break;
         case Shape::Diamond:
-            regularPoly(tft, cx, cy, size, 4, color, filled, 76, 100, false);
+            regularPoly(tft, cx, cy, size, 4, color, filled, 76, 100, false, turns);
             break;
         case Shape::Oval:
             /* Twenty sides is enough that the flats are invisible at this size,
              * and it keeps every shape on this screen going through one piece
              * of code. There is no ellipse primitive in Ui::Renderer. */
-            regularPoly(tft, cx, cy, size, 20, color, filled, 100, 58);
+            regularPoly(tft, cx, cy, size, 20, color, filled, 100, 58, true, turns);
             break;
-        case Shape::Rectangle:
+        case Shape::Rectangle: {
+            /* A quarter turn stands it on its short side. */
+            const bool upright = (turns & 1U) != 0;
+            const int16_t hw = upright ? static_cast<int16_t>(size * 6 / 10) : size;
+            const int16_t hh = upright ? size : static_cast<int16_t>(size * 6 / 10);
             if (filled) {
-                tft.fillRoundRect(cx - size, cy - size * 6 / 10, size * 2, size * 12 / 10, 3, color);
+                tft.fillRoundRect(cx - hw, cy - hh, hw * 2, hh * 2, 3, color);
             } else {
-                tft.drawRoundRect(cx - size, cy - size * 6 / 10, size * 2, size * 12 / 10, 3, color);
-                tft.drawRoundRect(cx - size + 1, cy - size * 6 / 10 + 1, size * 2 - 2, size * 12 / 10 - 2, 3, color);
+                tft.drawRoundRect(cx - hw, cy - hh, hw * 2, hh * 2, 3, color);
+                tft.drawRoundRect(cx - hw + 1, cy - hh + 1, hw * 2 - 2, hh * 2 - 2, 3, color);
             }
             break;
+        }
         case Shape::Count:
             break;
     }
@@ -399,7 +361,6 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
             ++rounds_;
         }
         newRound();
-        host.beepOk();
         markFullDirty();
         return;
     }
@@ -421,14 +382,22 @@ void ShapeColorGame::update(AppContext& host, const TouchPoint& touch) {
     for (uint8_t target = 0; target < 4; ++target) {
         if (targetRect(target).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             ++taps_;
-            if (targetOrder_[target] == selected_) {
+            if (round_.targetOrder[target] == selected_) {
                 matched_[selected_] = true;
                 selected_ = -1;
-                host.beepOk();
-                if (allMatched() && host.saveBestScore(shapeColorAppMetadata().score->bestKey, taps_, true)) {
-                    bestTaps_ = taps_;
+                if (allMatched()) {
+                    if (host.saveBestScore(shapeColorAppMetadata().score->bestKey, taps_, true)) {
+                        bestTaps_ = taps_;
+                    }
+                    finishRound(host);
+                } else {
+                    host.beepOk();
                 }
             } else {
+                /* The shape matched wrongly comes round again a few shapes
+                 * later. The ladder hears about the round, not this tap. */
+                if (wrongs_ < 250) ++wrongs_;
+                deck_.missed(round_.items[selected_]);
                 host.beepError();
             }
             markDirty();
@@ -443,7 +412,7 @@ void ShapeColorGame::renderStatic(AppContext& host) {
     host.drawTopBar(title());
     /* The only thing on this screen that is the same from the first frame to
      * the last. Everything else belongs to a round or to a tap. */
-    Ui::drawLabel(tft, Rect{10, 32, 300, 18}, "Tap a shape, then its matching outline",
+    Ui::drawLabel(tft, Rect{10, 32, 300, 18}, SC::instruction(round_.level),
                   Ui::text(), 2, Align::Center);
 
     for (uint8_t i = 0; i < 4; ++i) {
@@ -460,11 +429,11 @@ void ShapeColorGame::drawStats(Ui::Renderer& tft) {
     char stats[48];
     if (bestTaps_ > 0) {
         snprintf(stats, sizeof(stats), "Level %u   Taps %u   Best %u",
-                 static_cast<unsigned>(level()), static_cast<unsigned>(taps_),
+                 static_cast<unsigned>(round_.level), static_cast<unsigned>(taps_),
                  static_cast<unsigned>(bestTaps_));
     } else {
         snprintf(stats, sizeof(stats), "Level %u   Taps %u",
-                 static_cast<unsigned>(level()), static_cast<unsigned>(taps_));
+                 static_cast<unsigned>(round_.level), static_cast<unsigned>(taps_));
     }
     tft.setTextColor(Ui::text(), Ui::bg());
     tft.setTextDatum(TR_DATUM);
@@ -477,48 +446,78 @@ void ShapeColorGame::drawStats(Ui::Renderer& tft) {
  * the quiz screens rely on. */
 void ShapeColorGame::drawChoice(Ui::Renderer& tft, uint8_t index) {
     const Rect r = choiceRect(index);
+    const SC::Level& level = SC::levelOf(round_.level);
     const uint16_t fill = selected_ == static_cast<int8_t>(index) ? SELECTED : Ui::panel();
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, fill);
     tft.drawRoundRect(r.x, r.y, r.w, r.h, 6,
                       matched_[index] ? Ui::rgb(45, 154, 96) : TFT_DARKGREY);
-    /* Level 4 has to fit the concave/convex word on the same row, so the
-     * shape gives up two pixels of radius and the label starts four earlier.
-     * Measured, not eyeballed: the longest level 4 name is "pinwheel" at 8
-     * characters, which is 48px of font 1 and ends at x + 86; the word
-     * "concave" is 42px and starts at x + 89. */
-    const bool tight = level() >= 4;
+    char name[SC::ROW_NAME_MAX + 1];
+    SC::rowName(round_, index, name, sizeof(name));
+    /* Concave or convex has to fit the word on the same row, so the shape
+     * gives up two pixels of radius and the label starts four earlier.
+     * Measured, not eyeballed: the longest name there is eight characters,
+     * 48px of font 1, ending at x + 86; "concave" is 42px from x + 89. On
+     * Shape names the row carries no name, so the shape stands in its
+     * middle. */
+    const bool tight = level.concaveConvex;
+    const bool unnamed = name[0] == '\0';
     if (!matched_[index]) {
-        drawShape(tft, items_[index].shape, r.x + (tight ? 22 : 24), r.y + r.h / 2,
-                  tight ? 11 : 13, items_[index].color, true);
+        const int16_t cx = unnamed ? static_cast<int16_t>(r.x + r.w / 2)
+                                   : static_cast<int16_t>(r.x + (tight ? 22 : 24));
+        drawShape(tft, round_.shapes[index], cx, r.y + r.h / 2, tight ? 11 : 13,
+                  roundColour(round_.colours[index]), true);
     }
     tft.setTextColor(selected_ == static_cast<int8_t>(index) ? TFT_BLACK : Ui::text(), fill);
     tft.setTextDatum(ML_DATUM);
-    tft.drawString(matched_[index] ? "matched" : items_[index].name,
-                   r.x + (tight ? 38 : 42), r.y + r.h / 2, matched_[index] ? 2 : 1);
-    /* Level 4's whole lesson, and it only earns room when it tells two rows
-     * apart -- so it is drawn nowhere else. Right-aligned inside the row,
-     * clear of the longest name. */
+    if (matched_[index]) {
+        tft.drawString("matched", r.x + 42, r.y + r.h / 2, 2);
+    } else if (!unnamed) {
+        tft.drawString(name, r.x + (tight ? 38 : 42), r.y + r.h / 2, 1);
+    }
+    /* Concave or convex: the word is the lesson, and it only earns room
+     * when it tells two rows apart -- so it is drawn nowhere else. */
     if (tight && !matched_[index]) {
         tft.setTextColor(Ui::muted(), fill);
         tft.setTextDatum(MR_DATUM);
-        tft.drawString(SHAPE_FACTS[static_cast<uint8_t>(items_[index].shape)].concave
-                           ? "concave" : "convex",
+        tft.drawString(SC::fact(round_.shapes[index]).concave ? "concave" : "convex",
                        static_cast<int16_t>(r.x + r.w - 5), r.y + r.h / 2, 1);
     }
     tft.setTextDatum(TL_DATUM);
 }
 
+/* A target is the shape's outline -- turned, on Turned shapes -- or words:
+ * how many sides it has, or its name. Once matched it shows the shape filled
+ * in its colour beside the words, or in place of the outline. */
 void ShapeColorGame::drawTarget(Ui::Renderer& tft, uint8_t index) {
-    const uint8_t itemIndex = targetOrder_[index];
+    const uint8_t item = round_.targetOrder[index];
     const Rect r = targetRect(index);
+    const SC::Level& level = SC::levelOf(round_.level);
+    const bool matched = matched_[item];
     tft.fillRoundRect(r.x, r.y, r.w, r.h, 6, Ui::surface());
     tft.drawRoundRect(r.x, r.y, r.w, r.h, 6, EMPTY_TARGET);
-    drawShape(tft, items_[itemIndex].shape, r.x + 28, r.y + r.h / 2, 13,
-              matched_[itemIndex] ? items_[itemIndex].color : TFT_DARKGREY,
-              matched_[itemIndex]);
-    tft.setTextColor(Ui::muted(), Ui::surface());
-    tft.setTextDatum(ML_DATUM);
-    tft.drawString("target", r.x + 54, r.y + r.h / 2, 2);
+    const int16_t cy = static_cast<int16_t>(r.y + r.h / 2);
+    if (level.target == SC::Target::Outline) {
+        drawShape(tft, round_.shapes[item], r.x + 28, cy, 13,
+                  matched ? roundColour(round_.colours[item]) : TFT_DARKGREY, matched,
+                  round_.turns[item]);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.setTextDatum(ML_DATUM);
+        tft.drawString("target", r.x + 54, cy, 2);
+    } else {
+        char text[24];
+        SC::targetText(round_, item, text, sizeof(text));
+        int16_t left = r.x;
+        if (matched) {
+            drawShape(tft, round_.shapes[item], r.x + 18, cy, 11,
+                      roundColour(round_.colours[item]), true);
+            left = static_cast<int16_t>(r.x + 32);
+        }
+        const int16_t width = static_cast<int16_t>(r.x + r.w - left);
+        const uint8_t font = tft.textWidth(text, 2) <= width - 8 ? 2 : 1;
+        tft.setTextColor(Ui::text(), Ui::surface());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(text, static_cast<int16_t>(left + width / 2), cy, font);
+    }
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -527,9 +526,15 @@ void ShapeColorGame::drawWin(Ui::Renderer& tft) {
     tft.drawRoundRect(54, 94, 212, 52, 8, Ui::success());
     tft.setTextColor(Ui::success(), Ui::panel());
     tft.setTextDatum(MC_DATUM);
-    tft.drawString("Great matching!", GAME_CANVAS_WIDTH / 2, 112, 4);
-    tft.drawString(level() < 4 ? "Tap for a harder round" : "Tap to play again",
-                   GAME_CANVAS_WIDTH / 2, 137, 2);
+    tft.drawString(wrongs_ == 0 ? "Great matching!" : "All matched!", GAME_CANVAS_WIDTH / 2, 112, 4);
+    char line[SC::LEVEL_LINE_MAX + 1];
+    if (climbed_) {
+        SC::levelLine(ladder_.level(), line, sizeof(line));
+        tft.setTextColor(SELECTED, Ui::panel());
+    } else {
+        snprintf(line, sizeof(line), "Tap for the next round");
+    }
+    tft.drawString(line, GAME_CANVAS_WIDTH / 2, 137, 2);
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -552,7 +557,7 @@ void ShapeColorGame::renderDynamic(AppContext& host) {
         }
     }
     for (uint8_t i = 0; i < 4; ++i) {
-        const uint8_t state = matched_[targetOrder_[i]] ? 1 : 0;
+        const uint8_t state = matched_[round_.targetOrder[i]] ? 1 : 0;
         if (state != drawnTarget_[i]) {
             drawTarget(tft, i);
             drawnTarget_[i] = state;

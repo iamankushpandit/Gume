@@ -292,7 +292,14 @@ void ChessGame::drawSquare(AppContext& host, uint8_t square) const {
 
     uint16_t fill = light ? Ui::rgb(222, 210, 180) : Ui::rgb(120, 96, 72);
     if (square == selected_) fill = Ui::success();
-    tft.fillRect(r.x, r.y, r.w, r.h, fill);
+    /* A fill and an outline of one rectangle, the outline in the fill's own
+     * colour so nothing on the panel changes: that pair is what the d-pad's
+     * selector stops at (ui/FocusRecorder.cpp, and the Linux host's
+     * HostTftFocus.cpp, which notes only the rounded primitives -- hence
+     * radius 0 rather than fillRect). Without it the board was one picture
+     * the d-pad could not move across. */
+    tft.fillRoundRect(r.x, r.y, r.w, r.h, 0, fill);
+    tft.drawRoundRect(r.x, r.y, r.w, r.h, 0, fill);
     drawPiece(host, r, pos_.sq[square]);
 
     /* A legal destination is marked with a ring rather than a fill, so the
@@ -305,6 +312,24 @@ void ChessGame::drawSquare(AppContext& host, uint8_t square) const {
         tft.drawCircle(cx, cy, static_cast<int16_t>(r.w / 2 - 3), Ui::success());
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The selector's ring is drawn across a square's edge, where a piece's rim can
+ * reach, so painting the square's colour back would leave a notch in the
+ * piece. Redrawing the square puts back exactly what was there. */
+bool ChessGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (mode_ == Mode::Lobby) return false;
+    const Rect b = boardRect(host);
+    if (box.x < b.x || box.y < b.y || box.x + box.w > b.x + b.w || box.y + box.h > b.y + b.h) {
+        return false;
+    }
+    const uint8_t square = squareAt(host, static_cast<int16_t>(box.x + box.w / 2),
+                                    static_cast<int16_t>(box.y + box.h / 2));
+    if (square == NO_SQ) return false;
+    drawSquare(host, square);
+    return true;
+}
+#endif
 
 /* Two short lines rather than one sentence, and that is a measurement, not a
  * preference. In landscape the status now lives in a column about 110px wide;
@@ -332,8 +357,12 @@ void ChessGame::drawStatus(AppContext& host) const {
         /* Still here after Keep waiting has taken the card away, so a young player
          * looking at a board that will not respond is told why. */
         snprintf(top, sizeof(top), "%s", opponentLabel());
-        snprintf(bot, sizeof(bot),
-                 watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+        /* Heard, but saying nothing in this game: it lost the game, started
+         * another or switched Nearby off. Not the same news as silence. */
+        snprintf(bot, sizeof(bot), "%s",
+                 watch_.state() == NearbyWatch::State::Gone   ? "out of range"
+                 : watch_.state() == NearbyWatch::State::Away ? "not in the game"
+                                                              : "gone quiet");
         colour = Ui::warning();
     } else {
         switch (status_) {
@@ -481,6 +510,25 @@ void ChessGame::drawAction(AppContext& host) const {
                    confirming ? Ui::bg() : Ui::text(), false, 2);
 }
 
+/* The "Waiting for" card over the board while the other console is quiet.
+ * The watch decides when; see updatePause() in ChessNet.cpp. */
+void ChessGame::drawPause(AppContext& host) {
+    if (mode_ != Mode::Remote || gameOver() || !watch_.cardShown()) {
+        pausePainted_ = false;
+        return;
+    }
+    Ui::Renderer& tft = host.display();
+    const Rect area = boardRect(host);
+    if (!pausePainted_) {
+        watch_.draw(tft, area, opponentLabel(), nullptr);
+        pausePainted_ = true;
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    } else if (pauseSecondsDrawn_ != watch_.silentSeconds()) {
+        watch_.drawSeconds(tft, area, false);
+        pauseSecondsDrawn_ = watch_.silentSeconds();
+    }
+}
+
 void ChessGame::renderStatic(AppContext& host) {
     if (mode_ == Mode::Lobby) {
         renderLobby(host);
@@ -505,7 +553,12 @@ void ChessGame::renderStatic(AppContext& host) {
 
 void ChessGame::renderDynamic(AppContext& host) {
     if (mode_ == Mode::Lobby) {
-        renderLobby(host);
+        /* The lobby is all chrome, and renderStatic() has just painted it
+         * when the repaint is a whole one -- which every lobby repaint is.
+         * Painting it again here cleared the screen twice for each change,
+         * and the list of consoles now changes whenever one of them starts
+         * or finishes something. */
+        if (!needsFullRender()) renderLobby(host);
         return;
     }
     /* Only the squares that changed. A whole board is 64 fills and up to 32

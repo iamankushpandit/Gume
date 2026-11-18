@@ -15,8 +15,6 @@
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
 #include "hal/Watchdog.h"
-#include "ui/LauncherIcons.h"
-#include "ui/ScaledRenderer.h"
 #include "ui/LauncherLayout.h"
 
 namespace {
@@ -55,31 +53,6 @@ void drawWifiAndBattery(Ui::Renderer& tft, Board& board, int16_t right, int16_t 
     Ui::drawWifiBadge(tft, static_cast<int16_t>(right - battW - 6 - 8), cy, Ui::surface());
     Ui::drawBatteryBadge(tft, static_cast<int16_t>(right - battW / 2), cy, battPct, Ui::surface());
 }
-
-/* Break `source` at a space into two lines that each fit `maxW`, keeping the
- * first line as long as it can be. False when there is no such break -- a
- * single word too wide for the tile, or text that needs three lines. */
-bool splitIntoTwoLines(Ui::Renderer& tft, const char* source, char* first, char* second,
-                       size_t cap, int16_t maxW, uint8_t font) {
-    if (cap == 0 || source == nullptr) {
-        return false;
-    }
-    snprintf(first, cap, "%s", source);
-    for (size_t i = strlen(first); i-- > 1;) {
-        if (first[i] != ' ') {
-            continue;
-        }
-        first[i] = '\0';
-        if (tft.textWidth(first, font) > maxW) {
-            first[i] = ' ';
-            continue;
-        }
-        // The shortest second line there can be; if this misses, all do.
-        snprintf(second, cap, "%s", first + i + 1);
-        return tft.textWidth(second, font) <= maxW;
-    }
-    return false;
-}
 }
 
 uint8_t BrainoApp::launcherEntryCount() {
@@ -112,32 +85,20 @@ void BrainoApp::openApp(const AppDefinition& app) {
 void BrainoApp::launch(const AppDefinition& app) {
     leaveActiveGame();
 
-    activeGame_ = &app.game(games_);
-    view_ = View::Game;
-    activeApp_ = &app;
-    /* Only playable games are announced. Opening Settings or System Info is
-     * nobody else's business, and a system screen has no score to share. */
-    NearbyPlay::setActiveApp(board_, app.isCatalogApp() ? &app : nullptr);
-    Watchdog::setContext(app.title());
-    applyRotation(rotationForActiveScreen());
-    heapAtLaunch_ = ESP.getFreeHeap();
-    activeGame_->begin(*this);
-    /* A SCREEN TRANSITION IS ALWAYS A WHOLE-SCREEN REPAINT.
-     *
-     * Every screen is a static instance reused for the life of the device, so
-     * it arrives here carrying the dirty flags the LAST visit left behind --
-     * and the last thing that visit did was clearDirty(). Without this, a
-     * screen whose begin() happens to call only markDirty() renders without
-     * its renderStatic(), which is where both Ui::clear() and the top bar
-     * live: no chrome, and the previous screen still showing underneath it.
-     *
-     * It belongs here rather than in each begin(). Fourteen screens would each
-     * have to remember, and the one that forgot would be found by eye on a
-     * panel rather than by any build. Partial repaint is an optimisation
-     * WITHIN a screen's lifetime; entering one is not the place to be greedy. */
-    activeGame_->requestRender();
-    activeGame_->render(*this);
-    activeGame_->clearDirty();
+    /* A game this player left with something in it is still in memory:
+     * bring it back, or ask, before begin() throws it away. See
+     * Game::keepsGame() and AppRuntimeKeep.cpp. */
+    switch (keptHow(app)) {
+        case Game::Keep::Ask:
+            askCarryOn(app);
+            return;
+        case Game::Keep::Quietly:
+            resumeKept(app);
+            return;
+        case Game::Keep::No:
+            break;
+    }
+    enterApp(app, false, 0);
 }
 
 const char* LauncherApp::title() const {
@@ -162,7 +123,6 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     if (!touch.justPressed) {
         return;
     }
-
     Board& board = host.board();
     const int16_t lW = host.display().width();
     const int16_t lH = host.display().height();
@@ -186,14 +146,14 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     if (Rect{8, pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) && page_ > 0) {
         --page_;
         host.playSound(Sound::Tap);
-        markDirty();
+        requestGridPaint();
         return;
     }
     if (Rect{static_cast<int16_t>(lW - 82), pY, 74, 24}.contains(touch.x, touch.y, TOUCH_HIT_SLOP) &&
         page_ + 1 < pages) {
         ++page_;
         host.playSound(Sound::Tap);
-        markDirty();
+        requestGridPaint();
         return;
     }
 
@@ -218,6 +178,22 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
  *
  * It paints its own background and takes nothing from the caller, so it is
  * correct over a live screen as well as over a freshly cleared one. */
+/* The launcher's clock alone, at the minute -- see Game::renderClock(). Only
+ * at the same width: in portrait the sync check sits after the time, and a
+ * wider or narrower time would have to move it, which is the header's job. */
+bool LauncherApp::renderClock(GameHost& host) {
+    Ui::Renderer& tft = host.display();
+    if (static_cast<int16_t>(tft.width()) != clockScreenW_ ||
+        tft.textWidth(Clock::timeText(), 2) != clockW_) {
+        return false;
+    }
+    tft.setTextColor(Ui::text(), Ui::surface());
+    tft.setTextDatum(clockDatum_);
+    tft.drawString(Clock::timeText(), clockX_, clockY_, 2);
+    tft.setTextDatum(TL_DATUM);
+    return true;
+}
+
 void LauncherApp::drawHeader(GameHost& host) {
     Board& board = host.board();
     Ui::Renderer& tft = host.display();
@@ -269,6 +245,11 @@ void LauncherApp::drawHeader(GameHost& host) {
         const int16_t rowY = 60;
         tft.setTextDatum(ML_DATUM);
         tft.drawString(Clock::timeText(), 8, rowY, 2);
+        clockScreenW_ = lW;
+        clockX_ = 8;
+        clockY_ = rowY;
+        clockW_ = tft.textWidth(Clock::timeText(), 2);
+        clockDatum_ = ML_DATUM;
         Ui::drawSyncBadge(tft, static_cast<int16_t>(8 + tft.textWidth(Clock::timeText(), 2) + 12),
                           rowY, Clock::synced(), Ui::surface());
         drawWifiAndBattery(tft, board, static_cast<int16_t>(gearBtn.x + gearBtn.w), rowY);
@@ -297,6 +278,11 @@ void LauncherApp::drawHeader(GameHost& host) {
         tft.setTextColor(Ui::text(), Ui::surface());
         tft.setTextDatum(MR_DATUM);
         tft.drawString(Clock::timeText(), static_cast<int16_t>(syncCx - 7 - 5), topY, 2);
+        clockScreenW_ = lW;
+        clockX_ = static_cast<int16_t>(syncCx - 7 - 5);
+        clockY_ = topY;
+        clockW_ = tft.textWidth(Clock::timeText(), 2);
+        clockDatum_ = MR_DATUM;
 
         /* The badge row, right-aligned under the gear: Wi-Fi and the battery
          * at the end, the speaker and padlock before them, and Bluetooth --
@@ -474,136 +460,21 @@ void LauncherApp::renderDynamic(GameHost& host) {
                 slotHasButton_[slot] = true;
             }
         } else {
-            tft.fillRect(static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2),
-                         static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4),
-                         fill);
+            /* Rounded, and concentric with the frame: the frame's outline is
+             * a rounded rect of Ui::cornerRadius(), and a square erase two
+             * pixels inside it took the outline's four corner pixels with
+             * it on every page turn. Inset by two with a radius two less, it
+             * stays two pixels inside the outline all the way round. What
+             * the icon or label drew BEYOND this area stays: that is why
+             * LauncherIcons.cpp keeps every icon inside its box (rule 3). */
+            const int16_t inner = static_cast<int16_t>(
+                Ui::cornerRadius() > 2 ? Ui::cornerRadius() - 2 : 0);
+            tft.fillRoundRect(static_cast<int16_t>(r.x + 2), static_cast<int16_t>(r.y + 2),
+                              static_cast<int16_t>(r.w - 4), static_cast<int16_t>(r.h - 4),
+                              inner, fill);
         }
 
-        /* Place the contents as fractions of the tile, and scale them with it.
-         *
-         * These offsets used to be constants -- icon at r.x + 24, title at
-         * r.y + 17 -- which described the old 145x46 tile and nothing else.
-         * Once the grid started dividing the real panel, the tiles grew and
-         * their contents stayed put in the top-left corner of them, which
-         * looked worse than the un-scaled grid had: a big empty box with small
-         * writing in it. The fractions below are the old constants divided by
-         * the old tile size, so the 2.8-inch board gets what it always got.
-         *
-         * The text scale is the whole reason this board is here. A larger
-         * panel that renders the same small label is no easier for the players
-         * this is meant to serve; the tile has to carry bigger writing, not
-         * just more space around it. */
-        const float sx = static_cast<float>(r.w) / (tall ? 108.0f : 145.0f);
-        const float sy = static_cast<float>(r.h) / (tall ? 96.0f : 46.0f);
-        const float s = sx < sy ? sx : sy;
-
-        const uint8_t textScale = pageTextScale;
-
-        /* Icons scale by WHOLE numbers only, or not at all.
-         *
-         * The tile grows by a fraction -- about 1.37 in portrait here -- and
-         * feeding that to the icon art was wrong. These are drawn shapes, not
-         * bitmaps, but they are built from small integers: 1px strokes, a 17px
-         * radius, triangle vertices a dozen pixels from centre. Multiply those
-         * by 1.37 and each rounds independently: strokes land on 1px in one
-         * place and 2px in another, outlines lose corners, and any lettering
-         * inside stays 1x while its box grows. Tic-Tac-Toe came through it
-         * intact because its features are coarse -- a 34px plate and 30px
-         * strokes have room to absorb a rounding error -- which is exactly why
-         * it looked fixed while the detailed icons did not.
-         *
-         * So: an integer multiple when one fits, otherwise native size, and
-         * centred in the tile either way. The same rule the flags follow. A
-         * crisp icon in a roomy tile reads better than a smeared one that
-         * fills it. */
-        const uint8_t iconScale = (s >= 2.0f) ? 2 : 1;
-        Ui::ScaledRenderer icon{tft};
-        icon.setScale(static_cast<float>(iconScale), static_cast<float>(iconScale));
-
-        char label[24];
-        if (tall) {
-            const int16_t cxT = static_cast<int16_t>(r.x + r.w / 2);
-            const int16_t iconY = static_cast<int16_t>(r.y + r.h * 0.3125f);
-            drawLauncherIcon(icon, entry.icon(), r, fill,
-                             static_cast<int16_t>(cxT / iconScale),
-                             static_cast<int16_t>(iconY / iconScale));
-            /* With wrapping on, the title sits one subtitle line higher on
-             * EVERY tile, whether its own subtitle wraps or not. A grid
-             * implies its cells are alike -- titles at two heights on one page
-             * would read as a fault, and would jump as pages turn. */
-            const int16_t textW = static_cast<int16_t>(r.w - 8);
-            const int16_t subPitch = static_cast<int16_t>(10 * textScale);
-            const int16_t subY = static_cast<int16_t>(r.y + r.h * 0.906f);
-            const int16_t titleY = static_cast<int16_t>(
-                r.y + r.h * 0.708f - (wrapSubtitles ? subPitch : 0));
-            /* THE INK FOLLOWS THE FILL, which the theme chose. A fixed
-             * white here is how Classic drew white labels on light grey tiles
-             * at 1.3:1 and Pocket on pale green at 2.6:1 -- unreadable, and
-             * unreadable only on the themes nobody screenshots. */
-            tft.setTextColor(Ui::onFill(fill), fill);
-            tft.setTextDatum(MC_DATUM);
-            tft.setTextSize(textScale);
-            copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
-            tft.drawString(label, cxT, titleY, 2);
-            tft.setTextColor(Ui::onFillSoft(fill), fill);
-            char second[sizeof(label)];
-            if (!wrapSubtitles) {
-                copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
-                tft.drawString(label, cxT, subY, 1);
-            } else if (tft.textWidth(entry.subtitle(), 1) > textW &&
-                       splitIntoTwoLines(tft, entry.subtitle(), label, second,
-                                         sizeof(label), textW, 1)) {
-                tft.drawString(label, cxT, static_cast<int16_t>(subY - subPitch), 1);
-                tft.drawString(second, cxT, subY, 1);
-            } else {
-                /* One line, centred in the two-line block. Cut with a dot if
-                 * even wrapping could not save it, so a clipped word never
-                 * passes for a whole one. */
-                copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
-                const size_t kept = strlen(label);
-                if (kept > 0 && kept < strlen(entry.subtitle())) {
-                    label[kept - 1] = '.';
-                }
-                tft.drawString(label, cxT, static_cast<int16_t>(subY - subPitch / 2), 1);
-            }
-            tft.setTextSize(1);
-        } else {
-            /* Everything hangs off the tile's own centre line.
-             *
-             * The first version kept the old proportions -- icon at 0.478 of
-             * the height, title at 0.37, subtitle at 0.74 -- which were fine
-             * in a 46px tile and drift visibly in a 69px one: the pair sits
-             * low, and the icon a shade above it, so nothing lines up with
-             * anything. Measuring the text block from the middle outwards
-             * keeps it centred at any tile height, and puts the icon on the
-             * same line rather than near it. */
-            const int16_t midY = static_cast<int16_t>(r.y + r.h / 2);
-            const int16_t iconX = static_cast<int16_t>(r.x + r.w * 0.18f);
-            drawLauncherIcon(icon, entry.icon(), r, fill,
-                             static_cast<int16_t>(iconX / iconScale),
-                             static_cast<int16_t>(midY / iconScale));
-
-            /* Title above the line and subtitle below it, each by half its own
-             * height, so the gap between them does not grow with the tile. */
-            const int16_t titleH = static_cast<int16_t>(16 * textScale);
-            const int16_t subH = static_cast<int16_t>(8 * textScale);
-            const int16_t textX = static_cast<int16_t>(r.x + r.w * 0.34f);
-            const int16_t textW = static_cast<int16_t>(r.w - (r.x + r.w * 0.34f - r.x) - 8);
-
-            /* THE INK FOLLOWS THE FILL, which the theme chose. A fixed
-             * white here is how Classic drew white labels on light grey tiles
-             * at 1.3:1 and Pocket on pale green at 2.6:1 -- unreadable, and
-             * unreadable only on the themes nobody screenshots. */
-            tft.setTextColor(Ui::onFill(fill), fill);
-            tft.setTextDatum(ML_DATUM);
-            tft.setTextSize(textScale);
-            copyFittedText(tft, entry.title(), label, sizeof(label), textW, 2);
-            tft.drawString(label, textX, static_cast<int16_t>(midY - subH / 2 - 2), 2);
-            tft.setTextColor(Ui::onFillSoft(fill), fill);
-            copyFittedText(tft, entry.subtitle(), label, sizeof(label), textW, 1);
-            tft.drawString(label, textX, static_cast<int16_t>(midY + titleH / 2 + 2), 1);
-            tft.setTextSize(1);
-        }
+        drawTileContents(tft, entry, r, fill, tall, pageTextScale, wrapSubtitles);
     }
 
     const uint8_t pages = max<uint8_t>(1, (total + pageSize - 1) / pageSize);
