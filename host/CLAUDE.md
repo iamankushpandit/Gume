@@ -27,8 +27,8 @@ python3 tools/run_host_tests.py go_rules_test # one
 
 The runner builds each test with the `g++` line written in its own header,
 so a new test states that line or fails. The card image is
-`.github/workflows/card-image.yml`: on changes here, on a `card-rg40xxv-*`
-tag, and in full once a week.
+`.github/workflows/card-image.yml`: on changes under `host/`, `src/` or
+`include/`, on a `card-rg40xxv-*` tag, and in full every Monday.
 
 A mouse click is a finger on the glass. With a gamepad, the left stick moves a
 crosshair, the d-pad (the arrow keys) moves a selector from control to control,
@@ -62,8 +62,8 @@ nothing maps is logged once (`[host] button N is not mapped`), which is how to
 map a handheld whose M is not Guide. Holding Select + Start for three seconds quits -- long, so that nobody
 leaves by accident on a handheld where Braino is all there is. F10 or closing
 the window quits at once. `BRAINO_FULLSCREEN=1` fills
-the screen. Settings and scores go in `$BRAINO_DATA_DIR`, or
-`~/.local/share/braino`.
+the screen. Settings and scores go in `$BRAINO_DATA_DIR`, else
+`$XDG_DATA_HOME/braino`, else `~/.local/share/braino`.
 
 ## Standing rules for the Linux platform
 
@@ -185,8 +185,8 @@ at the middle of the selected control. No screen changed for it.
 
 `src/HostTftFocus.cpp` reads the controls off the panel as they are drawn: a
 round fill and an outline of the same rectangle, which is how `Ui::drawButton()`
-ends and so every button, launcher tile and keyboard key. `src/HostFocus.h` is
-where the selector goes next, and is pure arithmetic. It is drawn over the
+ends and so every button, launcher tile and keyboard key. `src/ui/FocusMath.h` (through
+`HostFocus.h`) is where the selector goes next, and is pure arithmetic. It is drawn over the
 window like the crosshair, never into the panel's frame.
 
 **It is drawn only inside the panel's paint clip** (`selectorField()`). While
@@ -305,11 +305,13 @@ synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
 What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
-regex: the hardware watchdog, the codec/DAC backend, and the per-platform
+filters: the hardware watchdog, the codec/DAC backend, and the per-platform
 interfaces, `PowerProbe`, `SystemSuspend`, `PanelSize`, `PanelArt` and `SleepPower` (which
 answers no to everything here: `HostSleep` already slows the cores and takes
 the Wi-Fi interface down). Their host versions are in `src/Host*.cpp`, and
-each says why.
+each says why. `tools/check_platforms.py` fails if an ESP32 implementation
+of an interface has no host version, or if the filters leave out anything
+else.
 
 ## The panel is the console's own size, found when Braino starts
 
@@ -459,7 +461,7 @@ Everything else reads that one answer:
 | `src/HostWifiOs.cpp`, `HostNet.cpp` | Wi-Fi through the OS's network manager; UDP sockets and libcurl for the firmware's own requests. |
 | `src/HostPlatform.cpp` | The window, input, cursor and test aids. |
 | `src/HostConsole.cpp`, `HostConsoleDetect.cpp` | Which handheld this is: reading a profile from `consoles/`, and finding this console's from the device tree. Nothing under `include/boards/` has a counterpart chosen at run time; this is it. |
-| `src/HostControls.h` | Which control does which job on that console. Pure arithmetic, tested for every combination of controls. |
+| `src/HostControls.h` | Which control does which job on that console: a forwarder to `src/hal/ControlJobs.h`, pure arithmetic, tested for every combination of controls. |
 
 **The version names the build's device.** `FIRMWARE_VERSION` is the
 release, a `+` and `GUME_VERSION_TAG` (`include/FirmwareVersion.h`), and here
@@ -819,18 +821,22 @@ again a minute later. A desktop build never suspends the computer;
 `BRAINO_FAKE_SUSPEND=1` makes any build pretend for three seconds, which is how
 the flow is tested on a PC, and `BRAINO_SUSPEND=0` turns it off on a handheld.
 
-**The press that wakes it must not also turn it off.** The Braino image's
-`/opt/braino/hotkeys.sh` turns the console off on the power key, and muhotkey
-hears the press that ended the suspend. It ignores the power key within five
-seconds of `/run/braino/resumed`. That script is part of the image, not of this
-tree, so an image built without the change would shut down on every wake.
+**The press that wakes it must not also turn it off.** Braino writes
+`/run/braino/resumed` on every wake for exactly this. Under muOS the image's
+`/opt/braino/hotkeys.sh` turns the console off on the power key, muhotkey
+hears the press that ended the suspend, and that script (not in this tree)
+ignores the power key within five seconds of the stamp. The Braino-only
+image in `rg40xxv/` has no such script: acpid maps the power key to
+`board/overlay/etc/acpi/power`, which is `exec poweroff` and reads no stamp.
+Whether the waking press reaches acpid there has not been measured; until it
+has, that handler is where the same five-second guard belongs.
 
 ## Seeing a screen without anyone at the window
 
 Two environment variables, both off by default:
 
 - `BRAINO_SHOTS="2500,5000"` saves the panel frame, at its real resolution,
-  as `<data dir>/shot-<ms>.bmp` at those milliseconds after start. F12 saves one
+  as `<data dir>/shot-<ms>.bmp` (ms zero-padded to six digits, `shot-002500.bmp`) at those milliseconds after start. F12 saves one
   on demand.
 - `BRAINO_TAPS="3000:237,223;4500:80,125,200"` presses the panel at frame
   coordinates `x,y` -- logical pixels, the panel over the UI scale, so a
@@ -848,7 +854,7 @@ of them, and nothing here models SPI time.
 
 ## The boot splash
 
-`braino --splash <file.bmp> [width height [progress]]` writes the picture a
+`braino --splash <file.bmp> [width height [progress [glow]]]` writes the picture a
 handheld shows from power-on until Braino's first screen, then exits without
 opening a window. `src/HostSplash.cpp` draws it, and it is the one thing the
 host draws itself rather than through the firmware's frame, which is the
