@@ -1,6 +1,6 @@
 # src/games
 
-One `.h`/`.cpp` pair per game or system screen. Settings, Wi-Fi, Profiles, Scores, System Info and About are `Game` subclasses (`../engine/Game.h`); the launcher is also a `Game`, but it lives in `src/engine` because it is part of the runtime shell.
+One `.h`/`.cpp` pair per game or system screen. Settings, Wi-Fi, Profiles, Scores, System Info, About and Nearby are `Game` subclasses (`../engine/Game.h`); the launcher is also a `Game`, but it lives in `src/engine` because it is part of the runtime shell.
 
 ## Lifecycle
 
@@ -14,7 +14,7 @@ Keep keepsGame() const;                                   // what leaving keeps
 void resume(AppContext& host, uint32_t awayMs);           // optional
 ```
 
-System/UI screens that genuinely need privileged access still subclass `Game` directly and keep the `GameHost&` signatures. Right now that list is exactly: Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info. Guard protected actions with `requireCapability()`.
+System/UI screens that genuinely need privileged access still subclass `Game` directly and keep the `GameHost&` signatures. Right now that list is exactly: Launcher, Settings, Wi-Fi, Profiles, Scores, About, System Info and Nearby, plus the runtime's own `CarryOnScreen` in `src/engine`. Guard protected actions with `requireCapability()`.
 
 `main.cpp` calls `begin()` -> `render()` -> `clearDirty()` on launch, then each frame calls `update()` and re-renders only when `needsRender()` is true. On leaving, `end()` is called once via `leaveActiveGame()`, before the next screen's `begin()`.
 
@@ -68,14 +68,15 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 
   Which boards those are has changed: the Freenove has a codec, and the
   E32R28T-1, the inverted-panel CYD, the E32R32P and the E32R40T drive the
-  ESP32's built-in DAC. Every app is offered on
+  ESP32's built-in DAC, the experimental Attaky Core drives a bare I2S
+  amplifier (`GUME_HAS_AUDIO_I2S`), and the Linux build plays through SDL. Every app is offered on
   every board regardless -- `playSound()` compiles to nothing where there is no
   audio path, so an app needs no guard of its own, and one that leans on sound
   should carry the same information visually. Piano draws the note name on the
   key for exactly that reason.
 - Assume a fixed 320x240 landscape canvas **unless the app sets `followsLayout`**. That is the default and it is right for almost everything: the runtime forces landscape and scales the canvas up on a bigger panel, so a game gets free upscaling and never thinks about orientation. Piano and Chess are the exceptions.
 - **`followsLayout` is both halves or neither.** An app that sets it honours the owner's orientation AND draws through the raw renderer at the panel's real size, with touch delivered unmapped. Read `tft.width()`/`tft.height()` at render time; never `SCREEN_WIDTH`, `SCREEN_HEIGHT` or `GAME_CANVAS_*`. The two are decided by the same flag on purpose -- a game with real pixels to draw on and canvas coordinates to hit-test against lays a third of itself off the edge of a portrait panel, and the serial log looks perfectly healthy while it does.
-- System/UI apps (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens) must support both landscape and portrait orientations. Read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
+- System/UI apps (Settings, Wi-Fi, System Info, Profiles, Scores, About, Nearby, and any future app-style screens) read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Portrait is decided per screen, not owed by every one (the maintainer withdrew the blanket rule in issue 22; see "Rendering model" in the root CLAUDE.md). Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip adapts naturally when you divide `tft.width()` at render time.
 - Never read a setting from `board` more than once per screen change in a hot path. `Preferences` is flash-backed, so every getter is an NVS lookup. The frequently-read settings have write-through RAM mirrors in `Board`; add to those rather than reaching for a fresh getter each frame. Never call anything containing a `delay()` from `render()` or `update()`.
 - Don't rebuild content that didn't change. Scrolling changes an offset, not content. Gate expensive rebuilds behind a stale flag.
 - **A full redraw is the exception, and that applies to every game here.**
@@ -106,9 +107,11 @@ Inside `render()`, guard static chrome behind `if (needsFullRender())` and draw 
 
 ## The four-button quiz screens
 
-Math, Multiplication, Time, Flag, Percent, Space and Roman are one layout:
-header counters, a question panel, four answer buttons at
-`(18 + col * 152, 144 + row * 46, 132, 38)`, a strip between them. Math and
+Math, Multiplication, Space and Roman are one layout: header counters, a
+question panel, four answer buttons at
+`(18 + col * 152, 144 + row * 46, 132, 38)`, a strip between them. Time
+(`152 + row * 40`, 34 high, under its dial), Flag (`6 + col * 158`, under
+its flag) and Percent place theirs round their pictures. Math and
 Multiplication share the panel too, `(26, 70, 268, 56)`. If you add another,
 copy `MathGame` or `SpaceGame` rather than inventing the rects again -- two
 screens with the same shape should not put their buttons in two
@@ -224,6 +227,7 @@ The full checklist lives in the root `CLAUDE.md` under "Adding a game or an app"
 1. In the game's own `.cpp`, add one `AppMetadata` declaration and a `...AppMetadata()` accessor. Keep `id` stable; blurb must stay under ~46 chars. The metadata block also owns launcher icon, launcher index and default visibility.
 2. If the game records a score, declare one `AppScoreInfo` there too and point the metadata at it.
 2b. If it asks questions at levels, make it a course (above): the level from `courseLevel()`, never from the score.
+2c. `GameInstances.h`: add the game's static instance as a member, and in `../engine/AppRegistry.cpp` the one-line accessor that returns it.
 3. `../engine/AppRegistry.cpp`: add a `metadataCatalogApp(...AppMetadata(), instance)` line at the same playable position as the metadata launcher index. `tools/check_catalog.py` verifies the index, icon binding and `AppGame` subclass.
 4. `../engine/AppRegistry.h`: update `PLAYABLE_APP_COUNT`.
 
@@ -494,8 +498,9 @@ board game.
   the same inputs, and what lets the rules be tested off the device:
   `test/host/ludo_rules_test.cpp` builds against the real `LudoRules.cpp` with
   any host compiler (the command is at its top) and plays 3,000 seeded games
-  checking invariants after every move. Run it after touching a rule. CI does
-  not, yet.
+  checking invariants after every move. CI runs it with every other test in
+  `test/host/` (`tools/run_host_tests.py`); run it yourself after touching a
+  rule.
 - **The dice are a function, not a generator.** Roll *k* of a game is
   `Ludo::die(seed, k)`. Nothing may draw a die any other way, and the computer
   player's tie-breaks come from a separately salted `mix()` of the same seed so

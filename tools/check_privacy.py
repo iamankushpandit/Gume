@@ -583,6 +583,64 @@ def check_station_hostname_is_fixed():
     return found
 
 
+# The closed list itself. Every rulebook that counts it has to agree with
+# this, and adding a fifth entry here is the maintainer's decision, recorded
+# in an issue first -- see "No data collection" in CLAUDE.md.
+AUTHORIZED_FLOWS = (
+    "NTP time synchronization",
+    "One-time timezone lookup (ip-api.com)",
+    "BLE beacon (opt-in: device ID, game, score, and the turns\n"
+    "             of games between consoles -- no names, no profiles)",
+    "Update-availability manifest (anonymous GET, no device data)",
+)
+
+# Where the list is counted in prose. AGENTS.md went on saying three for
+# releases after CLAUDE.md said four, and the pull-request template asked
+# every contributor to tick a box against three.
+RULEBOOKS = ("CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md",
+             ".github/pull_request_template.md", "README.md",
+             "host/CLAUDE.md", "src/hal/CLAUDE.md", "src/engine/CLAUDE.md",
+             "src/games/CLAUDE.md", "src/ui/CLAUDE.md", "docs/PORTING.md")
+_CARDINALS = ("zero", "one", "two", "three", "four", "five", "six", "seven",
+              "eight", "nine", "ten")
+_ORDINALS = ("zeroth", "first", "second", "third", "fourth", "fifth", "sixth",
+             "seventh", "eighth", "ninth", "tenth")
+
+
+def check_stated_flow_count() -> list:
+    """Every rulebook that counts the outbound flows counts them right.
+
+    Two phrasings carry the number: "N things leave the device" and "a
+    <next> outbound flow needs the maintainer's agreement". Either one
+    disagreeing with AUTHORIZED_FLOWS is a rulebook telling its reader the
+    product promises something it does not.
+    """
+    issues = []
+    count = len(AUTHORIZED_FLOWS)
+    leave = re.compile(r"\b(\w+)\s+things\s+leave\s+the\s+device", re.I)
+    nth = re.compile(r"\b[Aa]\s+(\w+)\s+outbound\s+flow\s+needs", re.I)
+    for rel in RULEBOOKS:
+        path = REPO_ROOT / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for m in leave.finditer(text):
+            word = m.group(1).lower()
+            if word in _CARDINALS and _CARDINALS.index(word) != count:
+                line = text.count("\n", 0, m.start()) + 1
+                issues.append("%s:%d says %s things leave the device; the "
+                              "closed list has %s" % (rel, line, word,
+                                                      _CARDINALS[count]))
+        for m in nth.finditer(text):
+            word = m.group(1).lower()
+            if word in _ORDINALS and _ORDINALS.index(word) != count + 1:
+                line = text.count("\n", 0, m.start()) + 1
+                issues.append("%s:%d calls the next outbound flow the %s; with "
+                              "%d on the list it is the %s" %
+                              (rel, line, word, count, _ORDINALS[count + 1]))
+    return issues
+
+
 def main():
     """Run the privacy audit on all source files."""
     print("=" * 70)
@@ -631,6 +689,8 @@ def main():
     # The name the router is given. The leak this guards against was a call
     # that was never made, which no pattern over the source can find.
     all_issues.extend(check_station_hostname_is_fixed())
+    # The rulebooks' count of the closed list.
+    all_issues.extend(check_stated_flow_count())
 
     # Print results
     if all_issues:
@@ -645,10 +705,8 @@ def main():
         print("\n[PASSED] PRIVACY AUDIT PASSED\n")
         print("No unauthorized data transmission patterns detected.")
         print("Authorized flows verified:")
-        print("  1. NTP time synchronization")
-        print("  2. One-time timezone lookup (ip-api.com)")
-        print("  3. BLE beacon (opt-in: device ID, game, score, and the turns\n             of games between consoles -- no names, no profiles)")
-        print("  4. Update-availability manifest (anonymous GET, no device data)")
+        for n, flow in enumerate(AUTHORIZED_FLOWS, 1):
+            print("  %d. %s" % (n, flow))
         if (REPO_ROOT / "host").exists():
             print("Linux builds: requests are IPv4 only, DHCP sends no client")
             print("  identifier, vendor string or hostname, and the card image's")

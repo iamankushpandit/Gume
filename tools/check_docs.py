@@ -190,6 +190,120 @@ def check_game_count(problems):
                        "says %s" % (stated.group(1), declared.group(1)))
 
 
+def rulebooks():
+    """Every file an agent or a contributor reads as rules: each CLAUDE.md
+    in the tree, AGENTS.md, CONTRIBUTING.md and the porting guide."""
+    found = ["AGENTS.md", "CONTRIBUTING.md", os.path.join("docs", "PORTING.md")]
+    for folder, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in
+                   ("_build", "build", "node_modules", "rocknix")]
+        if "CLAUDE.md" in files:
+            found.append(os.path.relpath(os.path.join(folder, "CLAUDE.md"), ROOT))
+    return sorted(p.replace(os.sep, "/") for p in found
+                  if os.path.exists(os.path.join(ROOT, p)))
+
+
+# A sentence about a count that was wrong once is history, not a claim.
+HISTORY = re.compile(r"when there were|shipped claiming|claimed|was \d+ games|"
+                     r"out of date|fell \w+ games behind", re.I)
+
+
+def check_rulebook_counts(problems):
+    """The game and system-app counts, everywhere the rules state them.
+
+    The README and CONTRIBUTING.md were checked; the rulebooks themselves
+    were not, and AGENTS.md still walked a contributor through a catalogue
+    that had been replaced, while CLAUDE.md's "40 playable games plus 7
+    launchable system apps" had nothing holding it to the registry.
+    """
+    games = len(playable_apps())
+    declared = re.search(r"SYSTEM_APP_COUNT\s*=\s*(\d+)",
+                         read("src", "engine", "AppRegistry.h"))
+    systems = int(declared.group(1)) if declared else None
+    game_re = re.compile(r"\b(\d+)\s+(?:playable\s+|built-in\s+)?games\b")
+    system_re = re.compile(r"\b(\d+)\s+(?:launchable\s+)?system\s+apps\b")
+    for path in rulebooks():
+        text = read(*path.split("/"))
+        for regex, want, what in ((game_re, games, "games"),
+                                  (system_re, systems, "system apps")):
+            if want is None:
+                continue
+            for m in regex.finditer(text):
+                start = text.rfind("\n\n", 0, m.start()) + 1
+                end = text.find("\n\n", m.end())
+                if HISTORY.search(text[start:end if end > 0 else len(text)]):
+                    continue
+                if int(m.group(1)) != want:
+                    line = text.count("\n", 0, m.start()) + 1
+                    fail(problems, "%s:%d says %s %s; the registry has %d"
+                         % (path, line, m.group(1), what, want))
+
+
+# How the project speaks about the people holding the console: players, young
+# players, the administrator. Never children, kids or adults -- the console
+# does not know anybody's age and its documents do not guess.
+PLAYER_WORDS = re.compile(r"(?<![-\w])(child|children|childs|kids?|adults?)\b", re.I)
+# Places those words mean something else, each with its reason.
+PLAYER_WORDS_ALLOWED = (
+    # The NVS key for the number of players. It is persisted on every device,
+    # so renaming it would orphan every player's profile.
+    '"kids"',
+    # A three-letter word to trace (a young goat as much as anything).
+    '"kid"',
+)
+CODE_STRING = re.compile(r'"(?:[^"\\\n]|\\.)*"')
+
+
+def check_player_wording(problems):
+    """No "child", "kids" or "adult" where a reader will see it.
+
+    Checked: every rulebook, the README, docs/*.md, the site template and
+    every string literal under src/ (the words on the screen). Not checked:
+    CHANGELOG.md, which records the change away from those words, quoted
+    coverage in site/featured.json, and identifiers in code.
+    """
+    docs = list(rulebooks()) + ["README.md"]
+    docs += sorted("docs/" + n for n in os.listdir(os.path.join(ROOT, "docs"))
+                   if n.endswith(".md"))
+    docs += ["site/index.template.html", "site/featured.template.html"]
+    for path in sorted(set(docs)):
+        if not os.path.exists(os.path.join(ROOT, *path.split("/"))):
+            continue
+        for n, line in enumerate(read(*path.split("/")).splitlines(), 1):
+            m = PLAYER_WORDS.search(line)
+            if m:
+                fail(problems, "%s:%d says '%s'; say players, young players or "
+                     "the administrator" % (path, n, m.group(1)))
+    for folder, _, files in os.walk(os.path.join(ROOT, "src")):
+        for name in files:
+            if not name.endswith((".cpp", ".h")):
+                continue
+            full = os.path.join(folder, name)
+            relpath = os.path.relpath(full, ROOT).replace(os.sep, "/")
+            with io.open(full, encoding="utf-8", errors="replace") as handle:
+                lines = handle.read().splitlines()
+            for n, line in enumerate(lines, 1):
+                for lit in CODE_STRING.findall(line):
+                    if lit in PLAYER_WORDS_ALLOWED:
+                        continue
+                    m = PLAYER_WORDS.search(lit)
+                    if m:
+                        fail(problems, "%s:%d puts '%s' on the screen; say "
+                             "players or young players" % (relpath, n, m.group(1)))
+
+
+def check_agents_index(problems):
+    """AGENTS.md is the door some tools use instead of CLAUDE.md, so it has to
+    lead to every rulebook. It once listed four directory rulebooks after a
+    fifth (host/CLAUDE.md) had been written."""
+    agents = read("AGENTS.md")
+    for path in rulebooks():
+        if path in ("AGENTS.md",):
+            continue
+        if "(%s)" % path not in agents and "(./%s)" % path not in agents:
+            fail(problems, "AGENTS.md does not link %s" % path)
+
+
 def check_source_tree(problems):
     """Every source file should appear in README's 'Layout of the code' block.
 
@@ -658,6 +772,9 @@ def main():
     check_version(problems)
     check_one_version(problems)
     check_game_count(problems)
+    check_rulebook_counts(problems)
+    check_player_wording(problems)
+    check_agents_index(problems)
     check_source_tree(problems)
     check_size_agreement(problems)
     check_about_is_derived(problems)

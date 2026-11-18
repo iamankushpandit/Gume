@@ -1371,7 +1371,7 @@ number; it cannot point you somewhere else.
 
 ### The BLE beacon
 
-The beacon is **off by default** and opt-in from *Settings -> Beacon*. When it is
+The beacon is **off by default** and opt-in from *Settings -> Device -> Beacon*. When it is
 on, the launcher header shows a Bluetooth badge -- drawn **only** while the radio
 is genuinely advertising, so it is never a question of whether an icon looks
 greyed out. It is placed per layout: landscape puts it on the clock's line,

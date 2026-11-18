@@ -1,6 +1,12 @@
 # Porting Braino! to another board
 
-Braino! describes each board it supports in **two files, and nowhere else**:
+This guide is for the ESP32 boards, product and experimental. The Linux
+platform -- the PC build and the RG40XX V image -- is not a board: it has its
+own board header (`host/boards/host.h`), its console files and its own
+rulebook, [host/CLAUDE.md](../host/CLAUDE.md); see
+[A platform that is not an ESP32](#a-platform-that-is-not-an-esp32).
+
+Braino! describes each ESP32 board it supports in **two files, and nowhere else**:
 
 | Where | What it holds |
 |---|---|
@@ -23,7 +29,7 @@ read or pressed.
 | Requirement | Why | If it is missing |
 |---|---|---|
 | A panel at least 320×240 in landscape | The playable games are drawn on a fixed canvas and position controls by arithmetic on it. A smaller panel puts buttons off the edge, and a player cannot press what is not there | Not supportable |
-| A touch controller | It is the only input this firmware has. There are no buttons | Not supportable |
+| A touch controller | It is the only input this firmware requires. Keys, a keyboard and the BOOT key are optional extras, and nothing may be reachable only through them | Not supportable |
 | The backlight on a GPIO | Brightness is a setting with a readability floor, and the idle path blanks the screen rather than only dimming it | Not supportable |
 | 4 MB of flash | The app partition is 3 MB (`huge_app.csv`) and the firmware is most of it. No partitioning makes a 2 MB part fit | Not supportable |
 
@@ -40,6 +46,14 @@ quietly does without — no code change, just `PIN_NONE`:
 A larger panel clears the size requirement, but see
 [What is *not* decoupled yet](#what-is-not-decoupled-yet) before assuming the
 games look right on it.
+
+A board that clears all four but should not be offered yet is built as
+`custom_env_kind = experimental`: CI builds it and attaches the image to the
+run, and nothing public carries it (see "An experimental board is built and
+never published" in the root `CLAUDE.md`). The Attaky Core is the one today,
+and the worked example for keys, a clip-on keyboard, an I2S amplifier and
+modules that come off -- its standing rules are in
+[src/hal/CLAUDE.md](../src/hal/CLAUDE.md#the-attaky-core-experimental-standing-rules).
 
 ## Second: a supported board is one people can flash
 
@@ -64,7 +78,7 @@ the same gaps without needing to build. Both are in the checklist below.
 3. Add `[env:<something>]` pointing at it.
 4. `python tools/check_boards.py`
 5. `pio run -e <something>`
-6. Flash it and check the six things in [Bring-up](#bring-up).
+6. Flash it and check everything in [Bring-up](#bring-up).
 7. Put it on the web installer and in CI, and update the docs —
    [Landing a port](#landing-a-port).
 
@@ -190,7 +204,8 @@ spent once.
 
 ```ini
 [env:<something>]
-extends = esp32_common
+extends = esp32_common          ; esp32s3_common for an ESP32-S3 board
+custom_env_kind = product       ; or experimental, with -D GUME_EXPERIMENTAL=1
 build_src_filter = +<*> -<wifi_diag.cpp> -<battery_diag.cpp>
 lib_deps = ${common.lib_deps}
 lib_ldf_mode = deep+
@@ -201,6 +216,9 @@ build_flags =
 ```
 
 One environment targets exactly one board; `check_boards.py` enforces that too.
+`custom_env_kind` is what every workflow reads (through `tools/envs.py`) to
+decide whether to build, release and offer it; an environment without one
+fails the checks.
 
 ## Bring-up
 
@@ -224,6 +242,21 @@ mode below has actually happened.
    for this; page CALIBRATE resolves the real divider ratio.
 6. **The LED shows the colour asked for.** Wrong colour, not no colour, means
    the channels are crossed; LED permanently on means `commonAnode` is wrong.
+   The serial console's `lights` command blinks every light the firmware
+   drives, one at a time, and names each on the log.
+7. **The beacon is seen.** Switch Beacon on (*Settings → Device*) and check
+   with a phone's BLE scanner that the name and the manufacturer data match
+   `docs/BLE_BEACON_SPEC.md`.
+8. **Wi-Fi joins and the clock is right.** Join a network from the Wi-Fi
+   screen and watch the time sync; the clock should then advance with the
+   minute.
+9. **The watchdog reboots a hung loop.** A loop held for more than
+   `Watchdog::TIMEOUT_SECONDS` (12s) has to restart the board.
+10. **A game is responsive.** Play one; System Info's Memory tab should show
+    a worst frame under ~40ms.
+
+Write what you checked, and how, on the board's page in `docs/boards/` (see
+below) -- the next person to verify the board does it from there.
 
 If the board has no battery, no SD slot or no LED, set those to `PIN_NONE` and
 skip the corresponding step — that is a supported configuration, not a
@@ -243,12 +276,10 @@ A board that boots is not a board that ships. In the same commit:
   buy one), and a `VARIANTS` entry for any new environment. The board list
   itself is derived from `platformio.ini`, so this is the part that cannot be.
   A picker entry whose firmware CI never built fails halfway through erasing
-  somebody's board, so `.github/workflows/pages.yml` and `ci.yml` must build it
-  too. `check_boards.py` and `check_docs.py` cross-check all of this.
-- `site/index.template.html` — the copy still describes **one** board in
-  prose. `gen_site.py` refuses to generate with a second board until that is
-  generalised, on purpose: offering a firmware the page then mislabels is worse
-  than not offering it.
+  somebody's board. The workflows take their environments from
+  `tools/envs.py`, so `custom_env_kind = product` is what gets it built and
+  offered; `check_boards.py` and `check_docs.py` cross-check the rest.
+  Exactly one `BOARD_DETAILS` entry carries `recommend`.
 - `docs/boards/<BOARD_NAME>.md` — how to recognise the board, what has been
   checked on hardware, and its sources with the date checked and an archived
   copy where one exists; leave an empty GENERATED block and run
@@ -261,21 +292,30 @@ A board that boots is not a board that ships. In the same commit:
 
 ## A platform that is not an ESP32
 
-A new *board* needs nothing here. A new *platform* takes part in the battery
-diagnostic by implementing `PowerProbe` (`src/hal/PowerProbe.h`) in one file of
-its own. See `host/src/HostPowerProbe.cpp` for a full one. An empty `read()` still
-works: it gets the firmware's gauge and the per-state analysis, and only lacks the
-detail.
+A new *board* needs nothing here. A new *platform* builds the same `src/`,
+unchanged, and answers what differs through the platform interfaces, one
+implementation each: `PanelSize` (`src/hal/PanelSize.h`), `PowerProbe`,
+`SystemSuspend`, `SleepPower` and `PanelArt` (`src/ui/PanelArt.h`). The Linux
+platform in `host/` is the worked example, and [host/CLAUDE.md](../host/CLAUDE.md)
+its rulebook. `tools/check_platforms.py` checks that every interface the ESP32
+boards implement has a host implementation, and that nothing under `src/`
+asks which platform it is on.
+
+For the battery diagnostic, an empty `PowerProbe::read()` still works: it gets
+the firmware's gauge and the per-state analysis, and only lacks the detail.
+`host/src/HostPowerProbe.cpp` is a full one.
 
 ## What is *not* decoupled yet
 
-The playable games are authored against a fixed landscape canvas and lay
-themselves out against `SCREEN_WIDTH`/`SCREEN_HEIGHT`. Those constants now
-follow the board, so a differently sized panel gets the right numbers — but a
-game that positions things by arithmetic on them has not been checked at any
-other size. The launcher and the system apps read `tft.width()`/`tft.height()`
-at render time and are responsive by rule (see `CLAUDE.md`); Settings and Wi-Fi
-are known violators.
+The playable games are authored against a fixed 320×240 landscape canvas,
+and `ScaledRenderer` fits that canvas to the panel `PanelSize` reports: the
+largest whole scale, centred, from twice the canvas up, and a fractional fill
+below that (the 4-inch board's 480×320). So a larger panel needs no change to
+a game -- but the fractional fill is where a one-pixel seam or an edge that
+rounds the other way shows, so look at every game on a new panel size. The
+launcher and the system apps read `tft.width()`/`tft.height()` at render time
+and lay out against the panel they are on; whether a screen also supports
+portrait is decided per screen (see "Rendering model" in `CLAUDE.md`).
 
 A port to a board with the same 320×240 landscape canvas needs nothing beyond
 this document. A port to a different panel size needs the games looked at, one

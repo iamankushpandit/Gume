@@ -25,7 +25,7 @@
       "heap": 0
     },
     "src/games/AboutApp.cpp": {
-      "String": 7,
+      "String": 6,
       "delay": 0,
       "heap": 0
     },
@@ -34,28 +34,8 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/CinnamonGame.cpp": {
-      "String": 0,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/CinnamonGame.h": {
-      "String": 0,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/FingerCountGame.cpp": {
-      "String": 6,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/FlagGame.cpp": {
       "String": 2,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/MemoryGame.cpp": {
-      "String": 0,
       "delay": 0,
       "heap": 0
     },
@@ -76,11 +56,6 @@
     },
     "src/games/ScoresApp.cpp": {
       "String": 1,
-      "delay": 0,
-      "heap": 0
-    },
-    "src/games/StateFlagGame.cpp": {
-      "String": 0,
       "delay": 0,
       "heap": 0
     },
@@ -114,14 +89,14 @@
       "delay": 0,
       "heap": 0
     },
-    "src/games/WifiPassword.cpp": {
-      "String": 4,
-      "delay": 0,
-      "heap": 0
-    },
     "src/games/WifiConnect.cpp": {
       "String": 3,
       "delay": 2,
+      "heap": 0
+    },
+    "src/games/WifiPassword.cpp": {
+      "String": 4,
+      "delay": 0,
       "heap": 0
     },
     "src/hal/BleBeacon.cpp": {
