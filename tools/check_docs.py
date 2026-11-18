@@ -48,6 +48,87 @@ def fail(problems, message):
     problems.append(message)
 
 
+VERSION_TAG_RE = re.compile(r'^#define\s+GUME_VERSION_TAG\s+"([^"]*)"', re.M)
+
+
+def strip_comments(source):
+    """C/C++ source with its comments removed, so a rule about code is not
+    tripped by a sentence about it."""
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
+    return re.sub(r"//[^\n]*", " ", source)
+
+
+def check_one_version(problems):
+    """One version for every platform, and the device only after a "+".
+
+    The owner decided on 2026-11-13 that every build carries the same
+    BRAINO_VERSION, reported with build metadata naming the device --
+    5.14.0+e32r28t1 -- and retired the separate release line one board had.
+    So, checked here because each of these has a way of coming back:
+
+    - AppVersion.h states exactly one version, BRAINO_VERSION, as a plain
+      literal (the tools read it there), and it carries no "+".
+    - No CHANGELOG heading carries a "+": the release notes are lifted from
+      a heading, and a published version never names a device.
+    - Every board header names its device with GUME_VERSION_TAG, lower case
+      [0-9a-z-], and no two boards share one.
+    - Under src/, only the update comparison reads BRAINO_VERSION. Everything
+      that reports a version goes through FIRMWARE_VERSION, the one accessor
+      (include/FirmwareVersion.h).
+    """
+    header = read("include", "AppVersion.h")
+    defined = re.findall(r'^#define\s+(\w+_VERSION)\s+"([^"]*)"', header, re.M)
+    if [name for name, _ in defined] != ["BRAINO_VERSION"]:
+        fail(problems, "AppVersion.h must define exactly one version, "
+                       "BRAINO_VERSION, as a string literal; found %s"
+                       % ([name for name, _ in defined] or "none"))
+    for name, value in defined:
+        if "+" in value:
+            fail(problems, "AppVersion.h: %s is %s -- the '+device' part is "
+                           "added by FIRMWARE_VERSION and never belongs to a "
+                           "published version" % (name, value))
+
+    for heading in re.findall(r"^##\s+(\S+)", read("CHANGELOG.md"), re.M):
+        if "+" in heading:
+            fail(problems, "CHANGELOG.md has a '## %s' section: a published "
+                           "version never carries a '+'" % heading)
+
+    tags = {}
+    boards_dir = os.path.join(ROOT, "include", "boards")
+    for name in sorted(os.listdir(boards_dir)):
+        if not name.endswith(".h"):
+            continue
+        found = VERSION_TAG_RE.findall(read("include", "boards", name))
+        if len(found) != 1:
+            fail(problems, "include/boards/%s must define GUME_VERSION_TAG "
+                           "once, the device part of the version" % name)
+            continue
+        tag = found[0]
+        if not re.match(r"^[0-9a-z-]+$", tag):
+            fail(problems, "include/boards/%s: GUME_VERSION_TAG \"%s\" must be "
+                           "lower case [0-9a-z-]" % (name, tag))
+        if tag in tags:
+            fail(problems, "include/boards/%s and %s share GUME_VERSION_TAG "
+                           "\"%s\"; it has to say which device" % (
+                               name, tags[tag], tag))
+        tags[tag] = name
+
+    for folder, _dirs, files in os.walk(os.path.join(ROOT, "src")):
+        for name in files:
+            if not name.endswith((".cpp", ".h")):
+                continue
+            path = os.path.join(folder, name)
+            relative = os.path.relpath(path, ROOT).replace(os.sep, "/")
+            if relative == "src/hal/BoardUpdate.cpp":
+                continue
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                code = strip_comments(handle.read())
+            if re.search(r"\bBRAINO_VERSION\b", code):
+                fail(problems, "%s reads BRAINO_VERSION; a version shown to "
+                               "anybody is FIRMWARE_VERSION, which names the "
+                               "device too" % relative)
+
+
 def check_version(problems):
     """README's stated release must match the firmware constant."""
     header = read("include", "AppVersion.h")
@@ -109,6 +190,120 @@ def check_game_count(problems):
                        "says %s" % (stated.group(1), declared.group(1)))
 
 
+def rulebooks():
+    """Every file an agent or a contributor reads as rules: each CLAUDE.md
+    in the tree, AGENTS.md, CONTRIBUTING.md and the porting guide."""
+    found = ["AGENTS.md", "CONTRIBUTING.md", os.path.join("docs", "PORTING.md")]
+    for folder, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in
+                   ("_build", "build", "node_modules", "rocknix")]
+        if "CLAUDE.md" in files:
+            found.append(os.path.relpath(os.path.join(folder, "CLAUDE.md"), ROOT))
+    return sorted(p.replace(os.sep, "/") for p in found
+                  if os.path.exists(os.path.join(ROOT, p)))
+
+
+# A sentence about a count that was wrong once is history, not a claim.
+HISTORY = re.compile(r"when there were|shipped claiming|claimed|was \d+ games|"
+                     r"out of date|fell \w+ games behind", re.I)
+
+
+def check_rulebook_counts(problems):
+    """The game and system-app counts, everywhere the rules state them.
+
+    The README and CONTRIBUTING.md were checked; the rulebooks themselves
+    were not, and AGENTS.md still walked a contributor through a catalogue
+    that had been replaced, while CLAUDE.md's "40 playable games plus 7
+    launchable system apps" had nothing holding it to the registry.
+    """
+    games = len(playable_apps())
+    declared = re.search(r"SYSTEM_APP_COUNT\s*=\s*(\d+)",
+                         read("src", "engine", "AppRegistry.h"))
+    systems = int(declared.group(1)) if declared else None
+    game_re = re.compile(r"\b(\d+)\s+(?:playable\s+|built-in\s+)?games\b")
+    system_re = re.compile(r"\b(\d+)\s+(?:launchable\s+)?system\s+apps\b")
+    for path in rulebooks():
+        text = read(*path.split("/"))
+        for regex, want, what in ((game_re, games, "games"),
+                                  (system_re, systems, "system apps")):
+            if want is None:
+                continue
+            for m in regex.finditer(text):
+                start = text.rfind("\n\n", 0, m.start()) + 1
+                end = text.find("\n\n", m.end())
+                if HISTORY.search(text[start:end if end > 0 else len(text)]):
+                    continue
+                if int(m.group(1)) != want:
+                    line = text.count("\n", 0, m.start()) + 1
+                    fail(problems, "%s:%d says %s %s; the registry has %d"
+                         % (path, line, m.group(1), what, want))
+
+
+# How the project speaks about the people holding the console: players, young
+# players, the administrator. Never children, kids or adults -- the console
+# does not know anybody's age and its documents do not guess.
+PLAYER_WORDS = re.compile(r"(?<![-\w])(child|children|childs|kids?|adults?)\b", re.I)
+# Places those words mean something else, each with its reason.
+PLAYER_WORDS_ALLOWED = (
+    # The NVS key for the number of players. It is persisted on every device,
+    # so renaming it would orphan every player's profile.
+    '"kids"',
+    # A three-letter word to trace (a young goat as much as anything).
+    '"kid"',
+)
+CODE_STRING = re.compile(r'"(?:[^"\\\n]|\\.)*"')
+
+
+def check_player_wording(problems):
+    """No "child", "kids" or "adult" where a reader will see it.
+
+    Checked: every rulebook, the README, docs/*.md, the site template and
+    every string literal under src/ (the words on the screen). Not checked:
+    CHANGELOG.md, which records the change away from those words, quoted
+    coverage in site/featured.json, and identifiers in code.
+    """
+    docs = list(rulebooks()) + ["README.md"]
+    docs += sorted("docs/" + n for n in os.listdir(os.path.join(ROOT, "docs"))
+                   if n.endswith(".md"))
+    docs += ["site/index.template.html", "site/featured.template.html"]
+    for path in sorted(set(docs)):
+        if not os.path.exists(os.path.join(ROOT, *path.split("/"))):
+            continue
+        for n, line in enumerate(read(*path.split("/")).splitlines(), 1):
+            m = PLAYER_WORDS.search(line)
+            if m:
+                fail(problems, "%s:%d says '%s'; say players, young players or "
+                     "the administrator" % (path, n, m.group(1)))
+    for folder, _, files in os.walk(os.path.join(ROOT, "src")):
+        for name in files:
+            if not name.endswith((".cpp", ".h")):
+                continue
+            full = os.path.join(folder, name)
+            relpath = os.path.relpath(full, ROOT).replace(os.sep, "/")
+            with io.open(full, encoding="utf-8", errors="replace") as handle:
+                lines = handle.read().splitlines()
+            for n, line in enumerate(lines, 1):
+                for lit in CODE_STRING.findall(line):
+                    if lit in PLAYER_WORDS_ALLOWED:
+                        continue
+                    m = PLAYER_WORDS.search(lit)
+                    if m:
+                        fail(problems, "%s:%d puts '%s' on the screen; say "
+                             "players or young players" % (relpath, n, m.group(1)))
+
+
+def check_agents_index(problems):
+    """AGENTS.md is the door some tools use instead of CLAUDE.md, so it has to
+    lead to every rulebook. It once listed four directory rulebooks after a
+    fifth (host/CLAUDE.md) had been written."""
+    agents = read("AGENTS.md")
+    for path in rulebooks():
+        if path in ("AGENTS.md",):
+            continue
+        if "(%s)" % path not in agents and "(./%s)" % path not in agents:
+            fail(problems, "AGENTS.md does not link %s" % path)
+
+
 def check_source_tree(problems):
     """Every source file should appear in README's 'Layout of the code' block.
 
@@ -123,8 +318,8 @@ def check_source_tree(problems):
         return
     listed = block.group(1)
 
-    for folder in ("", "engine", "hal", "ui"):
-        directory = os.path.join(ROOT, "src", folder)
+    for folder in ("", "engine", "hal", "hal/modules", "ui"):
+        directory = os.path.join(ROOT, "src", *folder.split("/"))
         for name in sorted(os.listdir(directory)):
             if not name.endswith(".cpp"):
                 continue
@@ -191,7 +386,7 @@ def check_about_is_derived(problems):
     CLAUDE.md; this catches the specific regression of hardcoding again.
     """
     about = read("src", "games", "AboutApp.cpp")
-    for symbol in ("playableAppAt", "playableAppCount", "BRAINO_VERSION",
+    for symbol in ("playableAppAt", "playableAppCount", "FIRMWARE_VERSION",
                    "BRAINO_COPYRIGHT",
                    "BOARD_NAME", "BleBeacon::active"):
         if symbol not in about:
@@ -340,6 +535,7 @@ def check_site(problems):
     # platformio.ini instead of an environment name repeated across three
     # workflows, one of which was always the one somebody forgot.
     product = set(envs_tool.of_kind(envs_tool.PRODUCT, ini))
+    experimental = set(envs_tool.of_kind(envs_tool.EXPERIMENTAL, ini))
     if "tools/envs.py" not in workflow:
         fail(problems, "the Pages workflow no longer derives its build list "
                        "from tools/envs.py -- a hand-written list of "
@@ -349,6 +545,8 @@ def check_site(problems):
         if not re.search(r"^\[env:%s\]" % re.escape(env), ini, re.M):
             fail(problems, "gen_site.py offers firmware '%s', which is not a "
                            "platformio.ini environment" % env)
+        elif env in experimental:
+            continue        # kept in VARIANTS; gen_site.py leaves it off the page
         elif env not in product:
             fail(problems, "gen_site.py offers firmware '%s', but [env:%s] is "
                            "not `custom_env_kind = product`, so the Pages "
@@ -572,7 +770,11 @@ def main():
 
     problems = []
     check_version(problems)
+    check_one_version(problems)
     check_game_count(problems)
+    check_rulebook_counts(problems)
+    check_player_wording(problems)
+    check_agents_index(problems)
     check_source_tree(problems)
     check_size_agreement(problems)
     check_about_is_derived(problems)

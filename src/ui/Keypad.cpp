@@ -54,6 +54,16 @@ uint8_t columns(uint8_t row) {
     return static_cast<uint8_t>(strlen(KEYS[row]));
 }
 
+char fromTyped(char typed) {
+    if (typed >= 'a' && typed <= 'z') return static_cast<char>(typed - 'a' + 'A');
+    if ((typed >= 'A' && typed <= 'Z') || (typed >= '0' && typed <= '9') || typed == ' ') {
+        return typed;
+    }
+    if (typed == '\b') return BACKSPACE;
+    if (typed == '\n') return ACCEPT;
+    return 0;
+}
+
 char keyAt(uint8_t row, uint8_t col) {
     if (row >= ROWS || col >= columns(row)) {
         return 0;

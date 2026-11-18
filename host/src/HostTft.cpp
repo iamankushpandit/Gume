@@ -14,6 +14,7 @@
 #include <TFT_eSPI.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -22,59 +23,25 @@
 #include "HostScreenPower.h"
 #include "ui/LauncherLayout.h"
 
-/* TFT_eSPI's built-in fonts, from the copy of the library CMake fetches at the
- * version platformio.ini pins. Including the data rather than vendoring it
- * keeps it under its own licence, in its own tree. Only the three this
- * firmware loads (LOAD_GLCD, LOAD_FONT2, LOAD_FONT4 in platformio.ini). */
-#include <Fonts/glcdfont.c>
-#include <Fonts/Font16.h>
-#include <Fonts/Font32rle.h>
-
-namespace {
-
-struct FontInfo {
-    const unsigned char* widths;
-    const unsigned char* const* glyphs;
-    uint8_t height;
-    uint8_t baseline;
-};
-
-/* Indexed by font number. 1 is the GLCD font and handled apart; 3, 5 and 6-8
- * are not loaded by this firmware and answer zero, as on the device. */
-const FontInfo* fontInfo(uint8_t font) {
-    static const FontInfo f2{widtbl_f16, chrtbl_f16, chr_hgt_f16, baseline_f16};
-    static const FontInfo f4{widtbl_f32, chrtbl_f32, chr_hgt_f32, baseline_f32};
-    if (font == 2) return &f2;
-    if (font == 4) return &f4;
-    return nullptr;
-}
-
-/* TFT_eSPI decodes UTF-8 before drawing. Fonts 2 and 4 then drop anything
- * outside 32..127; the GLCD font draws codes up to 255. */
-uint16_t nextCodepoint(const char*& s) {
-    const uint8_t c = static_cast<uint8_t>(*s++);
-    if (c < 0x80) return c;
-    if ((c & 0xE0) == 0xC0 && (*s & 0xC0) == 0x80) {
-        const uint16_t cp = static_cast<uint16_t>(((c & 0x1F) << 6) | (*s & 0x3F));
-        ++s;
-        return cp;
-    }
-    if ((c & 0xF0) == 0xE0 && (s[0] & 0xC0) == 0x80 && (s[1] & 0xC0) == 0x80) {
-        const uint16_t cp = static_cast<uint16_t>(((c & 0x0F) << 12) | ((s[0] & 0x3F) << 6) |
-                                                  (s[1] & 0x3F));
-        s += 2;
-        return cp;
-    }
-    return c;
-}
-
-}   // namespace
 
 void TFT_eSPI::begin(uint8_t) {
     rotation_ = 1;
     resetViewport();
+    clipOn_ = false;
     forgetMarks();
-    std::fill(std::begin(frame_), std::end(frame_), 0);
+    /* The panel HostPlatform found before the firmware started. The frame is
+     * laid out at its size over the UI scale, and stored at its real
+     * resolution: every logical pixel is scale_ x scale_ real ones, and text
+     * is rasterised at the real resolution (src/hal/PanelSize.h). */
+    frameW_ = static_cast<int16_t>(HostPlatform::panelWidth());
+    frameH_ = static_cast<int16_t>(HostPlatform::panelHeight());
+    scale_ = static_cast<int16_t>(HostPlatform::panelScale());
+    frame_.assign(static_cast<size_t>(frameW_) * scale_ * frameH_ * scale_, 0);
+    edgeUnder_.assign(frame_.size(), 0);
+    edgeColour_.assign(frame_.size(), 0);
+    edgeAlpha_.assign(frame_.size(), 0);
+    edgeShape_.assign(frame_.size(), 0);
+    resetViewport();
     ++frameGen_;
     HostPlatform::attachPanel(this);
 }
@@ -82,6 +49,7 @@ void TFT_eSPI::begin(uint8_t) {
 void TFT_eSPI::setRotation(uint8_t r) {
     rotation_ = r & 3;
     resetViewport();
+    clipOn_ = false;   // it was in the old rotation's coordinates
     forgetMarks();
 }
 
@@ -105,17 +73,17 @@ void TFT_eSPI::writecommand(uint8_t c) {
 
 int16_t TFT_eSPI::width() const {
     if (vpDatum_) return static_cast<int16_t>(vpW_);
-    return (rotation_ & 1) ? FRAME_W : FRAME_H;
+    return (rotation_ & 1) ? frameW_ : frameH_;
 }
 
 int16_t TFT_eSPI::height() const {
     if (vpDatum_) return static_cast<int16_t>(vpH_);
-    return (rotation_ & 1) ? FRAME_H : FRAME_W;
+    return (rotation_ & 1) ? frameH_ : frameW_;
 }
 
 void TFT_eSPI::setViewport(int32_t x, int32_t y, int32_t w, int32_t h, bool vpDatum) {
-    const int32_t lw = (rotation_ & 1) ? FRAME_W : FRAME_H;
-    const int32_t lh = (rotation_ & 1) ? FRAME_H : FRAME_W;
+    const int32_t lw = (rotation_ & 1) ? frameW_ : frameH_;
+    const int32_t lh = (rotation_ & 1) ? frameH_ : frameW_;
     int32_t x1 = std::min(x + w, lw);
     int32_t y1 = std::min(y + h, lh);
     x = std::max<int32_t>(x, 0);
@@ -131,8 +99,8 @@ void TFT_eSPI::setViewport(int32_t x, int32_t y, int32_t w, int32_t h, bool vpDa
 void TFT_eSPI::resetViewport() {
     vpX_ = 0;
     vpY_ = 0;
-    vpW_ = (rotation_ & 1) ? FRAME_W : FRAME_H;
-    vpH_ = (rotation_ & 1) ? FRAME_H : FRAME_W;
+    vpW_ = (rotation_ & 1) ? frameW_ : frameH_;
+    vpH_ = (rotation_ & 1) ? frameH_ : frameW_;
     vpDatum_ = false;
     vpActive_ = false;
 }
@@ -147,348 +115,150 @@ bool TFT_eSPI::toFrame(int32_t x, int32_t y, int32_t& fx, int32_t& fy) const {
      * coordinates at this rotation into the rotation-1 frame. */
     switch (rotation_) {
         case 1: fx = x; fy = y; break;
-        case 3: fx = FRAME_W - 1 - x; fy = FRAME_H - 1 - y; break;
-        case 2: fx = FRAME_W - 1 - y; fy = x; break;
-        default: fx = y; fy = FRAME_H - 1 - x; break;   // 0
+        case 3: fx = frameW_ - 1 - x; fy = frameH_ - 1 - y; break;
+        case 2: fx = frameW_ - 1 - y; fy = x; break;
+        default: fx = y; fy = frameH_ - 1 - x; break;   // 0
     }
-    return fx >= 0 && fy >= 0 && fx < FRAME_W && fy < FRAME_H;
+    return fx >= 0 && fy >= 0 && fx < frameW_ && fy < frameH_;
+}
+
+void TFT_eSPI::setPaintClip(int32_t x, int32_t y, int32_t w, int32_t h) {
+    clipX_ = x;
+    clipY_ = y;
+    clipW_ = w;
+    clipH_ = h;
+    clipOn_ = true;
+}
+
+void TFT_eSPI::clearPaintClip() {
+    clipOn_ = false;
+}
+
+bool TFT_eSPI::paintClipFrame(int16_t& x0, int16_t& y0, int16_t& x1, int16_t& y1) const {
+    if (!clipOn_ || clipW_ <= 0 || clipH_ <= 0) return false;
+    int16_t ax = 0, ay = 0, bx = 0, by = 0;
+    logicalToFrame(clipX_, clipY_, ax, ay);
+    logicalToFrame(clipX_ + clipW_ - 1, clipY_ + clipH_ - 1, bx, by);
+    x0 = std::min(ax, bx);
+    y0 = std::min(ay, by);
+    x1 = std::max(ax, bx);
+    y1 = std::max(ay, by);
+    return true;
 }
 
 void TFT_eSPI::plot(int32_t x, int32_t y, uint16_t color) {
+    if (clipOn_) {
+        const int32_t ax = vpDatum_ ? x + vpX_ : x;
+        const int32_t ay = vpDatum_ ? y + vpY_ : y;
+        if (ax < clipX_ || ay < clipY_ || ax >= clipX_ + clipW_ || ay >= clipY_ + clipH_) return;
+    }
     int32_t fx = 0, fy = 0;
     if (toFrame(x, y, fx, fy)) {
-        frame_[fy * FRAME_W + fx] = color;
+        const int32_t d = scale_;
+        const int32_t pitch = static_cast<int32_t>(frameW_) * d;
+        const size_t first = static_cast<size_t>(fy * d) * pitch + fx * d;
+        uint16_t* at = frame_.data() + first;
+        uint8_t* edge = edgeAlpha_.data() + first;
+        for (int32_t j = 0; j < d; ++j, at += pitch, edge += pitch) {
+            for (int32_t i = 0; i < d; ++i) {
+                at[i] = color;
+                edge[i] = 0;   // solid: no longer anybody's edge
+            }
+        }
         ++frameGen_;
     }
 }
 
-void TFT_eSPI::span(int32_t x0, int32_t x1, int32_t y, uint16_t color) {
-    if (x1 < x0) std::swap(x0, x1);
-    for (int32_t x = x0; x <= x1; ++x) plot(x, y, color);
+namespace {
+
+uint16_t blend565(uint16_t under, uint16_t over, uint8_t a) {
+    if (a == 255) return over;
+    if (a == 0) return under;
+    const uint32_t ia = 255u - a;
+    const uint32_t r = (((over >> 11) & 31) * a + ((under >> 11) & 31) * ia + 127) / 255;
+    const uint32_t g = (((over >> 5) & 63) * a + ((under >> 5) & 63) * ia + 127) / 255;
+    const uint32_t b = ((over & 31) * a + (under & 31) * ia + 127) / 255;
+    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
 }
 
-void TFT_eSPI::fillScreen(uint32_t color) {
-    /* Like the driver: the whole panel, ignoring any viewport offset but
-     * still clipped to it. */
-    const bool datum = vpDatum_;
-    vpDatum_ = false;
-    forgetMarks();
-    for (int32_t y = vpY_; y < vpY_ + vpH_; ++y) {
-        for (int32_t x = vpX_; x < vpX_ + vpW_; ++x) plot(x, y, static_cast<uint16_t>(color));
+}   // namespace
+
+/* One real pixel at (px, py) -- the rotation's own coordinates times the UI
+ * scale -- covered `a`/255 by `color`, with the viewport and the paint clip
+ * applied to the logical pixel it falls in, as plot() does for a whole one.
+ *
+ * An anti-aliased edge is a blend, and a blend drawn twice is a different
+ * colour: the screens redraw the same shape over itself all the time (a
+ * repaint "is visually a no-op" is a rule they rely on), and every redraw
+ * would darken every edge until it was as jagged as the blocks it replaced.
+ * So each pixel left partly covered remembers what it was blended over, in
+ * what colour, how much and by which shape (edgeUnder_, edgeColour_,
+ * edgeAlpha_, edgeShape_), and a solid write forgets it:
+ *  - the same shape again takes the larger coverage, over the same ground,
+ *    so a redraw is a no-op;
+ *  - another shape of the same colour adds its coverage to the first, over
+ *    the same ground: two edges that meet -- a thick ring drawn as rings one
+ *    pixel apart, two wedges of one pie -- close up with no seam between
+ *    them, as the one shape they make would have;
+ *  - another colour covering at least as much is drawn over that ground too,
+ *    so an outline's edge laid on its fill's edge leaves no halo of the fill;
+ *  - anything less is blended over what is there now. */
+void TFT_eSPI::blendReal(int32_t px, int32_t py, uint16_t color, uint8_t a) {
+    if (a == 0 || px < 0 || py < 0) return;
+    const int32_t d = scale_;
+    const int32_t lx = px / d, ly = py / d;   // absolute logical
+    if (clipOn_ && (lx < clipX_ || ly < clipY_ || lx >= clipX_ + clipW_ || ly >= clipY_ + clipH_)) return;
+    if (lx < vpX_ || ly < vpY_ || lx >= vpX_ + vpW_ || ly >= vpY_ + vpH_) return;
+    const int32_t pw = static_cast<int32_t>(frameW_) * d;
+    const int32_t ph = static_cast<int32_t>(frameH_) * d;
+    int32_t fx = 0, fy = 0;
+    switch (rotation_) {   // toFrame()'s transforms, at the real resolution
+        case 1: fx = px; fy = py; break;
+        case 3: fx = pw - 1 - px; fy = ph - 1 - py; break;
+        case 2: fx = pw - 1 - py; fy = px; break;
+        default: fx = py; fy = ph - 1 - px; break;
     }
-    vpDatum_ = datum;
-}
-
-void TFT_eSPI::drawPixel(int32_t x, int32_t y, uint32_t color) {
-    plot(x, y, static_cast<uint16_t>(color));
-}
-
-void TFT_eSPI::drawFastHLine(int32_t x, int32_t y, int32_t w, uint32_t color) {
-    if (w <= 0) return;
-    span(x, x + w - 1, y, static_cast<uint16_t>(color));
-}
-
-void TFT_eSPI::drawFastVLine(int32_t x, int32_t y, int32_t h, uint32_t color) {
-    for (int32_t i = 0; i < h; ++i) plot(x, y + i, static_cast<uint16_t>(color));
-}
-
-void TFT_eSPI::fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
-    if (w <= 0 || h <= 0) return;
-    forgetMarksUnder(x, y, w, h);
-    noteTabSquare(x, y, w, h);
-    for (int32_t j = 0; j < h; ++j) span(x, x + w - 1, y + j, static_cast<uint16_t>(color));
-}
-
-void TFT_eSPI::drawRect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
-    if (w <= 0 || h <= 0) return;
-    drawFastHLine(x, y, w, color);
-    drawFastHLine(x, y + h - 1, w, color);
-    drawFastVLine(x, y, h, color);
-    drawFastVLine(x + w - 1, y, h, color);
-}
-
-/* Midpoint circle, one quadrant arc per bit of `corners`:
- * 1 top-left, 2 top-right, 4 bottom-right, 8 bottom-left. */
-void TFT_eSPI::circleQuarters(int32_t x0, int32_t y0, int32_t r, uint8_t corners,
-                              uint16_t color) {
-    int32_t f = 1 - r;
-    int32_t ddx = 1;
-    int32_t ddy = -2 * r;
-    int32_t x = 0;
-    int32_t y = r;
-    while (x < y) {
-        if (f >= 0) {
-            --y;
-            ddy += 2;
-            f += ddy;
-        }
-        ++x;
-        ddx += 2;
-        f += ddx;
-        if (corners & 4) { plot(x0 + x, y0 + y, color); plot(x0 + y, y0 + x, color); }
-        if (corners & 2) { plot(x0 + x, y0 - y, color); plot(x0 + y, y0 - x, color); }
-        if (corners & 8) { plot(x0 - y, y0 + x, color); plot(x0 - x, y0 + y, color); }
-        if (corners & 1) { plot(x0 - y, y0 - x, color); plot(x0 - x, y0 - y, color); }
-    }
-}
-
-/* Filled halves: bit 1 the right half, bit 2 the left, each stretched
- * vertically by `stretch` -- which is what a rounded rectangle's sides are. */
-void TFT_eSPI::fillCircleHalves(int32_t x0, int32_t y0, int32_t r, uint8_t sides,
-                                int32_t stretch, uint16_t color) {
-    int32_t f = 1 - r;
-    int32_t ddx = 1;
-    int32_t ddy = -2 * r;
-    int32_t x = 0;
-    int32_t y = r;
-    while (x < y) {
-        if (f >= 0) {
-            --y;
-            ddy += 2;
-            f += ddy;
-        }
-        ++x;
-        ddx += 2;
-        f += ddx;
-        if (sides & 1) {
-            drawFastVLine(x0 + x, y0 - y, 2 * y + 1 + stretch, color);
-            drawFastVLine(x0 + y, y0 - x, 2 * x + 1 + stretch, color);
-        }
-        if (sides & 2) {
-            drawFastVLine(x0 - x, y0 - y, 2 * y + 1 + stretch, color);
-            drawFastVLine(x0 - y, y0 - x, 2 * x + 1 + stretch, color);
-        }
-    }
-}
-
-void TFT_eSPI::drawCircle(int32_t x, int32_t y, int32_t r, uint32_t color) {
-    if (r < 0) return;
-    noteIconPrim(Prim::CircleOutline, x - r, y - r, x + r, y + r);
-    const uint16_t c = static_cast<uint16_t>(color);
-    plot(x, y + r, c);
-    plot(x, y - r, c);
-    plot(x + r, y, c);
-    plot(x - r, y, c);
-    circleQuarters(x, y, r, 0x0F, c);
-}
-
-void TFT_eSPI::fillCircle(int32_t x, int32_t y, int32_t r, uint32_t color) {
-    if (r < 0) return;
-    noteIconPrim(Prim::CircleFill, x - r, y - r, x + r, y + r);
-    drawFastVLine(x, y - r, 2 * r + 1, color);
-    fillCircleHalves(x, y, r, 3, 0, static_cast<uint16_t>(color));
-}
-
-void TFT_eSPI::drawRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r,
-                             uint32_t color) {
-    if (w <= 0 || h <= 0) return;
-    noteScrollOutline(x, y, w, h, r);
-    noteFocusOutline(x, y, w, h);
-    noteIconPrim(Prim::RoundOutline, x, y, x + w - 1, y + h - 1);
-    r = std::min(r, std::min(w, h) / 2);
-    if (r < 0) r = 0;
-    drawFastHLine(x + r, y, w - 2 * r, color);
-    drawFastHLine(x + r, y + h - 1, w - 2 * r, color);
-    drawFastVLine(x, y + r, h - 2 * r, color);
-    drawFastVLine(x + w - 1, y + r, h - 2 * r, color);
-    const uint16_t c = static_cast<uint16_t>(color);
-    circleQuarters(x + r, y + r, r, 1, c);
-    circleQuarters(x + w - r - 1, y + r, r, 2, c);
-    circleQuarters(x + w - r - 1, y + h - r - 1, r, 4, c);
-    circleQuarters(x + r, y + h - r - 1, r, 8, c);
-}
-
-void TFT_eSPI::fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r,
-                             uint32_t color) {
-    if (w <= 0 || h <= 0) return;
-    noteScrollFill(x, y, w, h, r);
-    noteIconPrim(Prim::RoundFill, x, y, x + w - 1, y + h - 1);
-    noteTabFill(x, y, w, h, r);
-    noteFocusFill(x, y, w, h);
-    r = std::min(r, std::min(w, h) / 2);
-    if (r < 0) r = 0;
-    fillRect(x + r, y, w - 2 * r, h, color);
-    const uint16_t c = static_cast<uint16_t>(color);
-    fillCircleHalves(x + w - r - 1, y + r, r, 1, h - 2 * r - 1, c);
-    fillCircleHalves(x + r, y + r, r, 2, h - 2 * r - 1, c);
-}
-
-void TFT_eSPI::drawLine(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t color) {
-    noteIconPrim(Prim::Line, x0, y0, x1, y1);
-    const uint16_t c = static_cast<uint16_t>(color);
-    const int32_t dx = std::abs(x1 - x0);
-    const int32_t dy = -std::abs(y1 - y0);
-    const int32_t sx = x0 < x1 ? 1 : -1;
-    const int32_t sy = y0 < y1 ? 1 : -1;
-    int32_t err = dx + dy;
-    for (;;) {
-        plot(x0, y0, c);
-        if (x0 == x1 && y0 == y1) break;
-        const int32_t e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x0 += sx; }
-        if (e2 <= dx) { err += dx; y0 += sy; }
-    }
-}
-
-void TFT_eSPI::drawTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2,
-                            int32_t y2, uint32_t color) {
-    drawLine(x0, y0, x1, y1, color);
-    drawLine(x1, y1, x2, y2, color);
-    drawLine(x2, y2, x0, y0, color);
-}
-
-void TFT_eSPI::fillTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2,
-                            int32_t y2, uint32_t color) {
-    noteIconPrim(Prim::Triangle, std::min({x0, x1, x2}), std::min({y0, y1, y2}),
-                 std::max({x0, x1, x2}), std::max({y0, y1, y2}));
-    if (y0 > y1) { std::swap(y0, y1); std::swap(x0, x1); }
-    if (y1 > y2) { std::swap(y2, y1); std::swap(x2, x1); }
-    if (y0 > y1) { std::swap(y0, y1); std::swap(x0, x1); }
-    const uint16_t c = static_cast<uint16_t>(color);
-    if (y0 == y2) {
-        span(std::min({x0, x1, x2}), std::max({x0, x1, x2}), y0, c);
+    if (fx < 0 || fy < 0 || fx >= pw || fy >= ph) return;
+    const size_t i = static_cast<size_t>(fy) * pw + fx;
+    uint16_t& at = frame_[i];
+    ++frameGen_;
+    if (a == 255) {
+        at = color;
+        edgeAlpha_[i] = 0;
         return;
     }
-    /* Scanline fill with edges interpolated in integers, so the fill meets
-     * the outline drawTriangle() would draw. */
-    for (int32_t y = y0; y <= y2; ++y) {
-        const int32_t xa = x0 + (x2 - x0) * (y - y0) / (y2 - y0);
-        int32_t xb;
-        if (y < y1 || y1 == y2) {
-            xb = (y1 == y0) ? x1 : x0 + (x1 - x0) * (y - y0) / (y1 - y0);
-        } else {
-            xb = x1 + (x2 - x1) * (y - y1) / (y2 - y1);
+    uint16_t ground = at;
+    uint8_t cover = a;
+    if (edgeAlpha_[i] != 0) {
+        if (edgeColour_[i] == color) {
+            ground = edgeUnder_[i];
+            cover = edgeShape_[i] == shape_
+                        ? std::max(cover, edgeAlpha_[i])
+                        : static_cast<uint8_t>(std::min(255, cover + edgeAlpha_[i]));
+        } else if (a >= edgeAlpha_[i]) {
+            ground = edgeUnder_[i];
         }
-        span(xa, xb, y, c);
     }
+    at = blend565(ground, color, cover);
+    if (cover == 255) {
+        edgeAlpha_[i] = 0;
+        return;
+    }
+    edgeUnder_[i] = ground;
+    edgeColour_[i] = color;
+    edgeAlpha_[i] = cover;
+    edgeShape_[i] = shape_;
 }
 
-int16_t TFT_eSPI::fontHeight(int16_t font) const {
-    if (font == 1) return static_cast<int16_t>(8 * textSize_);
-    const FontInfo* info = fontInfo(static_cast<uint8_t>(font));
-    return info ? static_cast<int16_t>(info->height * textSize_) : 0;
-}
-
-int16_t TFT_eSPI::textWidth(const char* text, uint8_t font) const {
-    if (!text) return 0;
-    if (font == 1) {
-        int32_t n = 0;
-        while (*text) {
-            if (nextCodepoint(text)) ++n;
-        }
-        return static_cast<int16_t>(n * 6 * textSize_);
+void TFT_eSPI::beginShape(uint32_t a, int32_t b, int32_t c, int32_t d, int32_t e, int32_t f,
+                          int32_t g) {
+    uint32_t h = 2166136261u;   // FNV-1a over the shape's words
+    for (const uint32_t v : {a, static_cast<uint32_t>(b), static_cast<uint32_t>(c),
+                             static_cast<uint32_t>(d), static_cast<uint32_t>(e),
+                             static_cast<uint32_t>(f), static_cast<uint32_t>(g)}) {
+        h = (h ^ v) * 16777619u;
     }
-    const FontInfo* info = fontInfo(font);
-    if (!info) return 0;
-    /* Byte by byte, as TFT_eSPI measures: anything outside 32..127 counts as
-     * a space. */
-    int32_t width = 0;
-    for (; *text; ++text) {
-        const uint8_t c = static_cast<uint8_t>(*text);
-        width += (c > 31 && c < 128) ? info->widths[c - 32] : info->widths[0];
-    }
-    return static_cast<int16_t>(width * textSize_);
-}
-
-int16_t TFT_eSPI::drawChar(uint16_t code, int32_t x, int32_t y, uint8_t font) {
-    if (code == 0) return 0;
-    const int32_t size = textSize_;
-    const bool fillBg = textFg_ != textBg_;
-
-    if (font == 1) {
-        if (code > 255) return 0;
-        if (code > 175) ++code;   // TFT_eSPI's default, _cp437 = false
-        for (int32_t col = 0; col < 6; ++col) {
-            uint8_t line = col < 5 ? ::font[code * 5 + col] : 0;
-            for (int32_t row = 0; row < 8; ++row, line >>= 1) {
-                if (line & 1) {
-                    fillRect(x + col * size, y + row * size, size, size, textFg_);
-                } else if (fillBg) {
-                    fillRect(x + col * size, y + row * size, size, size, textBg_);
-                }
-            }
-        }
-        return static_cast<int16_t>(6 * size);
-    }
-
-    const FontInfo* info = fontInfo(font);
-    if (!info || code < 32 || code > 127) return 0;
-    const int32_t width = info->widths[code - 32];
-    const int32_t height = info->height;
-    const unsigned char* data = info->glyphs[code - 32];
-
-    if (font == 2) {
-        /* One bit per pixel, rows padded to (width + 6) / 8 bytes. */
-        const int32_t rowBytes = (width + 6) / 8;
-        for (int32_t row = 0; row < height; ++row) {
-            for (int32_t col = 0; col < width; ++col) {
-                const bool on = col < rowBytes * 8
-                    && (data[row * rowBytes + col / 8] & (0x80 >> (col % 8)));
-                if (on) {
-                    fillRect(x + col * size, y + row * size, size, size, textFg_);
-                } else if (fillBg) {
-                    fillRect(x + col * size, y + row * size, size, size, textBg_);
-                }
-            }
-        }
-        return static_cast<int16_t>(width * size);
-    }
-
-    /* Run-length: bit 7 set is a run of (n & 0x7F) + 1 ink pixels, clear is a
-     * run of n + 1 background pixels, row-major across the glyph cell. */
-    int32_t pc = 0;
-    const int32_t total = width * height;
-    while (pc < total) {
-        const uint8_t b = *data++;
-        const bool ink = (b & 0x80) != 0;
-        int32_t run = (b & 0x7F) + 1;
-        while (run-- > 0 && pc < total) {
-            const int32_t col = pc % width;
-            const int32_t row = pc / width;
-            if (ink) {
-                fillRect(x + col * size, y + row * size, size, size, textFg_);
-            } else if (fillBg) {
-                fillRect(x + col * size, y + row * size, size, size, textBg_);
-            }
-            ++pc;
-        }
-    }
-    return static_cast<int16_t>(width * size);
-}
-
-int16_t TFT_eSPI::drawString(const char* text, int32_t x, int32_t y, uint8_t font) {
-    if (!text) return 0;
-    const int32_t w = textWidth(text, font);
-    int32_t h = 8 * textSize_;
-    int32_t baseline = 0;
-    if (font != 1) {
-        const FontInfo* info = fontInfo(font);
-        h = info ? info->height * textSize_ : 0;
-        baseline = info ? info->baseline * textSize_ : 0;
-    }
-    switch (textDatum_) {
-        case TC_DATUM: x -= w / 2; break;
-        case TR_DATUM: x -= w; break;
-        case ML_DATUM: y -= h / 2; break;
-        case MC_DATUM: x -= w / 2; y -= h / 2; break;
-        case MR_DATUM: x -= w; y -= h / 2; break;
-        case BL_DATUM: y -= h; break;
-        case BC_DATUM: x -= w / 2; y -= h; break;
-        case BR_DATUM: x -= w; y -= h; break;
-        case L_BASELINE: y -= baseline; break;
-        case C_BASELINE: x -= w / 2; y -= baseline; break;
-        case R_BASELINE: x -= w; y -= baseline; break;
-        default: break;
-    }
-    int32_t advance = 0;
-    const char* s = text;
-    while (*s) {
-        const uint16_t code = nextCodepoint(s);
-        advance += drawChar(code, x + advance, y, font);
-    }
-    notePagerLabel(text, x, y, advance, h);
-    if (advance > 0 && h > 0) noteIconPrim(Prim::Text, x, y, x + advance - 1, y + h - 1);
-    return static_cast<int16_t>(advance);
+    shape_ = static_cast<uint16_t>(h ^ (h >> 16));
 }
 
 /* ---- the page keys' target (see pagerTarget() in TFT_eSPI.h) ---------- */
@@ -611,9 +381,9 @@ bool TFT_eSPI::nextTabTarget(int16_t& fx, int16_t& fy) const {
 void TFT_eSPI::logicalToFrame(int32_t x, int32_t y, int16_t& fx, int16_t& fy) const {
     switch (rotation_) {   // as toFrame(), without the viewport
         case 1: fx = static_cast<int16_t>(x); fy = static_cast<int16_t>(y); break;
-        case 3: fx = static_cast<int16_t>(FRAME_W - 1 - x); fy = static_cast<int16_t>(FRAME_H - 1 - y); break;
-        case 2: fx = static_cast<int16_t>(FRAME_W - 1 - y); fy = static_cast<int16_t>(x); break;
-        default: fx = static_cast<int16_t>(y); fy = static_cast<int16_t>(FRAME_H - 1 - x); break;
+        case 3: fx = static_cast<int16_t>(frameW_ - 1 - x); fy = static_cast<int16_t>(frameH_ - 1 - y); break;
+        case 2: fx = static_cast<int16_t>(frameW_ - 1 - y); fy = static_cast<int16_t>(x); break;
+        default: fx = static_cast<int16_t>(y); fy = static_cast<int16_t>(frameH_ - 1 - x); break;
     }
 }
 
@@ -786,16 +556,16 @@ bool TFT_eSPI::scrollArea(ScrollArea& out) const {
         out.moreAbove = moreUp;
         out.moreBelow = moreDown;
     } else {   // 3: the same picture turned half a turn
-        out.x0 = static_cast<int16_t>(FRAME_W - 1 - right);
-        out.x1 = static_cast<int16_t>(FRAME_W - 1 - left);
-        out.y0 = static_cast<int16_t>(FRAME_H - 1 - bottom);
-        out.y1 = static_cast<int16_t>(FRAME_H - 1 - top);
-        out.grabX = static_cast<int16_t>(FRAME_W - 1 - grab);
+        out.x0 = static_cast<int16_t>(frameW_ - 1 - right);
+        out.x1 = static_cast<int16_t>(frameW_ - 1 - left);
+        out.y0 = static_cast<int16_t>(frameH_ - 1 - bottom);
+        out.y1 = static_cast<int16_t>(frameH_ - 1 - top);
+        out.grabX = static_cast<int16_t>(frameW_ - 1 - grab);
         out.moreAbove = moreDown;
         out.moreBelow = moreUp;
     }
     if (out.y0 < 0) out.y0 = 0;
-    if (out.y1 > FRAME_H - 1) out.y1 = FRAME_H - 1;
+    if (out.y1 > frameH_ - 1) out.y1 = frameH_ - 1;
     return true;
 }
 
@@ -805,14 +575,6 @@ bool TFT_eSPI::pagerTarget(bool next, int16_t& fx, int16_t& fy) const {
     fx = m.fx;
     fy = m.fy;
     return true;
-}
-
-int16_t TFT_eSPI::drawCentreString(const char* text, int32_t x, int32_t y, uint8_t font) {
-    const uint8_t saved = textDatum_;
-    textDatum_ = TC_DATUM;
-    const int16_t w = drawString(text, x, y, font);
-    textDatum_ = saved;
-    return w;
 }
 
 void TFT_eSPI::setAddrWindow(int32_t x, int32_t y, int32_t w, int32_t h) {

@@ -28,10 +28,15 @@
  * pixels and has nothing to calibrate, so BoardTouch.cpp runs exactly the path
  * it runs on the FNK0104B and the calibration wizard is never offered.
  *
- * The panel is the canvas size exactly, 240x320 native and landscape at
- * rotation 1, so ScaledRenderer stays a passthrough and the window scales the
- * finished picture instead -- 2x on a 640x480 handheld, which is an exact
- * fit. */
+ * The panel stated here is NOT the panel. It is the canvas size, 240x320
+ * native and landscape at rotation 1, because a profile is compile-time and
+ * the static_asserts in BoardConfig.h want a size to check: this is the
+ * smallest panel the build accepts. The real one is found when the program
+ * starts -- the handheld's display mode, the desktop's, or BRAINO_PANEL --
+ * and src/ reads it through PanelSize (src/hal/PanelSize.h,
+ * host/src/HostPanelSize.cpp), never through SCREEN_WIDTH / SCREEN_HEIGHT.
+ * The landscape rotation must stay odd: the host's frame is landscape at
+ * rotation 1. */
 
 namespace HostPin {
 constexpr int8_t BACKLIGHT = 1;
@@ -57,6 +62,12 @@ constexpr int8_t BATTERY   = 12;
 #endif
 
 #define GUME_TOUCH_CAPACITIVE 1
+/* The device part of the version (include/FirmwareVersion.h). A desktop
+ * build is "host"; a handheld image names its chip family from CMake
+ * (-DBRAINO_VERSION_TAG=h700, which host/CMakeLists.txt passes on). */
+#ifndef GUME_VERSION_TAG
+#define GUME_VERSION_TAG "host"
+#endif
 /* The synthesiser's codec path is the one that emits signed 16-bit stereo at
  * 16 kHz, which is what an SDL audio device wants. host/src/HostI2s.cpp plays
  * the role of the ES8311 and its volume register. */
@@ -86,6 +97,8 @@ inline constexpr BoardProfile BOARD = {
         HostPin::TOUCH_SDA,       // sda
         HostPin::TOUCH_SCL,       // scl
         PIN_NONE,                 // reset
+        0,                        // resetExpanderAddress -- no expander
+        0,                        // resetExpanderPort
         0x38,                     // i2cAddress -- the FT6336U's own
         400000,                   // i2cHz
         0,                        // pressureThreshold (capacitive)
@@ -95,13 +108,27 @@ inline constexpr BoardProfile BOARD = {
         HostPin::HOME,            // bootPin
         true,                     // activeLow
     },
+    /* No keys, keyboard or gamepad behind an expander: the PC build's
+     * controls come from SDL (host/src/HostControls.h), not from these. */
+    KeysProfile{
+        0, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, true,
+    },
+    KeyboardProfile{
+        0, 0, nullptr, nullptr,
+    },
+    GamepadProfile{
+        0, 0, nullptr, nullptr, nullptr, nullptr,
+    },
     SdProfile{
         PIN_NONE, PIN_NONE, PIN_NONE, PIN_NONE, 0,
+    },
+    ExpandProbeProfile{
+        0, PIN_NONE, PIN_NONE, PIN_NONE, 0,
     },
     /* The handheld's light, as the firmware's status LED: see
      * host/src/HostLed.h. A device without one simply shows nothing. */
     RgbLedProfile{
-        HostPin::LED_R, HostPin::LED_G, HostPin::LED_B, false,
+        HostPin::LED_R, HostPin::LED_G, HostPin::LED_B, false, 0,
     },
     AudioProfile{
         PIN_NONE,                 // speakerPin
@@ -120,14 +147,17 @@ inline constexpr BoardProfile BOARD = {
      * it, and esp_adc_cal_raw_to_voltage() is exact on the host, so the
      * firmware multiplies back to the voltage Linux reported. */
     BatteryProfile{
-        HostPin::BATTERY, 2.0f, 4.50f,
+        HostPin::BATTERY, 2.0f, 4.50f, 0,
     },
 #else
     BatteryProfile{
-        PIN_NONE, 0.0f, 0.0f,
+        PIN_NONE, 0.0f, 0.0f, 0,
     },
 #endif
     MemoryProfile{
         16u * 1024u * 1024u,      // nominal; nothing is flashed
+    },
+    ParkedExpanderProfile{
+        0,                        // parkedExpander -- there is no expander
     },
 };

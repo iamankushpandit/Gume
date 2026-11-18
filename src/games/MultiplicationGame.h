@@ -9,48 +9,66 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
+#include "MultiplicationCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
 
 const AppMetadata& multiplicationAppMetadata();
 
+/* The times tables in the order they are taught, then the missing number,
+ * then division as the same facts read backwards. What each level asks, and
+ * the options each question offers, are in MultiplicationCourse.h; this is
+ * the screen and the player's place on the ladder. */
 class MultiplicationGame : public AppGame {
 public:
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
-    /* Two-phase. Same shape as MathGame, which is the reference: the equation
-     * panel belongs to the question and is static; answering recolours at most
-     * two of the four buttons. See docs/RENDER_AUDIT.md. */
+    /* Two-phase. Same shape as MathGame, which is the reference: only the top
+     * bar is static, the equation panel is drawn once per question, and
+     * answering recolours at most two of the four buttons. See
+     * docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    /* Endless, like MathGame: worth coming back to once something is right.
+     * The level is not the reason -- that is stored for the player and comes
+     * back with New game too -- the score and the streak of this visit are.
+     * Nothing here runs on the clock, so there is nothing to resume. */
+    Keep keepsGame() const override;
 
 private:
     Rect answerRect(uint8_t index) const;
     void newQuestion();
-    void makeOptions();
-    uint8_t level() const;
-    uint8_t pickTable(uint8_t currentLevel) const;
-    bool optionExists(int16_t value, uint8_t upTo) const;
+    void drawEquation(Ui::Renderer& tft) const;
     void updateBest(AppContext& host);
 
-    int16_t left_ = 0;
-    int16_t right_ = 0;
-    int16_t answer_ = 0;
-    int16_t options_[4] = {};
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    MultiplicationCourse::Question question_;
+    /* Which of the level's items is on screen, for deck_.missed(). */
+    uint16_t item_ = 0;
+    /* The level the question on screen was dealt from. The ladder moves as
+     * the answer lands, but the header and the banner follow the next
+     * question, so the two never disagree about where the player is. */
+    uint8_t questionLevel_ = 1;
+    /* Set by a climb: the next question's prompt line names the new level. */
+    bool announce_ = false;
 
     /* What each button shows: 0 unanswered, 1 correct, 2 wrong. */
     uint8_t drawnButton_[4] = {};
     uint16_t drawnScore_ = 0xFFFF;
     uint16_t drawnStreak_ = 0xFFFF;
+    uint8_t drawnLevel_ = 0;
     bool drawnAnswered_ = false;
+    bool drawnPrompt_ = false;
     bool drawnHeader_ = false;
     /* The product panel is dynamic, not static: a new question changes it, and
      * a new question must not cost a full repaint. See renderDynamic(). */
     bool drawnQuestion_ = false;
-    uint8_t correctButton_ = 0;
+    bool banner_ = false;           // the prompt line is showing the level
     uint16_t score_ = 0;
     uint16_t streak_ = 0;
     uint16_t bestStreak_ = 0;

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "LetterTracer.h"
+#include "TracingCourse.h"
 #include "engine/Game.h"
 #include "ui/Ui.h"
 
@@ -26,10 +27,15 @@ const AppMetadata& traceAppMetadata();
  */
 class TraceGame : public AppGame {
 public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered (Game.h). */
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void render(AppContext& host) override;
+    Keep keepsGame() const override;
 
     /* The glyph data model, kept here as aliases so TraceGlyphData.cpp -- 260
      * lines of hand-authored letterforms -- did not have to be touched by a
@@ -38,5 +44,10 @@ public:
     using Glyph = LetterTracer::Glyph;
 
 private:
+    /* A finished glyph counts towards the stage; a stage up is stored. */
+    void countFinished(AppContext& host);
+
     LetterTracer tracer_;
+    TracingCourse::Progress course_;
+    char note_[TracingCourse::NOTE_MAX] = {};
 };

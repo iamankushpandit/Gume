@@ -91,9 +91,33 @@ void CursiveGame::begin(AppContext& host) {
     tracer_.configure(CURSIVE_GLYPHS, CURSIVE_SETS,
                       sizeof(CURSIVE_SETS) / sizeof(CURSIVE_SETS[0]),
                       CURSIVE_COORD_W, CURSIVE_COORD_H);
-    tracer_.begin();
+    /* The player's stage says which tab opens and how much help is drawn;
+     * every tab is still a tap away. */
+    course_.start(TracingCourse::CURSIVE_STAGES, TracingCourse::CURSIVE_STAGE_COUNT,
+                  host.courseLevel());
+    const uint8_t set = course_.current().set;
+    tracer_.begin(set == TracingCourse::ANY_SET ? 0 : set);
+    tracer_.setAids(course_.current().aids);
     practised_ = host.getScore(CURSIVE_SCORE.bestKey);
     markFullDirty();
+}
+
+void CursiveGame::countFinished(AppContext& host) {
+    if (!course_.finished(tracer_.setIndex())) return;
+    host.setCourseLevel(course_.stage());
+    TracingCourse::note(course_.current(), note_, sizeof(note_));
+    tracer_.setNote(note_);
+    tracer_.setAids(course_.current().aids);
+    host.pulseRgb(0, 255, 40, 450);
+    host.playSound(Sound::LevelUp);
+}
+
+/* Straight back to the letter or word and the dots already traced, as in
+ * Trace: Again, Prev, Next and the tabs are this screen's own ways on. The
+ * practised count is written through as it goes, so it needs nothing here,
+ * and the tracer has no clock the time away could spoil. */
+Game::Keep CursiveGame::keepsGame() const {
+    return Keep::Quietly;
 }
 
 void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
@@ -114,6 +138,7 @@ void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
         host.setScore(CURSIVE_SCORE.bestKey, practised_);
         host.saveBestScore(CURSIVE_SCORE.bestKey, practised_,
                            CURSIVE_SCORE.lowerIsBetter);
+        countFinished(host);
     }
 
     const bool full = tracer_.takeFullDirty();
@@ -128,3 +153,9 @@ void CursiveGame::update(AppContext& host, const TouchPoint& touch) {
 void CursiveGame::render(AppContext& host) {
     tracer_.render(host, title(), needsFullRender());
 }
+
+#if GUME_HAS_NAV_KEYS
+bool CursiveGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    return tracer_.repaintUnderRing(host.display(), box);
+}
+#endif

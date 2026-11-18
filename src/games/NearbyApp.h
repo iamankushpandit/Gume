@@ -11,6 +11,7 @@
 
 #include "engine/Game.h"
 #include "ui/RowList.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 /*
@@ -91,6 +92,9 @@ private:
     uint32_t pokedAtMs_ = 0;
 
     Phase phase_ = Phase::List;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
 
     /* Which device the naming phase is editing, and the text so far.
      *

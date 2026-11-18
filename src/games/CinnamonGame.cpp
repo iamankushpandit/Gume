@@ -62,19 +62,68 @@ const char* CinnamonGame::title() const {
         : cinnamonAppMetadata().title;
 }
 
+namespace CC = CinnamonCourse;
+
 void CinnamonGame::begin(AppContext& host) {
-    markFullDirty();
-    statusDrawn_ = "";
     bestScore_ = static_cast<uint16_t>(host.getScore(cinnamonAppMetadata().score->bestKey, 0));
+    ladder_.start(CC::LEVEL_COUNT, host.courseLevel());
+    climbed_ = false;
+    newRun();
+}
+
+/* A run at the ladder's level, from that level's first length. */
+void CinnamonGame::newRun() {
+    markFullDirty();
+    statusDrawn_[0] = '\0';
+    runLevel_ = ladder_.level();
+    won_ = false;
     length_ = 0;
     score_ = 0;
-    appendStep();
+    while (length_ < CC::levelOf(runLevel_).startLength) {
+        appendStep();
+    }
     startShowing();
     markDirty();
 }
 
+/* One step longer; on a "new every time" level, a whole new sequence. */
+void CinnamonGame::nextRound() {
+    if (CC::levelOf(runLevel_).fresh) {
+        const uint8_t want = static_cast<uint8_t>(length_ + 1);
+        length_ = 0;
+        while (length_ < want) appendStep();
+    } else {
+        appendStep();
+    }
+    startShowing();
+}
+
+uint8_t CinnamonGame::expected() const {
+    return CC::expectedPad(runLevel_, sequence_, length_, inputIndex_);
+}
+
+/* A run with a sequence repeated back is worth coming back to. A failed one
+ * is not: its best is saved, and the next tap starts again anyway. */
+Game::Keep CinnamonGame::keepsGame() const {
+    return (phase_ != Phase::Failed && score_ > 0) ? Keep::Ask : Keep::No;
+}
+
+/* The sequence is the whole game, and the player was not watching it. Half
+ * a tune shown before they left, or half of it tapped back, is not something
+ * they can be asked to pick up: it is shown again from its first note, at
+ * the same length, and they repeat it from the start. Only the pause after
+ * a good round is carried on, since what follows it is a fresh showing. */
+void CinnamonGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::Showing || phase_ == Phase::Waiting) {
+        startShowing();
+    } else if (phase_ == Phase::Good) {
+        movedOn(nextAt_, awayMs);
+    }
+}
+
 void CinnamonGame::appendStep() {
-    if (length_ < sizeof(sequence_)) {
+    if (length_ < CC::MAX_STEPS) {
         sequence_[length_++] = random(4);
     }
 }
@@ -84,7 +133,7 @@ void CinnamonGame::startShowing() {
     showIndex_ = 0;
     inputIndex_ = 0;
     litPad_ = -1;
-    nextAt_ = millis() + 450UL;
+    nextAt_ = millis() + CC::levelOf(runLevel_).offMs;
 }
 
 Rect CinnamonGame::padRect(uint8_t index) const {
@@ -115,20 +164,21 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
         if (litPad_ >= 0) {
             litPad_ = -1;
             ++showIndex_;
-            nextAt_ = now + 450UL;  // gap between colours
+            nextAt_ = now + CC::levelOf(runLevel_).offMs;  // gap between colours
             if (showIndex_ >= length_) {
                 phase_ = Phase::Waiting;
+                climbed_ = false;
             }
         } else if (showIndex_ < length_) {
             litPad_ = sequence_[showIndex_];
-            nextAt_ = now + 600UL;  // a touch slower: calmer to follow
+            nextAt_ = now + CC::levelOf(runLevel_).onMs;
             // Echo the pad on the case LED so the cue does not rely on the
             // screen changing brightness.
             static const uint8_t PAD_RGB[4][3] = {
                 {255, 40, 40}, {40, 90, 255}, {40, 255, 90}, {255, 220, 40}
             };
             const uint8_t* c = PAD_RGB[litPad_ % 4];
-            host.pulseRgb(c[0], c[1], c[2], 600);
+            host.pulseRgb(c[0], c[1], c[2], CC::levelOf(runLevel_).onMs);
             host.playSound(padSound(litPad_));
         }
         markDirty();
@@ -136,9 +186,12 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (phase_ == Phase::Good && now >= nextAt_) {
-        appendStep();
-        startShowing();
-        markDirty();
+        if (ladder_.level() != runLevel_) {
+            newRun();          // a step up: the new level starts its own run
+        } else {
+            nextRound();
+            markDirty();
+        }
         return;
     }
 
@@ -152,11 +205,8 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (phase_ == Phase::Failed) {
-        begin(host);
-        return;
-    }
-
-    if (litPad_ >= 0) {
+        climbed_ = false;
+        newRun();
         return;
     }
 
@@ -168,6 +218,9 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
     if (pad < 0) {
         return;
     }
+    /* A quick player's next tap used to be dropped while the last pad was
+     * still lit, and the tap after it then failed. It is taken now, and the
+     * old pad goes dark under it. */
 
     litPad_ = pad;
     nextAt_ = now + 120UL;
@@ -178,28 +231,51 @@ void CinnamonGame::update(AppContext& host, const TouchPoint& touch) {
      * that pad's sound -- a wrong press that stayed silent would give the
      * answer away before the screen did. */
     host.playSound(padSound(static_cast<uint8_t>(pad)));
-    if (pad == sequence_[inputIndex_]) {
+    if (pad == expected()) {
         ++inputIndex_;
         if (inputIndex_ >= length_) {
             score_ = length_;
-            const bool newBest =
+            const bool newBest = CC::keepsBest(runLevel_) &&
                 host.saveBestScore(cinnamonAppMetadata().score->bestKey, score_, false);
             if (newBest) {
                 bestScore_ = score_;
             }
+            /* A round of four steps or more says the player can do this
+             * level; six of them, in one run or several, is a step up. */
+            Course::Ladder::Step step = Course::Ladder::Step::Stay;
+            if (CC::judgeRepeated(length_) > 0) {
+                step = ladder_.answer(true);
+                if (step != Course::Ladder::Step::Stay) host.setCourseLevel(ladder_.level());
+            }
             phase_ = Phase::Good;
             litPad_ = pad;
             nextAt_ = now + 520UL;
-            /* The round was repeated back correctly, so the sequence is about
-             * to get one step longer. HighScore when that is a new personal
-             * length, LevelUp when it is not; both land after the pad's own
-             * note, which is the ordering a player expects. */
             host.pulseRgb(0, 255, 40, 450);
-            host.playSound(newBest ? Sound::HighScore : Sound::LevelUp);
+            if (length_ >= CC::MAX_STEPS && step != Course::Ladder::Step::Up) {
+                /* Thirty-two steps is the whole store: the run is won, not
+                 * shown again for ever. */
+                won_ = true;
+                phase_ = Phase::Failed;
+                litPad_ = -1;
+                host.playSound(Sound::Victory);
+                markFullDirty();
+            } else if (step == Course::Ladder::Step::Up) {
+                climbed_ = true;
+                host.playSound(Sound::LevelUp);
+            } else {
+                /* HighScore when that is a new personal length, LevelUp when
+                 * it is not; both land after the pad's own note. */
+                host.playSound(newBest ? Sound::HighScore : Sound::LevelUp);
+            }
         }
     } else {
+        const int8_t verdict = CC::judgeFailed(runLevel_, length_);
+        if (verdict < 0 && ladder_.answer(false) != Course::Ladder::Step::Stay) {
+            host.setCourseLevel(ladder_.level());
+        }
         phase_ = Phase::Failed;
-        litPad_ = pad;
+        /* The pad pressed goes dark; only the one that was owed is bright. */
+        litPad_ = -1;
         host.pulseRgb(255, 0, 0, 600);
         host.playSound(Sound::GameOver);
         markFullDirty();   // the failure line needs a clean background
@@ -256,21 +332,15 @@ void CinnamonGame::renderStatic(AppContext& host) {
 
     Ui::clear(tft);
     host.drawTopBar(title());
-    tft.setTextColor(Ui::text(), Ui::bg());
-    tft.setTextDatum(TL_DATUM);
-    char buf[20];
-    snprintf(buf, sizeof(buf), "Score %u", static_cast<unsigned>(score_));
-    tft.drawString(buf, 10, 36, 2);
-    tft.setTextDatum(TR_DATUM);
-    snprintf(buf, sizeof(buf), "Best %u", static_cast<unsigned>(bestScore_));
-    tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 36, 2);
     for (uint8_t i = 0; i < 4; ++i) {
         const bool lit = (litPad_ == i) ||
-                         (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
+                         (phase_ == Phase::Failed && !won_ && i == expected());
         drawPad(tft, i, lit);
         litDrawn_[i] = lit;
     }
-    statusDrawn_ = "";
+    statusDrawn_[0] = '\0';
+    scoreDrawn_ = 0xFFFF;
+    bestDrawn_ = 0xFFFF;
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -282,28 +352,59 @@ void CinnamonGame::renderDynamic(AppContext& host) {
      * loop correctly finds nothing to do. */
     for (uint8_t i = 0; i < 4; ++i) {
         const bool lit = (litPad_ == i) ||
-                         (phase_ == Phase::Failed && i == sequence_[inputIndex_]);
+                         (phase_ == Phase::Failed && !won_ && i == expected());
         if (lit != litDrawn_[i]) {
             drawPad(tft, i, lit);
             litDrawn_[i] = lit;
         }
     }
 
-    String status;
-    if (phase_ == Phase::Showing)      status = "Watch";
-    else if (phase_ == Phase::Waiting) status = String("Repeat ") + (inputIndex_ + 1) + "/" + length_;
-    else if (phase_ == Phase::Good)    status = "Nice";
-    else                               status = "Oops - tap to retry";
-
-    if (status != statusDrawn_) {
-        // Repaint just the status strip, never the whole screen.
-        tft.fillRect(20, 52, 280, 18, Ui::bg());
-        Ui::drawLabel(tft, Rect{20, 52, 280, 18}, status,
-                      phase_ == Phase::Failed ? Ui::error() : Ui::text(), 2, Align::Center);
-        statusDrawn_ = status;
+    /* The two counters, each cleared to its own half of the row before it
+     * is written: they used to be drawn once at the start of a run and were
+     * wrong for the rest of it. */
+    if (score_ != scoreDrawn_ || bestScore_ != bestDrawn_) {
+        char buf[20];
+        tft.fillRect(10, 36, 140, 16, Ui::bg());
+        tft.fillRect(GAME_CANVAS_WIDTH - 150, 36, 140, 16, Ui::bg());
+        tft.setTextColor(Ui::text(), Ui::bg());
+        tft.setTextDatum(TL_DATUM);
+        snprintf(buf, sizeof(buf), "Score %u", static_cast<unsigned>(score_));
+        tft.drawString(buf, 10, 36, 2);
+        tft.setTextDatum(TR_DATUM);
+        snprintf(buf, sizeof(buf), "Best %u", static_cast<unsigned>(bestScore_));
+        tft.drawString(buf, GAME_CANVAS_WIDTH - 10, 36, 2);
+        tft.setTextDatum(TL_DATUM);
+        scoreDrawn_ = score_;
+        bestDrawn_ = bestScore_;
     }
 
-    if (phase_ == Phase::Failed) {
+    char status[CC::STATUS_MAX];
+    if (phase_ == Phase::Showing) {
+        /* The first showing of a new level says which level it is. */
+        if (climbed_) CC::levelLine(runLevel_, status, sizeof(status));
+        else snprintf(status, sizeof(status), "Watch");
+    } else if (phase_ == Phase::Waiting) {
+        CC::repeatLine(runLevel_, inputIndex_, length_, status, sizeof(status));
+    } else if (phase_ == Phase::Good) {
+        snprintf(status, sizeof(status), "Nice");
+    } else if (won_) {
+        snprintf(status, sizeof(status), "All %u steps! Tap to play", static_cast<unsigned>(length_));
+    } else {
+        snprintf(status, sizeof(status), "Oops - tap to retry");
+    }
+
+    if (strcmp(status, statusDrawn_) != 0) {
+        // Repaint just the status strip, never the whole screen.
+        tft.fillRect(20, 52, 280, 18, Ui::bg());
+        /* Drawn from the buffer: drawLabel() takes a String. */
+        tft.setTextColor((phase_ == Phase::Failed && !won_) ? Ui::error() : Ui::text(), Ui::bg());
+        tft.setTextDatum(MC_DATUM);
+        tft.drawString(status, 20 + 280 / 2, 52 + 18 / 2, 2);
+        tft.setTextDatum(TL_DATUM);
+        snprintf(statusDrawn_, sizeof(statusDrawn_), "%s", status);
+    }
+
+    if (phase_ == Phase::Failed && !won_) {
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(MC_DATUM);
         tft.drawString("Bright pad was next", GAME_CANVAS_WIDTH / 2, 214, 2);

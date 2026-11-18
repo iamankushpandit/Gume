@@ -10,3 +10,6 @@
 EV_KEY	0x01	KEY_POWER	116	1	button/power PWRF 00000080
 EV_KEY	0x01	KEY_VOLUMEUP	115	1	button/volup VOLU 00000080
 EV_KEY	0x01	KEY_VOLUMEDOWN	114	1	button/voldown VOLD 00000080
+# The headphone jack: inserted (1) and removed (0), from the codec's detect line.
+EV_SW	0x05	SW_HEADPHONE_INSERT	2	1	jack/headphone HPIN 00000080
+EV_SW	0x05	SW_HEADPHONE_INSERT	2	0	jack/headphone HPOUT 00000080

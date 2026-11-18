@@ -26,6 +26,7 @@ public:
      * tools/split_render.py -- see the note in the .cpp. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     void loadStage(uint8_t stageIndex);

@@ -52,6 +52,9 @@ private:
     Rect rowRect(uint8_t row, int16_t screenW, int16_t screenH) const;
     Rect mineTabRect() const;
     Rect deviceTabRect() const;
+    Rect tabRowNoteRect(int16_t screenW) const;
+    void drawTabRowNote(Ui::Renderer& tft, const char* text, bool tryLargeFont,
+                        int16_t screenW) const;
     Rect prevRect(int16_t screenW, int16_t screenH) const;
     Rect nextRect(int16_t screenW, int16_t screenH) const;
     Rect switchRect(int16_t screenW, int16_t screenH) const;

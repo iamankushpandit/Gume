@@ -40,6 +40,9 @@
  * not go away -- it is waiting for the next name that does not fit. If you
  * change either, re-measure: the portrait launcher has about 38px of air
  * between the product name and this string, and that is the whole allowance. */
+/* One version for every platform. It stays a plain literal here because
+ * tools read it here; what an image reports adds the device after a "+"
+ * (include/FirmwareVersion.h), and a published version never carries one. */
 #define BRAINO_VERSION          "5.14.0-SNAPSHOT"
 #define BRAINO_PRODUCT_NAME     "Braino!"
 /** The brand that publishes the console, and the owner of the marks. */

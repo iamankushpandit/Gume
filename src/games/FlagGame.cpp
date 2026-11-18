@@ -61,54 +61,65 @@ Rect FlagGame::answerRect(uint8_t i) const {
                 static_cast<int16_t>(186 + row * 27), 150, 25};
 }
 
-bool FlagGame::recentlyUsed(const char* iso2) const {
-    for (uint8_t i = 0; i < RECENT_COUNT; ++i) {
-        if (recent_[i] != nullptr && strcmp(recent_[i], iso2) == 0) return true;
+namespace FC = FlagCourse;
+static_assert(FC::AFRICA == CONT_AFRICA && FC::ASIA == CONT_ASIA && FC::EUROPE == CONT_EUROPE &&
+                  FC::NORTH_AMERICA == CONT_NORTH_AMERICA &&
+                  FC::SOUTH_AMERICA == CONT_SOUTH_AMERICA && FC::OCEANIA == CONT_OCEANIA,
+              "FlagCourse's continents are CountryData.h's");
+
+/* The countries of the ladder's level, in table order; the deck deals
+ * positions in this list. */
+void FlagGame::startLevel() {
+    const uint8_t level = ladder_.level();
+    poolSize_ = 0;
+    for (uint16_t i = 0; i < COUNTRY_FACT_COUNT && poolSize_ < MAX_POOL; ++i) {
+        if (FC::asks(level, COUNTRY_FACTS[i].tier, COUNTRY_FACTS[i].continent)) {
+            pool_[poolSize_++] = static_cast<uint8_t>(i);
+        }
     }
-    return false;
+    deck_.reset(poolSize_);
 }
 
-void FlagGame::rememberCurrent() {
-    if (current_ == nullptr) return;
-    recent_[recentPos_] = current_->iso2;
-    recentPos_ = static_cast<uint8_t>((recentPos_ + 1) % RECENT_COUNT);
+bool FlagGame::canOffer(const CountryFact* cand) const {
+    if (cand == nullptr || cand == current_) return false;
+    if (!FC::offers(ladder_.level(), current_->continent, cand->tier, cand->continent)) {
+        return false;
+    }
+    if (FC::lookalike(cand->iso2, current_->iso2)) return false;
+    // Capitals must be distinct too, since the bonus round reuses these.
+    if (strcmp(cand->capital, current_->capital) == 0) return false;
+    for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
+        if (options_[j] == cand) return false;
+        if (options_[j] != current_ && options_[j] != nullptr &&
+            FC::lookalike(cand->iso2, options_[j]->iso2)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void FlagGame::makeOptions() {
-    const uint16_t pool = countryPoolSize(tier_, false);
     correctBtn_ = static_cast<uint8_t>(random(OPTION_COUNT));
-
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) options_[i] = current_;
 
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         if (i == correctBtn_) continue;
-        for (uint8_t attempt = 0; attempt < 60; ++attempt) {
-            const CountryFact* cand = countryFromPool(
-                static_cast<uint16_t>(random(pool)), tier_, false);
-            if (cand == nullptr || cand == current_) continue;
-            bool dup = false;
-            for (uint8_t j = 0; j < i; ++j) {
-                if (options_[j] == cand) { dup = true; break; }
-            }
-            // Capitals must be distinct too, since the bonus round reuses these.
-            if (!dup && strcmp(cand->capital, current_->capital) == 0) dup = true;
-            if (dup) continue;
+        for (uint8_t attempt = 0; attempt < 80; ++attempt) {
+            const CountryFact* cand =
+                &COUNTRY_FACTS[static_cast<uint16_t>(random(COUNTRY_FACT_COUNT))];
+            if (!canOffer(cand)) continue;
             options_[i] = cand;
             break;
         }
-
-        // Deterministic fallback: random sampling can in principle exhaust its
-        // attempts, and leaving the slot as current_ would show the same
-        // country on two buttons.
+        /* Deterministic fallback: random sampling can in principle exhaust its
+         * attempts, and leaving the slot as current_ would show the same
+         * country on two buttons. host test flag_course_test proves every
+         * question of every level has three to find. */
         if (options_[i] == current_) {
-            for (uint16_t k = 0; k < pool; ++k) {
-                const CountryFact* cand = countryFromPool(k, tier_, false);
-                if (cand == nullptr || cand == current_) continue;
-                bool dup = false;
-                for (uint8_t j = 0; j < OPTION_COUNT; ++j) {
-                    if (j != i && options_[j] == cand) { dup = true; break; }
-                }
-                if (dup) continue;
+            const uint16_t start = static_cast<uint16_t>(random(COUNTRY_FACT_COUNT));
+            for (uint16_t k = 0; k < COUNTRY_FACT_COUNT; ++k) {
+                const CountryFact* cand = &COUNTRY_FACTS[(start + k) % COUNTRY_FACT_COUNT];
+                if (!canOffer(cand)) continue;
                 options_[i] = cand;
                 break;
             }
@@ -116,49 +127,27 @@ void FlagGame::makeOptions() {
     }
 }
 
+/* A plain shuffle. It used to force the capital onto a different button from
+ * the flag's answer, which gave one of the four away. */
 void FlagGame::shuffleOptionsForBonus() {
-    const uint8_t oldCorrect = correctBtn_;
     for (int8_t i = static_cast<int8_t>(OPTION_COUNT - 1); i > 0; --i) {
         const uint8_t j = static_cast<uint8_t>(random(i + 1));
         const CountryFact* tmp = options_[i];
         options_[i] = options_[j];
         options_[j] = tmp;
     }
-
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         if (options_[i] == current_) {
             correctBtn_ = i;
             break;
         }
     }
-
-    if (correctBtn_ == oldCorrect && OPTION_COUNT > 1) {
-        const uint8_t swapWith = static_cast<uint8_t>(
-            (correctBtn_ + 1 + random(OPTION_COUNT - 1)) % OPTION_COUNT);
-        const CountryFact* tmp = options_[correctBtn_];
-        options_[correctBtn_] = options_[swapWith];
-        options_[swapWith] = tmp;
-        correctBtn_ = swapWith;
-    }
-}
-
-namespace {
-struct PoolFilter { uint8_t tier; bool needsMap; };
-bool poolAllows(uint16_t i, void* ctx) {
-    const PoolFilter* f = static_cast<const PoolFilter*>(ctx);
-    return countryQualifies(i, f->tier, f->needsMap);
-}
 }
 
 void FlagGame::newQuestion() {
     /* A different country means a different flag, four different options and
-     * possibly a different tier. All of it is content in fixed rectangles
-     * drawn over opaque fills, so this is markDirty() -- it used to wipe and
-     * repaint the whole screen, top bar and battery read included, between
-     * every question.
-     *
-     * Invalidating here rather than at the call sites, of which there are
-     * three: begin(), the difficulty button and the end of feedback.
+     * possibly a different level. All of it is content in fixed rectangles
+     * drawn over opaque fills, so this is markDirty().
      *
      * The buttons are not optional. The loop in renderDynamic() repaints one
      * only when its state or the round type changed, and a new country leaves
@@ -169,23 +158,10 @@ void FlagGame::newQuestion() {
     for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
         drawnBtn_[i] = 0xFF;
     }
-    const uint16_t pool = countryPoolSize(tier_, false);
-    if (pool == 0) { current_ = nullptr; return; }
+    if (poolSize_ == 0) { current_ = nullptr; return; }
 
-    /* Weighted by mastery rather than uniform: a flag that was missed recently
-     * carries up to 8x the weight of one that is already known, so practice
-     * concentrates where it is needed without ever fully dropping the rest. */
-    PoolFilter filter{tier_, false};
-    for (uint8_t attempt = 0; attempt < 24; ++attempt) {
-        const uint16_t idx = progress_.pickWeighted(poolAllows, &filter);
-        if (idx == 0xFFFF) break;
-        current_ = &COUNTRY_FACTS[idx];
-        if (pool <= RECENT_COUNT || !recentlyUsed(current_->iso2)) break;
-    }
-    if (current_ == nullptr) {
-        current_ = countryFromPool(static_cast<uint16_t>(random(pool)), tier_, false);
-    }
-    rememberCurrent();
+    item_ = deck_.next(esp_random());
+    current_ = &COUNTRY_FACTS[pool_[item_ % poolSize_]];
 
     selected_ = -1;
     phase_ = Phase::Country;
@@ -194,20 +170,43 @@ void FlagGame::newQuestion() {
 }
 
 void FlagGame::begin(AppContext& host) {
-    tier_ = static_cast<uint8_t>(host.getScore("geoTier", 1));
-    if (tier_ < 1 || tier_ > 3) tier_ = 1;
-    progress_.begin(host, "flagSrs", COUNTRY_FACT_COUNT);
-    correctStreak_ = 0;
+    uint8_t stored = host.courseLevel();
+    if (stored == 0) {
+        /* A player who climbed the old tiers starts where they were: Medium
+         * on the well-known flags, Hard on the whole world. */
+        const uint8_t tier = static_cast<uint8_t>(host.getScore("geoTier", 1));
+        stored = tier >= 3 ? 8 : (tier == 2 ? 2 : 1);
+    }
+    ladder_.start(FC::LEVEL_COUNT, stored);
+    announce_ = false;
     score_ = 0; rounds_ = 0; capBonus_ = 0;
-    for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
-    recentPos_ = 0;
+    startLevel();
     newQuestion();
     markDirty();
 }
 
-void FlagGame::end(AppContext& host) {
+/* Only the feedback pause is timed. Moved on rather than left to lapse, so a
+ * player coming back still sees which answer was right before the next flag. */
+void FlagGame::resume(AppContext& host, uint32_t awayMs) {
     (void)host;
-    progress_.flush();
+    if (phase_ == Phase::FeedbackCountry || phase_ == Phase::FeedbackCapital) {
+        movedOn(feedbackUntil_, awayMs);
+    }
+}
+
+/* One answer to the ladder. Returns true on a step up, which is announced in
+ * place of the beep. */
+bool FlagGame::climb(AppContext& host, bool right) {
+    if (!right) deck_.missed(item_);   // before the ladder moves
+    const Course::Ladder::Step step = ladder_.answer(right);
+    if (step == Course::Ladder::Step::Stay) return false;
+    host.setCourseLevel(ladder_.level());
+    startLevel();
+    if (step != Course::Ladder::Step::Up) return false;
+    announce_ = true;
+    host.pulseRgb(0, 255, 40, 450);
+    host.playSound(Sound::LevelUp);
+    return true;
 }
 
 void FlagGame::update(AppContext& host, const TouchPoint& touch) {
@@ -223,65 +222,63 @@ void FlagGame::update(AppContext& host, const TouchPoint& touch) {
         } else {
             newQuestion();
         }
-        /* Either the same flag with capital labels, or a whole new question --
-         * both are content. The capital switch is caught by the drawnCapital_
-         * comparison in the button loop, and newQuestion() invalidates what it
-         * changes, so neither needs the screen wiped. */
         markDirty();
         return;
     }
 
     if (!touch.justPressed) return;
+    if (phase_ != Phase::Country && phase_ != Phase::CapitalBonus) return;
 
-    // Difficulty cycles Easy -> Medium -> Hard and restarts the round.
+    /* The level button steps up one and wraps, as the tier button did. It is
+     * tested after the phase, so a tap during feedback no longer throws the
+     * feedback away. */
     if (tierRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-        tier_ = static_cast<uint8_t>(tier_ >= 3 ? 1 : tier_ + 1);
-        host.setScore("geoTier", tier_);
-        for (uint8_t i = 0; i < RECENT_COUNT; ++i) recent_[i] = nullptr;
+        ladder_.setLevel(ladder_.atTop() ? 1 : static_cast<uint8_t>(ladder_.level() + 1));
+        host.setCourseLevel(ladder_.level());
+        host.playSound(Sound::Select);
+        startLevel();
+        announce_ = true;
         newQuestion();
-        markDirty();
         return;
     }
 
-    if (phase_ != Phase::Country && phase_ != Phase::CapitalBonus) return;
     if (current_ == nullptr) return;
 
-    for (uint8_t i = 0; i < OPTION_COUNT; ++i) {
-        if (!answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) continue;
-
-        selected_ = static_cast<int8_t>(i);
-        lastCorrect_ = (i == correctBtn_);
-
-        if (phase_ == Phase::Country) {
-            ++rounds_;
-            progress_.record(countryIndex(current_), lastCorrect_);
-            progress_.maybeFlush();
-            if (lastCorrect_) {
-                ++score_;
-                ++correctStreak_;
-                host.beepOk();
-                /* Auto-promote: six in a row means the current pool is too easy.
-                 * The tier button still overrides this by hand. */
-                if (correctStreak_ >= 6 && tier_ < 3) {
-                    ++tier_;
-                    correctStreak_ = 0;
-                    host.setScore("geoTier", tier_);
-                }
-            } else {
-                correctStreak_ = 0;
-                host.beepError();
-            }
-            feedbackUntil_ = now + 1500UL;
-            phase_ = Phase::FeedbackCountry;
-        } else {
-            if (lastCorrect_) { ++capBonus_; host.beepOk(); }
-            else              { host.beepError(); }
-            feedbackUntil_ = now + 1600UL;
-            phase_ = Phase::FeedbackCapital;
-        }
-        markDirty();
-        return;
+    /* The rows are 2px apart and the slop is 8, so a press near the top of a
+     * lower button also fell inside the one above it, and the first match
+     * won. A button the press is really inside wins now. */
+    int8_t hit = -1;
+    for (uint8_t i = 0; i < OPTION_COUNT && hit < 0; ++i) {
+        if (answerRect(i).contains(touch.x, touch.y, 0)) hit = static_cast<int8_t>(i);
     }
+    for (uint8_t i = 0; i < OPTION_COUNT && hit < 0; ++i) {
+        if (answerRect(i).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) hit = static_cast<int8_t>(i);
+    }
+    if (hit < 0) return;
+
+    const uint8_t i = static_cast<uint8_t>(hit);
+    selected_ = static_cast<int8_t>(i);
+    lastCorrect_ = (i == correctBtn_);
+
+    if (phase_ == Phase::Country) {
+        announce_ = false;   // the level's name has stood over its first flag
+        ++rounds_;
+        if (lastCorrect_) ++score_;
+        /* On the last level the flag alone does not move the ladder up: the
+         * capital that follows does. A wrong flag still counts. */
+        const bool counts = !FC::capitalCounts(ladder_.level()) || !lastCorrect_;
+        const bool up = counts && climb(host, lastCorrect_);
+        if (!up) lastCorrect_ ? host.beepOk() : host.beepError();
+        feedbackUntil_ = now + 1500UL;
+        phase_ = Phase::FeedbackCountry;
+    } else {
+        if (lastCorrect_) ++capBonus_;
+        const bool up = FC::capitalCounts(ladder_.level()) && climb(host, lastCorrect_);
+        if (!up) lastCorrect_ ? host.beepOk() : host.beepError();
+        feedbackUntil_ = now + 1600UL;
+        phase_ = Phase::FeedbackCapital;
+    }
+    markDirty();
 }
 
 void FlagGame::renderStatic(AppContext& host) {
@@ -298,7 +295,7 @@ void FlagGame::renderStatic(AppContext& host) {
     drawnRounds_ = 0xFFFF;
     drawnCapBonus_ = 0xFFFF;
     drawnFlag_ = false;
-    drawnTier_ = 0xFF;
+    drawnLevel_ = 0xFF;
 }
 
 void FlagGame::renderDynamic(AppContext& host) {
@@ -327,11 +324,11 @@ void FlagGame::renderDynamic(AppContext& host) {
      * auto-promotes -- and that used to show the old label until the next full
      * repaint. drawButton fills its fixed rect opaquely, so "Medium" over
      * "Easy" leaves nothing behind. */
-    if (drawnTier_ != tier_) {
-        static const char* const TIER_NAMES[4] = {"", "Easy", "Medium", "Hard"};
-        Ui::drawButton(tft, tierRect(), TIER_NAMES[tier_], Ui::panel(), Ui::outline(),
-                       Ui::text(), false, 1);
-        drawnTier_ = tier_;
+    if (drawnLevel_ != ladder_.level()) {
+        char lv[12];
+        snprintf(lv, sizeof(lv), "Level %u", static_cast<unsigned>(ladder_.level()));
+        Ui::drawButton(tft, tierRect(), lv, Ui::panel(), Ui::outline(), Ui::text(), false, 1);
+        drawnLevel_ = ladder_.level();
     }
 
     /* The flag card: drawCountryImageScaled at 2x paints 160x120 and is the
@@ -371,16 +368,25 @@ void FlagGame::renderDynamic(AppContext& host) {
     if (!drawnPrompt_ || capitalRound != drawnCapital_) {
         tft.fillRect(6, 166, GAME_CANVAS_WIDTH - 12, 18, Ui::bg());
         const char* countryName = mnf_name(current_->iso2);
-        char prompt[48];
+        char prompt[64];
+        bool named = false;
         if (capitalRound) {
-            snprintf(prompt, sizeof(prompt), "Bonus! Capital of %s?",
+            snprintf(prompt, sizeof(prompt), "%s%s?",
+                     FC::capitalCounts(ladder_.level()) ? "Capital of " : "Bonus! Capital of ",
                      countryName ? countryName : current_->iso2);
+        } else if (announce_) {
+            /* A step up names the new level over its first flag. */
+            FC::levelLine(ladder_.level(), prompt, sizeof(prompt));
+            named = true;
         } else {
             snprintf(prompt, sizeof(prompt), "Which country?");
         }
+        /* Saint Vincent and the Grenadines is wider than the strip at font
+         * 2, and was cut short in a 48-byte buffer. */
+        const uint8_t font = tft.textWidth(prompt, 2) <= GAME_CANVAS_WIDTH - 14 ? 2 : 1;
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(capitalRound ? Ui::rgb(255, 200, 0) : Ui::text(), Ui::bg());
-        tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 176, 2);
+        tft.setTextColor((capitalRound || named) ? Ui::rgb(255, 200, 0) : Ui::text(), Ui::bg());
+        tft.drawString(prompt, GAME_CANVAS_WIDTH / 2, 176, font);
         tft.setTextDatum(TL_DATUM);
         drawnPrompt_ = true;
     }

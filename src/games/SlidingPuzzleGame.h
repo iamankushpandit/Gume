@@ -25,6 +25,7 @@ public:
      * four, nine or sixteen change. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     Rect tileRect(uint8_t index) const;

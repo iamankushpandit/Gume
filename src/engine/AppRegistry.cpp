@@ -198,8 +198,7 @@ bool AppDefinition::isCatalogApp() const {
 
 bool AppDefinition::visible(Board& board) const {
     return alwaysVisible ||
-           (metadata != nullptr && board.gameVisible(metadata->launcherIndex,
-                                                     defaultVisible()));
+           (metadata != nullptr && board.gameVisible(visibilityKey(), defaultVisible()));
 }
 
 Game& AppDefinition::game(GameInstances& games) const {

@@ -44,6 +44,10 @@ install -D -m 0644 "$EXT/rocknix/gamecontroller.txt" "$TARGET/etc/braino/gamecon
 # and then falls back to the family's profile has lost its stick, and nobody
 # would have been told.
 CONSOLES=$EXT/../consoles
+# Emptied first: CI builds on a stored OS base whose target/ already holds the
+# profiles of an earlier commit, and a profile deleted since must not survive
+# in it (tools/card_inputs.py).
+rm -rf "$TARGET/etc/braino/consoles"
 mkdir -p "$TARGET/etc/braino/consoles"
 install -m 0644 "$CONSOLES"/*.conf "$TARGET/etc/braino/consoles/"
 for dts in "$EXT"/rocknix/dts/*.dts; do

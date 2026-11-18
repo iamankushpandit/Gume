@@ -1,0 +1,333 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+//
+// Part of Braino! -- https://github.com/iamankushpandit/Gume
+// Free software under GPL-3.0-or-later. Reusing any part of this file, in
+// any work, must keep this notice, credit iamankushpandit as the
+// author, and stay under the same licence with corresponding source
+// offered. See LICENSE and NOTICE.md.
+
+#include "Modules.h"
+
+/* A typing keyboard: Attaky's two-half matrix keyboard, on the boards that
+ * can carry one. See KeyboardProfile in include/BoardProfile.h for the
+ * wiring and the layout codes.
+ *
+ * Its probe asks both halves at boot and sets each up -- columns
+ * (P0_0..P0_4) inputs, rows (P1_0..P1_4) outputs driven LOW, the half's LED
+ * (P1_5..P1_7) off. Both halves or neither: half a keyboard types half the
+ * alphabet. `[keyboard] attached|absent` says which.
+ *
+ * Read once per frame from the loop, beside touch and the navigation keys,
+ * and cheap when nobody is typing. The probe leaves every row driven LOW, so
+ * a single read of a half's five columns says whether any of its keys is
+ * down; only then are the rows walked one at a time -- five writes and five
+ * reads -- and put back low. Idle, that is one register read per half per
+ * frame, about the cost of the touch read beside it. While a key is held it
+ * is about a millisecond, which a frame can carry.
+ *
+ * What it reports, one character per frame:
+ *
+ *  - A letter, lower case, or upper case while Shift is held. Each text field
+ *    decides what it accepts: the name fields take capitals, as their
+ *    on-screen keypad does, and the Wi-Fi password takes what was typed.
+ *  - Shift is the only shift key, printed with a phone's up arrow, and it is
+ *    pressed like one: tapped on its own -- down and up with no other key in
+ *    between -- it turns caps lock on, and tapped again turns it off. Held
+ *    with a letter it still shifts that letter, the other way round while
+ *    caps lock is on. The left half's own LED is green while it is on, so the
+ *    state is visible on the keys rather than guessed at -- except while the
+ *    panel sleeps, when the light is out with every other light the firmware
+ *    drives, and comes back on wake if caps lock is still on.
+ *  - A digit, a space, or the punctuation printed on the keys, as itself.
+ *  - '\b' for Delete, repeating while it is held, because clearing a
+ *    mistyped password one press at a time is the case that needs it.
+ *  - '\n' for Enter.
+ *
+ * Nothing else repeats, and two new keys in one frame report the first; at
+ * typing speed against a 20ms frame the second simply arrives next frame,
+ * since it is still down. A matrix with no diodes can ghost a fourth key
+ * from three held in a rectangle -- nobody types like that, and Shift plus
+ * one key is two.
+ */
+
+#if GUME_HAS_KEYBOARD
+#include <Arduino.h>
+#include <Wire.h>
+
+namespace {
+
+constexpr uint8_t AW9523_INPUT_P0 = 0x00;
+constexpr uint8_t AW9523_OUTPUT_P0 = 0x02;
+constexpr uint8_t AW9523_OUTPUT_P1 = 0x03;
+constexpr uint8_t AW9523_CONFIG_P0 = 0x04;   // 1 = input, 0 = output
+constexpr uint8_t AW9523_MODE_P0 = 0x12;     // 1 = GPIO, 0 = LED current
+constexpr uint8_t AW9523_MODE_P1 = 0x13;
+constexpr uint8_t ROWS_LOW = 0xE0;   // rows P1_0..P1_4 low, LED P1_5..P1_7 off
+constexpr uint8_t LED_GREEN = 0x40;  // P1_6, active low
+constexpr uint8_t COLS = 0x1F;
+
+constexpr uint32_t DELETE_REPEAT_DELAY_MS = 450;
+constexpr uint32_t DELETE_REPEAT_EVERY_MS = 90;
+
+/* Which positions were down last frame (25 bits a half), and Delete's
+ * auto-repeat. Loop task only. */
+uint32_t s_down[2] = {0, 0};
+uint32_t s_repeatAtMs = 0;
+
+/* Caps lock, and whether the Shift press in progress is still a tap: set when
+ * it goes down, cleared by any other key before it comes up. */
+bool s_capsLock = false;
+bool s_shiftWasDown = false;
+bool s_shiftTap = false;
+
+/* The panel is asleep, so the caps-lock light is out whatever caps lock is:
+ * a locked console shows no light of the firmware's. Caps lock itself is
+ * kept, and the light comes back with the panel. */
+bool s_panelAsleep = false;
+/* The light's last write was not acknowledged; typedChar() tries again. An
+ * idle scan only reads, so without this a write lost on the way into sleep
+ * would leave the light on until somebody pressed a key. */
+bool s_lightPending = false;
+
+/* Scans that failed in a row, and how many say the keyboard has gone: five
+ * frames, a tenth of a second, so one bus glitch does not count. */
+uint8_t s_failedScans = 0;
+constexpr uint8_t GONE_AFTER_FAILED_SCANS = 5;
+
+/* A light the bench's light test is holding on, as the bit of P1 it drives
+ * low: one per half, 0 for none. See lightStep(). */
+uint8_t s_testLow[2] = {0, 0};
+
+/* The P1 value with every row low, for one half. The LED shares P1 with the
+ * rows, so every row write carries it -- otherwise the scan would put the
+ * caps-lock light out on the first key, or back on while the panel sleeps. */
+uint8_t rowsLow(uint8_t address) {
+    const bool left = address == BOARD.keyboard.keyboardLeft;
+    const bool lit = s_capsLock && !s_panelAsleep && left;
+    const uint8_t rows = static_cast<uint8_t>(lit ? (ROWS_LOW & ~LED_GREEN) : ROWS_LOW);
+    return static_cast<uint8_t>(rows & ~s_testLow[left ? 0 : 1]);
+}
+
+void aw9523Write(uint8_t address, uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(address);
+    Wire.write(reg);
+    Wire.write(value);
+    Wire.endTransmission();
+}
+
+bool setupHalf(uint8_t address) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() != 0) {
+        return false;
+    }
+    /* Rows held LOW between scans, so one read of the columns says whether
+     * any key on this half is down -- the scan only walks the rows when one
+     * is. Level before direction, so a row is never driven to a value nobody
+     * chose; the LED bits high, which is off on this common-anode part. */
+    aw9523Write(address, AW9523_MODE_P0, 0xFF);
+    aw9523Write(address, AW9523_MODE_P1, 0xFF);
+    aw9523Write(address, AW9523_OUTPUT_P0 + 1, ROWS_LOW);
+    aw9523Write(address, AW9523_CONFIG_P0, 0xFF);
+    aw9523Write(address, AW9523_CONFIG_P0 + 1, 0x00);
+    return true;
+}
+
+bool writeRows(uint8_t address, uint8_t value) {
+    Wire.beginTransmission(address);
+    Wire.write(AW9523_OUTPUT_P1);
+    Wire.write(value);
+    return Wire.endTransmission() == 0;
+}
+
+/* The five column bits of one half, 1 = a key down in the selected rows. */
+bool readColumns(uint8_t address, uint8_t& down) {
+    Wire.beginTransmission(address);
+    Wire.write(AW9523_INPUT_P0);
+    if (Wire.endTransmission(false) != 0 ||
+        Wire.requestFrom(static_cast<int>(address), 1) != 1) {
+        return false;
+    }
+    down = static_cast<uint8_t>(~Wire.read() & COLS);   // pulled up: low = down
+    return true;
+}
+
+/* Every position of one half that is down, as 25 bits: ROW r COL c is bit
+ * r*5+c, matching the layout string. False on a bus error. */
+bool scanHalf(uint8_t address, uint32_t& positions) {
+    uint8_t any = 0;
+    if (!readColumns(address, any)) {
+        return false;
+    }
+    positions = 0;
+    if (any == 0) {
+        return true;
+    }
+    bool ok = true;
+    for (uint8_t row = 0; row < 5 && ok; ++row) {
+        uint8_t cols = 0;
+        ok = writeRows(address, static_cast<uint8_t>(rowsLow(address) | (COLS & ~(1u << row)))) &&
+             readColumns(address, cols);
+        positions |= static_cast<uint32_t>(cols) << (row * 5);
+    }
+    /* Back to all rows low, whatever happened, or the next frame's idle test
+     * would be reading a single row. */
+    ok = writeRows(address, rowsLow(address)) && ok;
+    return ok;
+}
+
+Modules::Probe probe() {
+    const bool attached = setupHalf(BOARD.keyboard.keyboardLeft) &&
+                          setupHalf(BOARD.keyboard.keyboardRight);
+    Serial.printf("[keyboard] %s\n", attached ? "attached" : "absent");
+    return attached ? Modules::Probe::Present : Modules::Probe::Absent;
+}
+
+/* The caps-lock light as it should be now: the left half's P1 between scans,
+ * every row low and the LED bit as rowsLow() has it. Never the LED bit
+ * alone -- the rows are in the same register. */
+void showCapsLockLight() {
+    const uint8_t left = BOARD.keyboard.keyboardLeft;
+    s_lightPending = !writeRows(left, rowsLow(left));
+}
+
+/* Modules::Driver::lightStep, for the serial console's `lights`. Six steps:
+ * each half's blue, green and red (P1_5, P1_6, P1_7), driven low, which is
+ * lit on this common-anode part. There is no "driven high" step as the
+ * gamepad has: these ports are outputs already, held high, and that is the
+ * off the test compares against. The bit rides in rowsLow() like the
+ * caps-lock light's, so a key scanned during the test does not put it out. */
+void lightStep(uint8_t step, bool on, char* name, size_t cap) {
+    static const char* const COLOUR[3] = {"blue", "green", "red"};
+    const uint8_t half = step >= 3 ? 1 : 0;
+    const uint8_t channel = static_cast<uint8_t>(step % 3);
+    const uint8_t address = half == 0 ? BOARD.keyboard.keyboardLeft : BOARD.keyboard.keyboardRight;
+    snprintf(name, cap, "Keyboard %s %s", half == 0 ? "left" : "right", COLOUR[channel]);
+    s_testLow[half] = on ? static_cast<uint8_t>(1u << (5 + channel)) : 0;
+    writeRows(address, rowsLow(address));
+}
+
+/* Modules::Driver::panelSleep. Between frames, on the loop task, so never in
+ * the middle of a scan -- and a scan while the panel sleeps (the keys are
+ * still read, since a key wakes it) carries the same value. */
+void panelSleep(bool asleep) {
+    s_panelAsleep = asleep;
+    showCapsLockLight();
+}
+
+char typedChar() {
+    const uint8_t address[2] = {BOARD.keyboard.keyboardLeft, BOARD.keyboard.keyboardRight};
+    const char* const layout[2] = {BOARD.keyboard.leftLayout, BOARD.keyboard.rightLayout};
+
+    if (s_lightPending) {
+        showCapsLockLight();
+    }
+
+    /* A failed read is not a key released: keep the last state, so a bus
+     * glitch cannot type a character when it clears. */
+    uint32_t down[2];
+    for (uint8_t half = 0; half < 2; ++half) {
+        if (!scanHalf(address[half], down[half])) {
+            if (s_failedScans < 0xFF) ++s_failedScans;
+            if (s_failedScans == GONE_AFTER_FAILED_SCANS) {
+                Serial.println("[keyboard] not answering");
+            }
+            return 0;
+        }
+    }
+    if (s_failedScans >= GONE_AFTER_FAILED_SCANS) {
+        Serial.println("[keyboard] answering again");
+    }
+    s_failedScans = 0;
+
+    bool shift = false;
+    bool otherFresh = false;
+    for (uint8_t half = 0; half < 2; ++half) {
+        const uint32_t fresh = down[half] & ~s_down[half];
+        for (uint8_t pos = 0; pos < 25; ++pos) {
+            if ((down[half] >> pos & 1) && layout[half][pos] == '^') shift = true;
+            if ((fresh >> pos & 1) && layout[half][pos] != '^') otherFresh = true;
+        }
+    }
+    if (shift && !s_shiftWasDown) {
+        s_shiftTap = true;
+    }
+    if (otherFresh) {
+        s_shiftTap = false;
+    }
+    if (!shift && s_shiftWasDown && s_shiftTap) {
+        s_capsLock = !s_capsLock;
+        s_shiftTap = false;
+        showCapsLockLight();
+        Serial.printf("[keyboard] caps lock %s\n", s_capsLock ? "on" : "off");
+    }
+    s_shiftWasDown = shift;
+
+    char typed = 0;
+    for (uint8_t half = 0; half < 2 && typed == 0; ++half) {
+        const uint32_t fresh = down[half] & ~s_down[half];
+        for (uint8_t pos = 0; pos < 25 && typed == 0; ++pos) {
+            if (!(fresh >> pos & 1)) continue;
+            const char key = layout[half][pos];
+            if (key == '^' || key == '~') continue;
+            if (key == '<') {
+                typed = '\b';
+                s_repeatAtMs = millis() + DELETE_REPEAT_DELAY_MS;
+            } else if (key == '>') {
+                typed = '\n';
+            } else if (key >= 'A' && key <= 'Z') {
+                typed = (shift != s_capsLock) ? key : static_cast<char>(key - 'A' + 'a');
+            } else {
+                typed = key;
+            }
+        }
+    }
+
+    /* Delete, held: repeat. Found by looking for a held '<' rather than
+     * remembering which position it was, so the layout stays the only
+     * statement of where it is. */
+    if (typed == 0) {
+        bool deleteHeld = false;
+        for (uint8_t half = 0; half < 2; ++half) {
+            for (uint8_t pos = 0; pos < 25; ++pos) {
+                if ((down[half] & s_down[half]) >> pos & 1 && layout[half][pos] == '<') {
+                    deleteHeld = true;
+                }
+            }
+        }
+        if (deleteHeld && static_cast<int32_t>(millis() - s_repeatAtMs) >= 0) {
+            s_repeatAtMs = millis() + DELETE_REPEAT_EVERY_MS;
+            typed = '\b';
+        }
+    }
+
+    s_down[0] = down[0];
+    s_down[1] = down[1];
+    return typed;
+}
+
+constexpr Modules::Driver DRIVER = {
+    /* name           */ "Keyboard",
+    /* tag            */ "keyboard",
+    /* order          */ 10,
+    /* provides       */ static_cast<uint8_t>(ModuleCapability::Typing),
+    /* slot           */ nullptr,
+    /* byElimination  */ false,
+    /* live           */ false,
+    /* probe          */ probe,
+    /* heldControls   */ nullptr,
+    /* typedChar      */ typedChar,
+    /* readBattery    */ nullptr,
+    /* panelSleep     */ panelSleep,
+    /* lightSteps     */ 6,
+    /* lightStep      */ lightStep,
+};
+const Modules::Registration REGISTRATION(DRIVER);
+
+}  // namespace
+
+bool Modules::keyboardAnswering() {
+    return s_failedScans < GONE_AFTER_FAILED_SCANS;
+}
+
+#endif  /* GUME_HAS_KEYBOARD */

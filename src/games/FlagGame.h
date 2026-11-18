@@ -12,7 +12,8 @@
 #include "engine/Game.h"
 #include "ui/Ui.h"
 #include "CountryData.h"
-#include "engine/Progress.h"
+#include "engine/Course.h"
+#include "FlagCourse.h"
 
 struct AppMetadata;
 
@@ -25,8 +26,9 @@ const AppMetadata& flagAppMetadata();
  * it belongs to. Answer correctly and you get a bonus question for that
  * country's capital city.
  *
- * Difficulty tier is shared with GeoGame and persisted as "geoTier":
- *   1 = ~30 most familiar countries, 2 = ~62, 3 = all 195.
+ * A course of nine levels (FlagCourse.h): the player's level is kept with
+ * courseLevel(), and the old "geoTier" is read once, for a player who has
+ * no level yet.
  */
 class FlagGame : public AppGame {
 public:
@@ -39,7 +41,13 @@ public:
      * docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
-    void end(AppContext& host) override;
+    /* The tally is the game: there is no end to a round, so a flag answered
+     * is a game a player would want back. A tap on the level alone is
+     * not. */
+    Keep keepsGame() const override {
+        return (current_ != nullptr && rounds_ > 0) ? Keep::Ask : Keep::No;
+    }
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Phase : uint8_t {
@@ -50,7 +58,6 @@ private:
     };
 
     static constexpr uint8_t OPTION_COUNT = 4;
-    static constexpr uint8_t RECENT_COUNT = 8;
 
     /* What is on the panel. drawnCapital_ matters as much as the button
      * states: moving from the country round to the capital bonus keeps every
@@ -62,28 +69,30 @@ private:
     uint16_t drawnScore_ = 0xFFFF;
     uint16_t drawnRounds_ = 0xFFFF;
     uint16_t drawnCapBonus_ = 0xFFFF;
-    /* The flag card and the difficulty button are dynamic, not static: a new
-     * question changes the first and the auto-promote changes the second, and
+    /* The flag card and the level button are dynamic, not static: a new
+     * question changes the first and the ladder changes the second, and
      * neither should cost a full repaint. See renderDynamic(). */
     bool drawnFlag_ = false;
-    uint8_t drawnTier_ = 0xFF;
+    uint8_t drawnLevel_ = 0xFF;
 
     Rect answerRect(uint8_t i) const;
     Rect tierRect() const;
     Rect flagRect() const;
 
-    bool recentlyUsed(const char* iso2) const;
-    void rememberCurrent();
+    void startLevel();
+    bool canOffer(const CountryFact* cand) const;
     void makeOptions();
     void shuffleOptionsForBonus();
     void newQuestion();
+    bool climb(AppContext& host, bool right);
 
-    /* Spaced repetition: countries answered wrong come back sooner. Shared
-     * key with GeoGame would conflate two different skills, so each has its
-     * own record. */
-    Progress progress_;
-    uint8_t correctStreak_ = 0;
-    uint8_t tier_ = 1;
+    static constexpr uint16_t MAX_POOL = 200;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    uint8_t pool_[MAX_POOL] = {};   // COUNTRY_FACTS rows of the level
+    uint16_t poolSize_ = 0;
+    uint16_t item_ = 0;
+    bool announce_ = false;         // the prompt names the new level
     Phase phase_ = Phase::Country;
 
     const CountryFact* current_ = nullptr;
@@ -92,8 +101,6 @@ private:
     int8_t  selected_   = -1;
     bool    lastCorrect_ = false;
 
-    const char* recent_[RECENT_COUNT] = {};
-    uint8_t recentPos_ = 0;
 
     uint32_t feedbackUntil_ = 0;
     uint16_t score_    = 0;

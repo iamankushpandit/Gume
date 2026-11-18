@@ -9,13 +9,19 @@
 
 #pragma once
 
+#include "engine/Course.h"
 #include "engine/Game.h"
+#include "engine/RecentQuestions.h"
 #include "ui/Ui.h"
+
+#include "TimeCourse.h"
 
 struct AppMetadata;
 
 const AppMetadata& timeGameAppMetadata();
 
+/* A course in reading the clock: what each level asks, and the wrong
+ * options each question offers, are in TimeCourse.h; this is the screen. */
 class TimeGame : public AppGame {
 public:
     const char* title() const override;
@@ -26,19 +32,28 @@ public:
      * overlaps the lower buttons. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     Rect answerRect(uint8_t index) const;
+    void startLevel();
     void newQuestion();
-    void makeOptions();
-    bool optionExists(uint16_t minutes, uint8_t upTo) const;
-    String formatTime(uint16_t minutes) const;
-    uint8_t level() const;
     void drawClock(Ui::Renderer& tft) const;
+    void drawPrompt(Ui::Renderer& tft) const;
 
-    uint16_t answerMinutes_ = 0;
-    uint16_t options_[4] = {};
-    uint8_t correctButton_ = 0;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    /* Levels 6 and 9 are too many to number, and draw at random. */
+    RecentQuestions recent_;
+    TimeCourse::Question question_;
+    /* Which of the level's items is on screen, for deck_.missed(). */
+    uint16_t item_ = 0;
+    /* The level the question on screen was dealt from: the ladder may have
+     * moved since, on the answer that is still showing. */
+    uint8_t questionLevel_ = 1;
+    /* The next question is the first of a new level: name it in the strip. */
+    bool announce_ = false;
+    bool banner_ = false;
 
     /* What each button shows: 0 unanswered, 1 correct, 2 wrong. */
     uint8_t drawnButton_[4] = {};
@@ -46,6 +61,9 @@ private:
     uint16_t drawnStreak_ = 0xFFFF;
     bool drawnAnswered_ = false;
     bool drawnHeader_ = false;
+    uint8_t drawnLevel_ = 0;
+    /* The question line changes with the level -- "20 minutes later?" */
+    bool drawnPrompt_ = false;
     /* The clock face is dynamic, not static: a new question moves the hands,
      * and a new question must not cost a full repaint. See renderDynamic(). */
     bool drawnClock_ = false;

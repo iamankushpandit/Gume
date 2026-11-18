@@ -16,6 +16,7 @@ constexpr uint16_t CARD_BACK = 0x24BD;
 constexpr uint16_t CARD_FRONT = 0x39EF;
 constexpr uint16_t MATCHED = 0x07F3;
 constexpr uint16_t ACCENT = 0xE8E4;
+constexpr uint16_t YELLOW = 0xFEC0;
 constexpr int16_t GRID_TOP = TOP_BAR_HEIGHT + 30;
 constexpr int16_t GRID_GAP = 4;
 
@@ -48,26 +49,53 @@ const char* MemoryGame::title() const {
 }
 
 void MemoryGame::begin(AppContext& host) {
+    /* Read once a visit, not on the tap that deals the next board. */
+    fromCard_ = host.content().loadMemoryConfig(config_);
+    bestMoves_ = static_cast<uint16_t>(host.getScore(memoryAppMetadata().score->bestKey, 0));
+    ladder_.start(MemoryCourse::LEVEL_COUNT, host.courseLevel());
+    deck_.reset(MemoryCourse::poolSize(ladder_.level()));
+    climbed_ = false;
     newRound(host);
     markDirty();
 }
 
-void MemoryGame::newRound(AppContext& host) {
-    host.content().loadMemoryConfig(config_);
-    bestMoves_ = static_cast<uint16_t>(host.getScore(memoryAppMetadata().score->bestKey, 0));
-    const uint8_t total = config_.rows * config_.cols;
-    config_.pairCount = min<uint8_t>(MAX_MEMORY_PAIRS, total / 2);
+/* A board with a card turned is a board of remembered places. A finished one
+ * is not: its best is saved, and the next tap only deals again. */
+Game::Keep MemoryGame::keepsGame() const {
+    return (!allMatched() && (moves_ > 0 || first_ >= 0)) ? Keep::Ask : Keep::No;
+}
 
-    for (uint8_t i = 0; i < total; ++i) {
-        cards_[i] = i / 2;
+/* A mismatched pair was face up when the player left. It stays up for the
+ * rest of its look rather than turning over before they have seen it again.
+ * begin() is not run, which is the point: it reshuffles the board. */
+void MemoryGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (resolving_) {
+        movedOn(resolveAt_, awayMs);
+    }
+}
+
+void MemoryGame::newRound(AppContext& host) {
+    (void)host;
+    if (fromCard_) {
+        board_.level = 0;
+        board_.rows = config_.rows;
+        board_.cols = config_.cols;
+        board_.pairs = min<uint8_t>(MAX_MEMORY_PAIRS, board_.total() / 2);
+        const uint8_t n = board_.total();
+        for (uint8_t i = 0; i < n; ++i) board_.cards[i] = i;   // pair i/2, either half
+        for (int i = n - 1; i > 0; --i) {
+            const uint8_t j = random(i + 1);
+            const uint8_t tmp = board_.cards[i];
+            board_.cards[i] = board_.cards[j];
+            board_.cards[j] = tmp;
+        }
+    } else {
+        MemoryCourse::deal(ladder_.level(), deck_, esp_random(), board_);
+    }
+    for (uint8_t i = 0; i < MAX_MEMORY_CARDS; ++i) {
         visible_[i] = false;
         matched_[i] = false;
-    }
-    for (int i = total - 1; i > 0; --i) {
-        const uint8_t j = random(i + 1);
-        const uint8_t tmp = cards_[i];
-        cards_[i] = cards_[j];
-        cards_[j] = tmp;
     }
     first_ = -1;
     second_ = -1;
@@ -77,8 +105,8 @@ void MemoryGame::newRound(AppContext& host) {
 }
 
 Rect MemoryGame::cardRect(uint8_t index) const {
-    const uint8_t totalCols = config_.cols;
-    const uint8_t totalRows = config_.rows;
+    const uint8_t totalCols = board_.cols;
+    const uint8_t totalRows = board_.rows;
     const int16_t maxCellW = (GAME_CANVAS_WIDTH - 20 - GRID_GAP * (totalCols - 1)) / totalCols;
     const int16_t maxCellH = (GAME_CANVAS_HEIGHT - GRID_TOP - 4 - GRID_GAP * (totalRows - 1)) / totalRows;
     const int16_t cell = min<int16_t>(maxCellW, maxCellH);
@@ -92,7 +120,7 @@ Rect MemoryGame::cardRect(uint8_t index) const {
 }
 
 int8_t MemoryGame::cardAt(int16_t x, int16_t y) const {
-    const uint8_t total = config_.rows * config_.cols;
+    const uint8_t total = this->total();
     for (uint8_t i = 0; i < total; ++i) {
         if (cardRect(i).contains(x, y, TOUCH_HIT_SLOP)) {
             return i;
@@ -102,7 +130,7 @@ int8_t MemoryGame::cardAt(int16_t x, int16_t y) const {
 }
 
 bool MemoryGame::allMatched() const {
-    const uint8_t total = config_.rows * config_.cols;
+    const uint8_t total = this->total();
     for (uint8_t i = 0; i < total; ++i) {
         if (!matched_[i]) {
             return false;
@@ -129,6 +157,7 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
         /* Tapping past the finished board deals the next one. That is a
          * choice being made, not an answer being marked -- Victory already
          * sounded when the last pair went down. */
+        climbed_ = false;
         newRound(host);
         host.playSound(Sound::Select);
         /* A layout change, not a content one: every card is reshuffled and
@@ -154,7 +183,7 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
     } else {
         second_ = index;
         ++moves_;
-        if (cards_[first_] == cards_[second_]) {
+        if (board_.pairOf(first_) == board_.pairOf(second_)) {
             matched_[first_] = true;
             matched_[second_] = true;
             first_ = -1;
@@ -164,13 +193,30 @@ void MemoryGame::update(AppContext& host, const TouchPoint& touch) {
                  * ever before, Victory otherwise -- and neither is the Coin
                  * that an ordinary pair gets, because finishing is not just
                  * another match. */
-                const bool best =
+                const bool counts = fromCard_ || MemoryCourse::keepsBest(board_.level);
+                const bool best = counts &&
                     host.saveBestScore(memoryAppMetadata().score->bestKey, moves_, true);
                 if (best) {
                     bestMoves_ = moves_;
                 }
+                /* The board is the answer: few moves for its pairs is right,
+                 * many is wrong, in between says nothing. */
+                Course::Ladder::Step step = Course::Ladder::Step::Stay;
+                if (!fromCard_) {
+                    const int8_t verdict = MemoryCourse::judge(board_.pairs, moves_);
+                    if (verdict != 0) step = ladder_.answer(verdict > 0);
+                    if (step != Course::Ladder::Step::Stay) {
+                        host.setCourseLevel(ladder_.level());
+                        deck_.reset(MemoryCourse::poolSize(ladder_.level()));
+                    }
+                }
                 host.pulseRgb(0, 255, 40, 450);
-                host.playSound(best ? Sound::HighScore : Sound::Victory);
+                if (step == Course::Ladder::Step::Up) {
+                    climbed_ = true;
+                    host.playSound(Sound::LevelUp);
+                } else {
+                    host.playSound(best ? Sound::HighScore : Sound::Victory);
+                }
             } else {
                 host.pulseRgb(0, 255, 40, 220);
                 host.playSound(Sound::Coin);
@@ -198,9 +244,16 @@ void MemoryGame::drawCard(Ui::Renderer& tft, uint8_t index, uint8_t face) {
         tft.fillCircle(r.x + r.w / 2, r.y + r.h / 2, min(r.w, r.h) / 7, ACCENT);
         return;
     }
-    const String label = config_.symbols[cards_[index]];
+    char label[MemoryCourse::FACE_MAX + 12];
+    if (fromCard_) {
+        snprintf(label, sizeof(label), "%s", config_.symbols[board_.pairOf(index)].c_str());
+    } else {
+        board_.faceOf(index, label, sizeof(label));
+    }
     const uint8_t font = tft.textWidth(label, 4) <= r.w - 8 ? 4 : 2;
-    tft.setTextColor(TFT_BLACK, fill);
+    /* The ink is chosen against the card: black on the slate front read at
+     * about 2:1. */
+    tft.setTextColor(Ui::onFill(fill), fill);
     tft.setTextDatum(MC_DATUM);
     tft.drawString(label, r.x + r.w / 2, r.y + r.h / 2, font);
     tft.setTextDatum(TL_DATUM);
@@ -216,7 +269,7 @@ void MemoryGame::renderStatic(AppContext& host) {
      * -- so they are the same pixels for the whole round however many cards get
      * turned over. Drawing them here rather than per card halves what a card
      * costs to repaint. */
-    const uint8_t total = config_.rows * config_.cols;
+    const uint8_t total = this->total();
     for (uint8_t i = 0; i < total; ++i) {
         const Rect r = cardRect(i);
         tft.fillRoundRect(r.x + 2, r.y + 3, r.w, r.h, 6, 0xBDF7);
@@ -236,7 +289,7 @@ void MemoryGame::renderStatic(AppContext& host) {
 void MemoryGame::renderDynamic(AppContext& host) {
     Ui::Renderer& tft = host.display();
 
-    const uint8_t total = config_.rows * config_.cols;
+    const uint8_t total = this->total();
     for (uint8_t i = 0; i < total; ++i) {
         const uint8_t face = matched_[i] ? FACE_MATCHED
                            : (visible_[i] ? FACE_FRONT : FACE_BACK);
@@ -253,18 +306,23 @@ void MemoryGame::renderDynamic(AppContext& host) {
      * the tail of the old number would stay. The grid starts at GRID_TOP, which
      * is 30px below the bar, so this rect cannot reach a card. */
     if (moves_ != drawnMoves_ || bestMoves_ != drawnBest_) {
-        tft.fillRect(8, TOP_BAR_HEIGHT + 2, 130, 26, Ui::bg());
+        tft.fillRect(8, TOP_BAR_HEIGHT + 2, 160, 26, Ui::bg());
         char line[24];
         tft.setTextColor(Ui::text(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
         snprintf(line, sizeof(line), "Moves %u", static_cast<unsigned>(moves_));
         tft.drawString(line, 8, TOP_BAR_HEIGHT + 2, 2);
-        if (bestMoves_ > 0) {
-            snprintf(line, sizeof(line), "Best %u", static_cast<unsigned>(bestMoves_));
+        /* Below the full board the level is what is worth reading; the best
+         * is kept for the full board only. */
+        char wide[MemoryCourse::LEVEL_LINE_MAX + 1];
+        if (!fromCard_ && !MemoryCourse::keepsBest(board_.level)) {
+            MemoryCourse::levelLine(board_.level, wide, sizeof(wide));
+        } else if (bestMoves_ > 0) {
+            snprintf(wide, sizeof(wide), "Best %u", static_cast<unsigned>(bestMoves_));
         } else {
-            snprintf(line, sizeof(line), "Best --");
+            snprintf(wide, sizeof(wide), "Best --");
         }
-        tft.drawString(line, 8, TOP_BAR_HEIGHT + 18, 1);
+        tft.drawString(wide, 8, TOP_BAR_HEIGHT + 18, 1);
         drawnMoves_ = moves_;
         drawnBest_ = bestMoves_;
     }
@@ -278,7 +336,15 @@ void MemoryGame::renderDynamic(AppContext& host) {
         tft.setTextColor(Ui::success(), Ui::panel());
         tft.setTextDatum(MC_DATUM);
         tft.drawString("You matched all!", GAME_CANVAS_WIDTH / 2, 112, 4);
-        tft.drawString("Tap to play again", GAME_CANVAS_WIDTH / 2, 136, 2);
+        if (climbed_) {
+            /* A step up names the level the next board is from. */
+            char next[MemoryCourse::LEVEL_LINE_MAX + 1];
+            MemoryCourse::levelLine(ladder_.level(), next, sizeof(next));
+            tft.setTextColor(YELLOW, Ui::panel());
+            tft.drawString(next, GAME_CANVAS_WIDTH / 2, 136, 2);
+        } else {
+            tft.drawString("Tap to play again", GAME_CANVAS_WIDTH / 2, 136, 2);
+        }
         tft.setTextDatum(TL_DATUM);
         drawnPanel_ = true;
     }

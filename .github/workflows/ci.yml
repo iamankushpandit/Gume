@@ -30,6 +30,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to a pull request makes the run for the old one worthless, so it
+# is cancelled. Pushes to main and dev are not: each is a commit that reached
+# a protected branch and gets its own result.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Four jobs, because the builds are independent and a runner is not:
 #
 #   plan    every repository check, then decides which environments to build
@@ -37,17 +44,18 @@ on:
 #   build   one job PER ENVIRONMENT, on its own runner, all at once. A push to
 #           dev builds every product board; one after another on one runner that was
 #           14-15 minutes, in parallel it is roughly the slowest single board.
-#   host    the firmware built for a PC (host/), and the host tests of what
-#           the handheld image depends on. The card image itself is
-#           card-image.yml: it takes hours, and is not a check on every change.
+#   host    the firmware built for a PC (host/), and every test in test/host/
+#           (tools/run_host_tests.py). The card image itself is
+#           card-image.yml: it takes an hour, and is not a check on every
+#           change.
 #   verify  the required status check. It waits for the builds and fails if
 #           any failed -- see the note on it below.
 jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.scope.outputs.code }}
-      envs: ${{ steps.environments.outputs.envs }}
+      envs: ${{ steps.scope.outputs.envs }}
+      host: ${{ steps.scope.outputs.host }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,33 +65,66 @@ jobs:
         with:
           python-version: "3.11"
 
+      # What this change reaches, decided ONCE, from one list of changed
+      # files, by tools/envs.py -- never by a pattern in this file:
+      #
+      #   envs  the ESP32 environments to build, as the build job's matrix:
+      #         `app` for any firmware source, one board for that board's
+      #         header, every board for platformio.ini or the board contract,
+      #         a probe when its own source moves, and [] for a change that
+      #         reaches no board (documentation, tools, host/, test/).
+      #   host  whether the PC build of host/ is reached. The host TESTS run
+      #         regardless; see the host job.
+      #
+      # A push to main or dev builds every product and experimental board and
+      # the PC build whatever the diff said (--with-product): those are the
+      # branches the installer and the release are cut from.
+      #
       # The repository checks below are cheap and run unconditionally -- a
       # documentation-only change is exactly what check_docs.py exists to
-      # police. Compiling the firmware to prove that a paragraph in the README
-      # still compiles is the part with nothing to say.
-      - name: Decide whether the firmware needs building
+      # police.
+      #
+      # Two lists lived in this file before -- one for the push path, one for
+      # the pull request path -- and pages.yml carried a third. All three had
+      # drifted: none of them built `audiodiag`, `diag32p` or
+      # `audiodiag_e32r32p`, which had existed for months. A list of
+      # environments maintained in YAML is a list that is wrong and cannot
+      # say so.
+      - name: Decide what this change needs built
         id: scope
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "Not a pull request -- building."
-            echo "code=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          files=$(gh api --paginate \
-            "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" \
-            --jq '.[].filename')
-          echo "Files changed by this pull request:"
-          printf '%s\n' "$files" | sed 's/^/  /'
-          if printf '%s\n' "$files" \
-             | grep -qvE '^(docs/|cases/|site/|tools/|\.github/)|\.md$|^LICENSE$'; then
-            echo "Source code changed -- building firmware."
-            echo "code=true" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
           else
-            echo "Non-source files only (docs, tools, CI config) -- skipping firmware build."
-            echo "code=false" >> "$GITHUB_OUTPUT"
+            # A first push to a branch has no `before` commit to diff against.
+            before="${{ github.event.before }}"
+            zero=0000000000000000000000000000000000000000
+            if [ -n "$before" ] && [ "$before" != "$zero" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
+              git diff --name-only "$before" "${{ github.sha }}" > "$RUNNER_TEMP/changed.txt"
+            else
+              echo platformio.ini > "$RUNNER_TEMP/changed.txt"   # unknown scope: build the lot
+            fi
           fi
+          echo "Files considered:"
+          sed 's/^/  /' "$RUNNER_TEMP/changed.txt"
+
+          WITH_PRODUCT=""
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            WITH_PRODUCT="--with-product"
+          fi
+          # The build job's matrix: one {env, board, name} per environment,
+          # named after the board so a red job says which board broke. []
+          # when nothing needs building.
+          ENVS="$(python tools/envs.py --for-changes $WITH_PRODUCT --matrix < "$RUNNER_TEMP/changed.txt")"
+          HOST="$(python tools/envs.py --for-changes $WITH_PRODUCT --reaches-host < "$RUNNER_TEMP/changed.txt")"
+          echo "Boards to build: $ENVS"
+          echo "PC build reached: $HOST"
+          echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "args=$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < "$RUNNER_TEMP/changed.txt")" >> "$GITHUB_OUTPUT"
 
       # The toolchains, ONCE. This job installs every package the chosen
       # environments need and is the only job that saves this cache; the
@@ -92,7 +133,7 @@ jobs:
       # repository's 10 GB cache, and eviction would quietly make runs slow
       # again. The ESP32-S3 toolchain lives in the same cache as the ESP32 one.
       - name: Cache PlatformIO
-        if: steps.scope.outputs.code == 'true'
+        if: steps.scope.outputs.envs != '[]'
         uses: actions/cache@v4
         with:
           path: |
@@ -102,7 +143,7 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install PlatformIO
-        if: steps.scope.outputs.code == 'true'
+        if: steps.scope.outputs.envs != '[]'
         run: pip install --upgrade platformio
 
       - name: Validate Python tools for syntax errors
@@ -113,9 +154,12 @@ jobs:
           python -m py_compile tools/check_frame_rules.py
           python -m py_compile tools/check_privacy.py
           python -m py_compile tools/check_identifiers.py
+          python -m py_compile tools/check_card_inputs.py
+          python -m py_compile tools/card_inputs.py
           python -m py_compile tools/check_licenses.py
           python -m py_compile tools/gen_site.py
           python -m py_compile tools/gen_board_docs.py
+          for c in tools/check_*.py; do python -m py_compile "$c"; done
 
       # Pillow for gen_board_docs.py --check, which opens any board photo in
       # docs/boards/img/ to refuse one still carrying EXIF (a GPS position, a
@@ -145,6 +189,21 @@ jobs:
           # noticing is exactly what did not happen.
           python tools/check_identifiers.py
 
+          # The card image's OS base is named after what tools/card_inputs.py
+          # calls the OS; card-image.yml's trigger paths and Buildroot version
+          # are held to it here, where a docs-only change still runs.
+          python tools/check_card_inputs.py
+
+          # Every checker in tools/ runs, found by name rather than listed: the
+          # list above had already missed check_contrast.py and
+          # check_platforms.py, and a new checker CI never calls enforces
+          # nothing. The ones above run again here; that costs seconds.
+          for c in tools/check_*.py; do
+            echo "::group::$c"
+            python "$c"
+            echo "::endgroup::"
+          done
+
       # main is the released state, and only a check can keep it that way.
       #
       # Merging dev into main to publish the site carried dev's -SNAPSHOT with
@@ -167,7 +226,7 @@ jobs:
 
       # Site generation is cheap -- seconds, pure standard library, no
       # PlatformIO -- and it MUST run on every pull request. Do not put this
-      # step behind `steps.scope.outputs.code` or any other firmware-source
+      # step behind `steps.scope.outputs.envs` or any other firmware-source
       # gate.
       #
       # The reasoning is the whole point of the step. The firmware gate above
@@ -195,66 +254,15 @@ jobs:
             --out /tmp/gume-site-check \
             --repo "${{ github.server_url }}/${{ github.repository }}"
 
-      # Which environments to build, decided by tools/envs.py rather than by
-      # a list in this file.
-      #
-      # Two lists lived here before -- one for the push path, one for the pull
-      # request path -- and pages.yml carried a third. All three had drifted:
-      # none of them built `audiodiag`, `diag32p` or `audiodiag_e32r32p`, which
-      # had existed for months. A list of environments maintained in YAML is a
-      # list that is wrong and cannot say so.
-      #
-      # The rule the tool applies: the five `product` environments are Braino!
-      # and are what CI is protecting. The ten `diagnostic` ones are bench
-      # probes -- they are built when their own source or platformio.ini moves,
-      # and not otherwise. A push to main or dev builds every product
-      # environment regardless, because that is the branch the installer and
-      # the release are cut from.
-      - name: Decide which environments to build
-        id: environments
-        if: steps.scope.outputs.code == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.number }}/files" --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
-          else
-            # A first push to a branch has no `before` commit to diff against.
-            before="${{ github.event.before }}"
-            zero=0000000000000000000000000000000000000000
-            if [ -n "$before" ] && [ "$before" != "$zero" ] && git cat-file -e "$before^{commit}" 2>/dev/null; then
-              git diff --name-only "$before" "${{ github.sha }}" > "$RUNNER_TEMP/changed.txt"
-            else
-              echo platformio.ini > "$RUNNER_TEMP/changed.txt"   # unknown scope: build the lot
-            fi
-          fi
-          echo "Files considered:"
-          sed 's/^/  /' "$RUNNER_TEMP/changed.txt"
-
-          # --with-product on a push: every board is proven on the branches the
-          # installer and the release are cut from, whatever the diff said.
-          WITH_PRODUCT=""
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            WITH_PRODUCT="--with-product"
-          fi
-          # The build job's matrix: one {env, board, name} per environment,
-          # named after the board so a red job says which board broke. [] when
-          # nothing needs building.
-          ENVS="$(python tools/envs.py --for-changes $WITH_PRODUCT --matrix < "$RUNNER_TEMP/changed.txt")"
-          echo "Matrix: $ENVS"
-          echo "envs=$ENVS" >> "$GITHUB_OUTPUT"
-          echo "args=$(python tools/envs.py --for-changes $WITH_PRODUCT --pio-args < "$RUNNER_TEMP/changed.txt")" >> "$GITHUB_OUTPUT"
-
       # Download every toolchain and library the chosen environments need, so
       # the cache above holds all of them and no build job downloads anything.
       - name: Install the toolchains the builds will need
-        if: steps.scope.outputs.code == 'true' && steps.environments.outputs.envs != '[]'
-        run: pio pkg install ${{ steps.environments.outputs.args }}
+        if: steps.scope.outputs.envs != '[]'
+        run: pio pkg install ${{ steps.scope.outputs.args }}
 
   build:
     needs: plan
-    if: needs.plan.outputs.code == 'true' && needs.plan.outputs.envs != '[]'
+    if: needs.plan.outputs.envs != '[]'
     runs-on: ubuntu-latest
     strategy:
       # Every board reports. One broken board must not cancel the others and
@@ -295,11 +303,20 @@ jobs:
       # the commit hash, and every CI run is a new commit. Measured locally
       # after the move: one object and ~35 s for a new commit, against every
       # object and ~8 minutes before. The cache is content-addressed, so a
-      # restored entry is either right or is not a hit. The key rotates per
-      # run so it keeps absorbing new objects; restore-keys makes the previous
-      # run's copy the starting point.
-      - name: Cache compiled objects
-        uses: actions/cache@v4
+      # restored entry is either right or is not a hit.
+      #
+      # Restored here, saved below -- and saved only from a push to main or
+      # dev, pruned to what this build used. Both halves are measured: on
+      # 2026-11-18 the repository held 11.9 GB of caches against GitHub's
+      # 10 GB, so it was evicting, and most of it was this cache. The key
+      # rotates per commit so it keeps absorbing new objects, and nothing
+      # ever took old ones out, so each board's copy had grown from 142 MB
+      # to 184 MB in a week, against 37 MB for one build; and every pull
+      # request saved five more copies that only that pull request could
+      # read. A pull request restores dev's, which differs from it by the
+      # few files it changed.
+      - name: Restore compiled objects
+        uses: actions/cache/restore@v4
         with:
           path: .pio/build_cache
           key: objects-${{ runner.os }}-${{ matrix.target.env }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
@@ -311,36 +328,137 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build ${{ matrix.target.name }}
-        run: pio run -e ${{ matrix.target.env }}
+        run: |
+          touch "$RUNNER_TEMP/build-started"
+          pio run -e ${{ matrix.target.env }}
+
+      # The Attaky-only code is meant to preprocess out of every other image.
+      # check_platforms.py checks the source for that; this reads the image
+      # just built with nm and fails if one of those symbols is in it. A board
+      # this job did not build is skipped, so each job checks its own image.
+      - name: Check the image carries no other platform's code
+        run: python tools/check_platforms.py --elf .pio/build
+
+      # SCons stamps every cache entry it reads with the time it read it
+      # (os.utime in CacheDir.CacheRetrieveFunc) and writes new ones with the
+      # time they were compiled, and this job starts from an empty .pio/build,
+      # so after the build every object it needed is newer than the marker
+      # and everything older is an object no build of this commit uses.
+      - name: Drop objects this build did not use
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        run: |
+          mkdir -p .pio/build_cache
+          echo "Before: $(du -sh .pio/build_cache | cut -f1), $(find .pio/build_cache -type f | wc -l) objects"
+          find .pio/build_cache -type f ! -newer "$RUNNER_TEMP/build-started" -delete
+          find .pio/build_cache -mindepth 1 -type d -empty -delete
+          echo "After:  $(du -sh .pio/build_cache | cut -f1), $(find .pio/build_cache -type f | wc -l) objects"
+
+      - name: Save compiled objects
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        uses: actions/cache/save@v4
+        with:
+          path: .pio/build_cache
+          key: objects-${{ runner.os }}-${{ matrix.target.env }}-${{ hashFiles('platformio.ini') }}-${{ github.sha }}
+
+      # The build is attached to the run so that somebody who owns the board
+      # and not the toolchain can test it before it is released. A board port
+      # arrives as an issue from a person holding a board nobody here has
+      # (issue 200 was one), and until this step the only way to hand them
+      # the image was to build it on a laptop and zip it into a comment.
+      # Packed exactly as a release is -- the four parts, one merged image
+      # written at 0x0, FLASHING.txt saying how -- by the same tool, so what
+      # a tester flashes is what the release will ship. --only packs this
+      # job's environment alone; a release still packs every one.
+      #
+      # A product or an experimental environment is worth attaching: nobody
+      # flashes a bench probe from a download, and a release does not ship
+      # one. An experimental image is attached here and nowhere else -- this
+      # run is the only way it reaches a tester.
+      - name: Pack ${{ matrix.target.name }} for testers
+        if: matrix.target.kind == 'product' || matrix.target.kind == 'experimental'
+        run: >-
+          python tools/pack_release.py
+          --only ${{ matrix.target.env }}
+          --out dist
+          --built "CI build of ${{ github.head_ref || github.ref_name }}
+          (commit $(git rev-parse --short=7 HEAD)), not a release"
+
+      - name: Attach ${{ matrix.target.name }} to the run
+        if: matrix.target.kind == 'product' || matrix.target.kind == 'experimental'
+        uses: actions/upload-artifact@v4
+        with:
+          name: braino-${{ matrix.target.env }}
+          path: dist/
+          retention-days: 30
+          if-no-files-found: error
 
   # The firmware as a Linux program, the way the handheld image builds it --
   # but natively and with an SDL window, which is minutes rather than the
   # card image's hours, and catches the same thing first: a change under
   # src/ that the host's stand-ins for Arduino, the panel and the board do
   # not cover. host/CLAUDE.md: host/ adapts to src/, never the reverse.
+  #
+  # Then every test in test/host/. The job runs on every pull request, even
+  # a documentation-only one: the tests take about a minute with the
+  # runner's own g++ and need nothing installed, and the runner that decides
+  # what they are lives in tools/, which the firmware gate skips. Only the
+  # SDL build -- an apt install and under a minute of compiling -- waits for
+  # a change that reaches it (`tools/envs.py --reaches-host`).
   host:
     needs: plan
-    if: needs.plan.outputs.code == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
+      # SDL2's headers pull in about 80 packages, 37 MB, and Ubuntu's mirror
+      # for the runners is not always quick: on 2026-11-18 it served them at
+      # 88 kB/s and this step took 7.5 minutes of an 8-minute run. So the
+      # .deb files are kept in a cache, a new one each week (a package
+      # updated that week is the only download), and apt only installs.
+      - name: Week of the year, for the package cache
+        if: needs.plan.outputs.host == 'true'
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the downloaded packages
+        if: needs.plan.outputs.host == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-host-${{ runner.os }}-24.04-${{ steps.week.outputs.week }}
+          restore-keys: apt-host-${{ runner.os }}-24.04-
+
       - name: Install the host build's libraries
+        if: needs.plan.outputs.host == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake pkg-config libsdl2-dev libcurl4-openssl-dev
+          mkdir -p "$HOME/apt-archives/partial"
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 -o Dir::Cache::Archives="$HOME/apt-archives" \
+            install -y --no-install-recommends cmake pkg-config libsdl2-dev libcurl4-openssl-dev
+          # apt downloads as root; the cache is saved by the runner's user.
+          sudo rm -rf "$HOME/apt-archives/partial" "$HOME/apt-archives/lock"
+          sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-archives"
+          du -sh "$HOME/apt-archives"
 
       - name: Build Braino for a PC
+        if: needs.plan.outputs.host == 'true'
         run: |
           cmake -S host -B build/host -DCMAKE_BUILD_TYPE=Release
           cmake --build build/host -j "$(nproc)"
 
-      # Which console this is and what each button is for: every combination
-      # of controls, and every profile the image ships.
-      - name: Host test -- console profiles and button jobs
-        run: |
-          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Ihost/src test/host/host_controls_test.cpp host/src/HostConsole.cpp -o "$RUNNER_TEMP/controls_test"
-          "$RUNNER_TEMP/controls_test"
+      # Every test/host/*_test.cpp, each built with the g++ line its own
+      # header gives a reader -- there is no list of tests here or in the
+      # script, so a new test is run from the commit that adds it, and one
+      # whose header states no build line fails rather than being skipped.
+      # Every test runs whatever the others did, prints its whole output, and
+      # the summary at the end names each one with its result; any failure
+      # fails this job, and through it `verify`.
+      #
+      # It runs even when the SDL build above failed, so that one red job
+      # still says which tests pass.
+      - name: Host tests -- every test in test/host/
+        if: ${{ !cancelled() }}
+        run: python3 tools/run_host_tests.py
 
   # `verify` is the required status check in the "Protect main" and "Protect
   # dev" rulesets, so it must report on EVERY pull request, including
@@ -362,8 +480,9 @@ jobs:
           echo "plan:  ${{ needs.plan.result }}"
           echo "build: ${{ needs.build.result }}"
           echo "host:  ${{ needs.host.result }}"
-          # plan must succeed. build and host may be skipped (nothing needed
-          # building) but must not fail or be cancelled.
+          # plan must succeed. build may be skipped (nothing needed
+          # building); host runs on every pull request, and is skipped only
+          # if plan failed. Neither may fail or be cancelled.
           [ "${{ needs.plan.result }}" = "success" ] || exit 1
           for result in "${{ needs.build.result }}" "${{ needs.host.result }}"; do
             case "$result" in

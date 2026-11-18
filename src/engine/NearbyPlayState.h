@@ -75,6 +75,8 @@ struct Known {
     uint8_t turnFrom = 0;
     uint8_t turnTo = 0;
     uint8_t turnAck = 0;
+    /* When this peer last had a move on the air: see BleScan::Sighting. */
+    uint32_t lastTurnMs = 0;
 };
 
 extern bool enabled_;

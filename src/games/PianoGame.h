@@ -37,11 +37,17 @@ const AppMetadata& pianoAppMetadata();
  */
 class PianoGame : public AppGame {
 public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered (Game.h). */
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
     /* Seven white keys plus the octave, and five black. A single octave rather
      * than two: at 240px portrait, fifteen white keys would be 16px each,

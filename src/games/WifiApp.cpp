@@ -88,247 +88,6 @@ Rect WifiApp::zoneRect(uint8_t slot) const {
     return baseRect(8, static_cast<int16_t>(46 + slot * 28), 304, 26);
 }
 
-Rect WifiApp::keyRect(uint8_t row, uint8_t col) const {
-    return baseRect(static_cast<int16_t>(2 + col * 32),
-                    static_cast<int16_t>(96 + row * 28), 28, 24);
-}
-
-/* Inside the password field (8, 54, 304, 34), against its right-hand end, so
- * it reads as a property of the field rather than one more key. A button
- * rather than a bare box: it is the one control on this screen a young player
- * might press by accident, so it gets the same raised look as everything else
- * that can be pressed -- and the handheld's d-pad finds controls by it. */
-Rect WifiApp::showRect() const {
-    return baseRect(234, 59, 74, 24);
-}
-
-void WifiApp::startScan(GameHost& host) {
-    if (!host.requireCapability(APP_CAP_NETWORK, "scan wifi")) {
-        return;
-    }
-    /* Two-step: flip to the Scanning phase and let the host render the
-     * "Scanning..." screen, then run the actual scan on the NEXT update tick.
-     * The scan itself BLOCKS for a few seconds.
-     *
-     * The async form (scanNetworks(true, ...) polled via scanComplete()) is
-     * what silently returned nothing on this board. An isolated radio test
-     * found 58 access points with a blocking scan, so we use the call pattern
-     * that demonstrably works rather than the tidier one. */
-    phase_ = Phase::Scanning;
-    scanPending_ = true;
-    netCount_ = 0;
-    listPage_ = 0;
-    scanStart_ = millis();
-    markFullDirty();
-}
-
-void WifiApp::runScan() {
-    /* THIS BLOCKS FOR ABOUT FOUR AND A HALF SECONDS, ON PURPOSE.
-     *
-     * A 300ms-per-channel active scan is roughly four seconds, and the mode
-     * changes below add another 300ms of settling. That is a deliberate
-     * trade -- the network list is something the owner picks from once, and a
-     * scan that misses their access point is worse than a screen that pauses.
-     *
-     * But it is called straight from update(), on the loop task, with the
-     * watchdog armed at TIMEOUT_SECONDS = 12 and the monitor logging a stall
-     * past STALL_WARN_MS = 3000. So every single Wi-Fi scan this firmware has
-     * ever done has logged a stall, and a slower scan -- a busy band, a retry
-     * -- moves it towards a reboot that would look to the owner like the Wi-Fi
-     * screen crashing the console.
-     *
-     * The guard is what every other blocking call in the tree already has:
-     * Board::runTouchCalibration(), ntpUdpProbe() and detectTimezone() all
-     * take one. This is the last place that blocked for seconds without it. */
-    const Watchdog::Pause wdtPause;
-
-    WiFi.persistent(false);
-    WiFi.mode(WIFI_OFF);
-    delay(100);
-    WiFi.mode(WIFI_STA);
-
-    /* MODEM SLEEP MUST STAY ON WHILE THE BLUETOOTH CONTROLLER IS UP.
-     *
-     * This line used to be an unconditional `setSleep(false)`, because a
-     * sleeping radio misses probe responses and the scan came back short.
-     * That is true, and on a board with the BLE beacon switched on it also
-     * PANICS THE DEVICE: esp_wifi refuses to share the radio with a
-     * Bluetooth controller unless Wi-Fi is power-saving, and it does not
-     * degrade or return an error --
-     *
-     *   E wifi: Should enable WiFi modem sleep when both WiFi and Bluetooth
-     *           are enabled!!!!!!
-     *   abort() was called
-     *
-     * The console reboots, which from the outside looks like "Wi-Fi is
-     * broken": the beacon is off by default, so this only bites an owner who
-     * turned it on and then opened this screen -- and then it bites every
-     * single time, in a loop, because the first thing they do on the way back
-     * is try again.
-     *
-     * The condition is asked of the BT controller directly rather than of
-     * BleBeacon, deliberately. It is the exact thing esp_wifi tests, so the
-     * two cannot drift; going through the beacon's own state would leave a
-     * gap wherever the controller is up for some other reason -- the Nearby
-     * scanner today, anything else later.
-     *
-     * The cost is a scan that may miss a distant access point while the
-     * beacon is on. That is the right trade against a reboot, and the scan is
-     * a list the owner picks from rather than a measurement. */
-    const bool btControllerUp =
-        esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED;
-    WiFi.setSleep(btControllerUp);
-    delay(200);
-    WiFi.scanDelete();
-
-    // blocking, show_hidden, active, 300ms per channel -> roughly 4 seconds
-    const int16_t n = WiFi.scanNetworks(false, true, false, 300);
-    lastScanCode_ = n;
-
-    netCount_ = 0;
-    if (n > 0) {
-        /* Dedupe by SSID keeping the strongest signal. A mesh router advertises
-         * the same name from every node, which otherwise fills the entire list
-         * with repeats. Hidden APs are dropped: they cannot be joined here. */
-        for (int16_t i = 0; i < n && netCount_ < static_cast<int8_t>(MAX_NETS); ++i) {
-            const String ssid = WiFi.SSID(i);
-            if (ssid.length() == 0) continue;
-
-            int8_t existing = -1;
-            for (int8_t k = 0; k < netCount_; ++k) {
-                if (WiFi.SSID(netIdx_[k]) == ssid) { existing = k; break; }
-            }
-            if (existing >= 0) {
-                if (WiFi.RSSI(i) > WiFi.RSSI(netIdx_[existing])) {
-                    netIdx_[existing] = static_cast<int8_t>(i);
-                }
-                continue;
-            }
-            netIdx_[netCount_++] = static_cast<int8_t>(i);
-        }
-
-        // Strongest first.
-        for (int8_t a = 0; a + 1 < netCount_; ++a) {
-            for (int8_t b = static_cast<int8_t>(a + 1); b < netCount_; ++b) {
-                if (WiFi.RSSI(netIdx_[b]) > WiFi.RSSI(netIdx_[a])) {
-                    const int8_t t = netIdx_[a]; netIdx_[a] = netIdx_[b]; netIdx_[b] = t;
-                }
-            }
-        }
-    }
-
-    listPage_ = 0;
-    phase_ = Phase::List;
-    markFullDirty();
-}
-
-void WifiApp::checkScan() {
-    // Runs one tick after startScan(), so the "Scanning..." screen is visible
-    // before we block.
-    if (scanPending_) {
-        scanPending_ = false;
-        runScan();
-    }
-}
-
-void WifiApp::startConnect(GameHost& host) {
-    if (!host.requireCapability(APP_CAP_NETWORK, "join wifi")) {
-        return;
-    }
-    Board& board = host.board();
-
-    String ssid = selectedSsid_;
-    if (ssid.length() == 0 && selectedNet_ >= 0) ssid = WiFi.SSID(selectedNet_);
-    if (ssid.length() == 0) ssid = board.wifiSsid();
-
-    /* Lengths, not names. The network's name is the household's, and a
-     * serial log is the one thing here that gets pasted into bug reports --
-     * see the note in BrainoApp::begin(). A zero length is the failure this
-     * line exists to catch, and it survives the redaction intact. */
-    Serial.printf("[wifi] JOIN ssid len %u, pass len %u\n",
-                  (unsigned)ssid.length(), (unsigned)password_.length());
-
-    /* NOTHING IS SAVED HERE. It used to be: the new SSID and password went
-     * into NVS before WiFi.begin() was called, so mistyping a password on a
-     * different network destroyed the working one -- the owner came back to a
-     * console that could not reach the network it had been using for weeks,
-     * and had no way to find out what it used to be. The credentials are
-     * written in checkConnect(), once the association has actually
-     * succeeded; until then the old ones are the ones on the device. */
-    if (ssid.length() == 0) {
-        Serial.println("[wifi] REFUSING to join an empty SSID");
-        phase_ = Phase::Idle;
-        markFullDirty();
-        return;
-    }
-
-    /* Off here too: the join path is the other place a password reaches
-     * esp_wifi, and its own NVS copy is one this firmware cannot clear. See
-     * the note in BoardNetwork.cpp. */
-    WiFi.persistent(false);
-    WiFi.begin(ssid.c_str(), password_.c_str());
-    connectStart_ = millis();
-    connectOk_ = false;
-    phase_ = Phase::Connecting;
-    markFullDirty();
-}
-
-void WifiApp::checkConnect(GameHost& host) {
-    if (!host.requireCapability(APP_CAP_NETWORK, "finish wifi join")) {
-        phase_ = Phase::Idle;
-        markFullDirty();
-        return;
-    }
-    Board& board = host.board();
-    const wl_status_t st = WiFi.status();
-    if (st == WL_CONNECTED) {
-        connectOk_ = true;
-        /* Now it is worth keeping. The readback checks that NVS round-tripped
-         * what we wrote; the verdict is the diagnostic, and the name was only
-         * ever how it was spelled. */
-        String ssid = selectedSsid_;
-        if (ssid.length() == 0 && selectedNet_ >= 0) ssid = WiFi.SSID(selectedNet_);
-        if (ssid.length() == 0) ssid = WiFi.SSID();
-        if (ssid.length() > 0) {
-            board.setWifiCredentials(ssid, password_);
-            saveReadback_ = board.wifiSsid();
-            Serial.printf("[wifi] saved after connecting, readback %s\n",
-                          saveReadback_ == ssid ? "matches" : "MISMATCH");
-        }
-        // Delegate to the board so the stored timezone is applied. This used to
-        // call configTime(0, 0, ...) directly, which pinned the clock to UTC.
-        host.board().beginTimeSync();
-        phase_ = Phase::Done;
-        markFullDirty();
-        return;
-    }
-    if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL ||
-        millis() - connectStart_ > 15000UL) {
-        connectOk_ = false;
-        /* The attempt failed, so the device is sitting associated with
-         * nothing while its saved network is still in NVS untouched. Ask for
-         * it back: without this the console stays off the air until it is
-         * rebooted, which is indistinguishable from having lost the network.
-         * Harmless when nothing is saved -- beginTimeSync() returns at once. */
-        rejoinSaved(host);
-        phase_ = Phase::Done;
-        markFullDirty();
-    }
-}
-
-/* Put the console back on the network it already had.
- *
- * Every way out of the scan -- Back from the list, < back from the keyboard, a
- * failed join -- leaves the radio associated with nothing, because runScan()
- * cycles WIFI_OFF/WIFI_STA to scan. The credentials in NVS are untouched, so
- * this is only a reconnect; it is what stops "I looked at the other networks"
- * from reading as "my network is gone". */
-void WifiApp::rejoinSaved(GameHost& host) {
-    Board& board = host.board();
-    if (!board.hasWifiCredentials() || Ui::wifiUp()) return;
-    board.beginTimeSync();
-}
-
 void WifiApp::update(GameHost& host, const TouchPoint& touch) {
     syncPanel(host);
     if (phase_ == Phase::Idle) {
@@ -352,6 +111,23 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
         return;
     }
     if (phase_ == Phase::Connecting) { checkConnect(host); return; }
+
+    /* The keyboard came off with the keys left off: put them back. */
+    if (phase_ == Phase::Keyboard && keypad_.lost()) {
+        keyboardPainted_ = false;
+        markFullDirty();
+    }
+
+    /* A keyboard types into the password and nowhere else, and never runs
+     * the touch tests below, whose coordinates are stale on its frame. */
+    const char typed = hostTypedChar(host);
+    if (typed != 0) {
+        if (phase_ == Phase::Keyboard &&
+            host.requireCapability(APP_CAP_NETWORK, "change wifi settings")) {
+            typePassword(host, typed);
+        }
+        return;
+    }
 
     if (!touch.justPressed) return;
     if (!host.requireCapability(APP_CAP_NETWORK, "change wifi settings")) {
@@ -402,49 +178,14 @@ void WifiApp::update(GameHost& host, const TouchPoint& touch) {
                 capsLock_ = false;
                 showPassword_ = false;
                 phase_ = Phase::Keyboard;
+                keypad_.begin();
                 markFullDirty();
                 return;
             }
         }
 
     } else if (phase_ == Phase::Keyboard) {
-        const char (*keys)[11] = symbols_ ? KEYS_SYMBOL
-                                             : (capsLock_ ? KEYS_UPPER : KEYS_LOWER);
-        /* The field is repainted on every keystroke anyway, so the checkbox
-         * costs the same partial repaint as a key; the grid is untouched. */
-        if (showRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            showPassword_ = !showPassword_;
-            markDirty();
-            return;
-        }
-        for (uint8_t row = 0; row < 4; ++row) {
-            for (uint8_t col = 0; col < 10; ++col) {
-                if (keyRect(row, col).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-                    if (password_.length() < 63) password_ += keys[row][col];
-                    markDirty(); return;
-                }
-            }
-        }
-        if (baseRect(2, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            capsLock_ = !capsLock_; symbols_ = false;
-            keyboardPainted_ = false; markDirty(); return;
-        }
-        if (baseRect(58, 208, 52, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            symbols_ = !symbols_; keyboardPainted_ = false; markDirty(); return;
-        }
-        if (baseRect(114, 208, 74, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (password_.length() < 63) password_ += ' ';
-            markDirty(); return;
-        }
-        if (baseRect(192, 208, 50, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            if (password_.length() > 0) password_.remove(password_.length() - 1);
-            markDirty(); return;
-        }
-        if (baseRect(246, 208, 72, 24).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) { startConnect(host); return; }
-        if (baseRect(8, 34, 60, 20).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            phase_ = Phase::List;
-            markFullDirty();
-        }
+        updatePassword(host, touch);
 
     } else if (phase_ == Phase::TimeZone) {
         const uint8_t n = Board::tzZoneCount();
@@ -685,98 +426,7 @@ void WifiApp::renderDynamic(GameHost& host) {
         Ui::drawPagerButton(tft, baseRect(228, 206, 84, 26), "Next", listPage_ + 1 < pages);
 
     } else if (phase_ == Phase::Keyboard) {
-        const char (*keys)[11] = symbols_ ? KEYS_SYMBOL
-                                             : (capsLock_ ? KEYS_UPPER : KEYS_LOWER);
-        const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();
-        tft.setTextColor(Ui::text(), Ui::bg());
-        tft.setTextDatum(TL_DATUM);
-        tft.drawString(String("< back   ") + ssid, baseX(8), baseY(36), 2);
-        /* The one shape on this screen that is not built from a Rect, and so
-         * the one the mapping pass missed: it was still drawn at the design
-         * size while the text inside it had moved, which put the caption
-         * below the box it belongs in. */
-        const Rect field = baseRect(8, 54, 304, 34);
-        tft.fillRoundRect(field.x, field.y, field.w, field.h, 4, Ui::surface());
-        tft.drawRoundRect(field.x, field.y, field.w, field.h, 4, Ui::outline());
-        tft.setTextColor(password_.length() > 0 ? Ui::text() : Ui::muted(), Ui::surface());
-        tft.setTextDatum(ML_DATUM);
-        /* One '*' per character unless Show is ticked: the length is still
-         * there to count, which is what catches a missed or doubled key. */
-        String shown = password_.length() > 0 ? password_ : "Password";
-        if (password_.length() > 0 && !showPassword_) {
-            char stars[64];
-            const size_t n = password_.length() < sizeof(stars) - 1 ? password_.length()
-                                                                     : sizeof(stars) - 1;
-            memset(stars, '*', n);
-            stars[n] = '\0';
-            shown = stars;
-        }
-        const Rect show = showRect();
-        const int16_t fieldTextMax = static_cast<int16_t>(show.x - field.x - 16);
-        while (shown.length() > 2 && tft.textWidth(shown, 2) > fieldTextMax) {
-            shown.remove(shown.length() - 1);
-        }
-        /* The field is not cleared above the text's own width on a shorter
-         * repaint, so wipe the text area first: deleting a character, or
-         * switching '*'s for letters, must not leave the old tail behind. */
-        tft.fillRect(static_cast<int16_t>(field.x + 2), static_cast<int16_t>(field.y + 2),
-                     static_cast<int16_t>(show.x - field.x - 4), static_cast<int16_t>(field.h - 4),
-                     Ui::surface());
-        /* Centred in the field rather than at a mapped y of its own, so the
-         * two cannot drift apart again. */
-        tft.drawString(shown, static_cast<int16_t>(field.x + 8),
-                       static_cast<int16_t>(field.y + field.h / 2), 2);
-
-        /* Show: a box that fills with the success colour and carries a tick
-         * when the password is visible, and the word beside it. */
-        Ui::drawButton(tft, show, "", Ui::panel(), Ui::outline(), Ui::text(), false, 2);
-        const int16_t box = 14;
-        const int16_t bx = static_cast<int16_t>(show.x + 6);
-        const int16_t by = static_cast<int16_t>(show.y + (show.h - box) / 2);
-        tft.fillRoundRect(bx, by, box, box, 3, showPassword_ ? Ui::success() : Ui::surface());
-        tft.drawRoundRect(bx, by, box, box, 3, Ui::outline());
-        if (showPassword_) {
-            const uint16_t ink = Ui::onFill(Ui::success());
-            tft.drawLine(bx + 3, by + 7, bx + 6, by + 10, ink);
-            tft.drawLine(bx + 6, by + 10, bx + 11, by + 4, ink);
-            tft.drawLine(bx + 3, by + 8, bx + 6, by + 11, ink);
-            tft.drawLine(bx + 6, by + 11, bx + 11, by + 5, ink);
-        }
-        tft.setTextColor(Ui::text(), Ui::panel());
-        tft.setTextDatum(ML_DATUM);   // drawButton() leaves its own datum behind
-        tft.drawString("Show", static_cast<int16_t>(bx + box + 6),
-                       static_cast<int16_t>(show.y + show.h / 2), 2);
-        /* THE KEYBOARD IS NOT REPAINTED PER KEYSTROKE.
-         *
-         * Every key used to call markFullDirty(), which clears the screen and
-         * redraws forty-five buttons -- each a shadow roundrect, a fill, a
-         * bevel, an outline and a glyph -- to change one character in the
-         * field above them. On the panel that is the whole screen flashing at
-         * typing speed, on the one screen where an owner is looking carefully
-         * at what they have typed.
-         *
-         * What actually changes is the field, which is drawn above on every
-         * repaint. The keys change only when the LAYER does -- caps, symbols
-         * -- or when the screen underneath was cleared, and both of those say
-         * so by clearing keyboardPainted_. */
-        if (!keyboardPainted_) {
-            for (uint8_t row = 0; row < 4; ++row) {
-                for (uint8_t col = 0; col < 10; ++col) {
-                    char buf[2] = {keys[row][col], 0};
-                    Ui::drawButton(tft, keyRect(row, col), String(buf), Ui::surface(), Ui::outline(), Ui::text(), false, 2);
-                }
-            }
-            keyboardPainted_ = true;
-        }
-        Ui::drawButton(tft, baseRect(2, 208, 52, 24), "CAPS",
-                       capsLock_ ? Ui::accent() : Ui::surface(), Ui::outline(),
-                       capsLock_ ? TFT_WHITE : Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(58, 208, 52, 24), symbols_ ? "abc" : "!#$",
-                       symbols_ ? Ui::accent() : Ui::surface(), Ui::outline(),
-                       symbols_ ? TFT_WHITE : Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(114, 208, 74, 24), "SPACE", Ui::surface(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(192, 208, 50, 24), "DEL", Ui::panel(), Ui::outline(), Ui::text(), false, 1);
-        Ui::drawButton(tft, baseRect(246, 208, 72, 24), "JOIN", Ui::accent(), Ui::outline(), TFT_WHITE, false, 2);
+        renderPassword(host);
 
     } else if (phase_ == Phase::Connecting) {
         const String ssid = selectedSsid_.length() ? selectedSsid_ : board.wifiSsid();

@@ -1,528 +1,150 @@
 # Agent instructions
 
-This project keeps its guidance in **`CLAUDE.md`** files. They apply to everyone who changes this repository — every agent regardless of which tool you are, and every human contributor too. There is one rulebook, not an agent track and a people track: [CONTRIBUTING.md](CONTRIBUTING.md) covers how work reaches the protected `main` and `dev` branches, and these files cover what the code itself has to honour. Read them as your instructions.
+This project keeps its rules in **`CLAUDE.md`** files. They apply to everyone
+who changes this repository -- every agent, whichever tool you are, and every
+human contributor. There is one rulebook, not an agent track and a people
+track: [CONTRIBUTING.md](CONTRIBUTING.md) covers how work reaches the protected
+`main` and `dev` branches, and these files cover what the change has to
+honour. Read them as your instructions.
 
-- [`CLAUDE.md`](CLAUDE.md) — start here: build commands, architecture, invariants, and the protocol for working alongside other agents
-- [`src/engine/CLAUDE.md`](src/engine/CLAUDE.md) — screen lifecycle, catalogs, progress tracking
-- [`src/games/CLAUDE.md`](src/games/CLAUDE.md) — how to add or change a game
-- [`src/hal/CLAUDE.md`](src/hal/CLAUDE.md) — hardware, persistence, profiles, watchdog
-- [`src/ui/CLAUDE.md`](src/ui/CLAUDE.md) — theming and drawing helpers
+This file is the door for tools that read `AGENTS.md` rather than `CLAUDE.md`.
+It states the rules in brief and says where each is written in full; where the
+two ever differ, `CLAUDE.md` is right and this file is the defect.
+`tools/check_docs.py` fails if this file stops linking a rulebook.
 
-**Modularity rule:** If a file is becoming large (as a rule of thumb, `src/main.cpp` > ~400 lines of active logic in one function, or any `.cpp` > ~600 lines total), **refactor it into a more modular form first** before making the requested change. The refactor must not break existing functionality and must land as its own commit before the feature change that prompted it.
+## The rulebooks
 
-**System/UI app orientation rule:** Any screen that is a system utility (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, or any future app beyond the playable game catalog) must work in **both landscape and portrait**. Read `tft.width()` / `tft.height()` at render time, not `SCREEN_WIDTH`/`SCREEN_HEIGHT`. Use `Ui::drawTab()` for multi-section layouts; the strip adapts when you divide screen width at render time.
+- [`CLAUDE.md`](CLAUDE.md) -- start here: the product's rules, which hold on
+  every platform; build, architecture, invariants; working alongside other
+  agents; and where each platform's rules live
+- [`src/engine/CLAUDE.md`](src/engine/CLAUDE.md) -- screen lifecycle, the app
+  registry, courses, progress
+- [`src/games/CLAUDE.md`](src/games/CLAUDE.md) -- how to add or change a game
+  or a system screen
+- [`src/hal/CLAUDE.md`](src/hal/CLAUDE.md) -- hardware, persistence, profiles,
+  sound, battery, watchdog; the **ESP32 boards' hardware notes** and the
+  **Attaky Core's standing rules**
+- [`src/ui/CLAUDE.md`](src/ui/CLAUDE.md) -- theming and drawing helpers
+- [`host/CLAUDE.md`](host/CLAUDE.md) -- the **Linux platform**: the same `src/`
+  as a PC program and as the Anbernic RG40XX V's whole-device image
+- [`docs/PORTING.md`](docs/PORTING.md) -- adding an ESP32 board, or a platform
 
-## Two standing rules — you should never have to be told these
+## Three kinds of platform
 
-**1. A commit trailer names who is accountable; a branch name says what
-changed.** This project is built with AI coding tools and says so openly -- in
-the README, in NOTICE.md and on the website. Nothing in this rule hides that,
-and nothing in it may be read as asking you to. It is about what a git trailer
-*means*. `Co-Authored-By:` is a claim of authorship and, under the GPL, of
-copyright; a tool can hold neither, cannot accept the licence and cannot answer
-for a defect. The author of record is the person who directed the change,
-reviewed it, tested it and licenses it. So do not add `Co-Authored-By:` naming
-a model, a "Generated with..." footer, or any sign-off crediting a tool -- in
-commits, amends, squashes or PR bodies. Check the message before `git commit`.
-If a change was substantially drafted by a tool and that is worth recording,
-write it as a plain sentence in the commit body ("drafted with an AI coding
-assistant; reviewed and tested by hand"), which a reader can weigh, rather than
-as a trailer that tooling parses as an author.
-
-Names describe the work, not the workbench: `feat/<game-id>`, `fix/<area>`,
-`docs/<topic>`, never `<tool-name>/fix-the-thing`. A branch named after a tool
-says which one was open that day and nothing about the change, and it is
-permanent -- it lands in the merge commit, the pull request and every clone.
-The same for file names, identifiers and comments: which tool typed a line is
-not information about the line. Already on a branch named after a tool? Rename
-it before opening the PR (`git branch -m <new-name>`).
-
-The `CLAUDE.md` files are the one exception, because that filename is how you
-found these instructions. The rule is about what a *change* carries.
-
-**2. Keep the docs in sync as part of the change, not as a follow-up.** If your
-change alters behaviour, structure, dependencies, screens, settings, the game
-list or the build, then in the *same* commit you also update whichever of these
-it touched:
-
-| You changed | Update |
+| Platform | Rules |
 |---|---|
-| Anything user-visible or the feature set | `README.md` — including the games count, the flash/RAM figures from your own `pio run`, and the version |
-| Architecture, invariants, layout, build flags, dependencies | `CLAUDE.md` |
-| The agent protocol itself | `AGENTS.md` (this file) |
-| A subsystem's rules | the `CLAUDE.md` in that directory |
-| A new game | `src/games/CLAUDE.md` and the README game table |
-
-Do not wait to be asked, and do not leave it for "a docs pass later". A stale
-`README.md` that claims the wrong game count or the wrong flash figure is a
-defect, and it is your defect if you shipped the change that made it wrong.
-
-**Run `python tools/check_docs.py` before you commit.** It fails if the version,
-the game count, the source-tree listing or the build figures have drifted, and
-if the About app has started restating facts instead of deriving them. These
-rules existed and the docs went stale anyway -- the README shipped claiming 23
-games when there were 26, and the source listing missed three files that had
-been added. Asking for vigilance does not work at the end of a long change; the
-check does. It is not a substitute for reading the prose, only for the parts a
-machine can catch.
-
-If your change alters a screen's layout, or adds or removes one, regenerate the
-mock-ups in the same commit: `python tools/gen_screens.py`. `docs/screens/` kept
-images of the deleted Countries game for two releases, and the Settings picture
-showed a grid that no longer existed. A mock-up of a screen that is not there
-any more is a worse lie than a missing one.
-
-## The About app is user-facing documentation — keep it true
-
-`AboutApp` is the only documentation most owners will ever read, and the only
-one they read *while holding the device*. It is part of the deliverable, not a
-credits screen. **Update it in the same commit as the change it describes.**
-
-It was already six games out of date once, because it kept a hand-written list.
-The fix, and the standing rule, is to **derive rather than restate**:
-
-| About shows | Derived from |
-|---|---|
-| Version | `BRAINO_VERSION` |
-| Game count and every game name/blurb | `GAME_CATALOG` |
-| Board name | `BOARD_NAME` |
-| Wi-Fi status | `Board::hasWifiCredentials()` / `isWifiConnected()` |
-| Beacon status and advertised name | `BleBeacon::active()` / `configured()` |
-| Whether scores are being shared | `BleBeacon::configured().sharesActivity` |
-
-If you are about to type a fact into About that the firmware already knows, read
-it from the firmware instead. Anything genuinely static — the credits, the
-privacy statements — must be re-read whenever the thing it describes changes.
-
-## No identifiers in this repository — the rule that cannot be broken
-
-**Never commit anything that identifies one physical device, one network or one
-person.** Not in a tool file, not in a comment, not in a fixture, not
-temporarily, and not because the design reads better that way. Such values live
-on the machine that owns the hardware, gitignored.
-
-An agent wrote `tools/board_registry.json`, mapping six boards' **MAC
-addresses** to the firmware each ran. It was tracked for three commits and
-shipped in two release tarballs. It was a deliberate, reasonable-looking design
-decision, which is the point: reasonable is not the test.
-
-A MAC is burned into eFuse — it cannot be changed, so publishing one names that
-board for the life of the silicon, and deleting the file does not un-publish it
-because history, clones, forks and tarballs all keep copies.
-
-- Identify a board by **`Board::deviceId()`** (`R28T-9F3A2C71`): firmware
-  generated, one-way hashed so the MAC cannot be recovered, prefixed with the
-  *model* tag, and reissued by a factory reset.
-- The boot banner prints `device=`, never `mac=`. That line gets pasted into
-  public issues.
-- `tools/board_registry.json` is gitignored; the `.example.json` ships with
-  placeholders and `ESP32_boardUtil.py --learn` fills in the real one locally.
-- **Ask a board before you reset it.** Current firmware answers `identify` on
-  the serial port with one `ok ...` line (device id, board, version, build)
-  and keeps running; `ESP32_boardUtil.py` does this first and resets only a
-  board that stays silent. `--no-reset` never resets. A reset discards another
-  agent's in-flight test, and on the bench an E32R40T once needed its battery
-  pulled to boot again after one.
-- **Configure boards with `python tools/configure_boards.py`, not by hand.** It
-  applies `tools/bench_config.json` (gitignored -- it holds a Wi-Fi password
-  and names; start from `bench_config.example.json`) to every board that
-  answers `identify`, through the serial console behind the admin PIN. Never
-  commit that file, and never paste the tool's input into an issue.
-- **A new console command is a row in the table** in
-  `src/engine/AppRuntimeConsole.cpp`, and a new device setting is a row in
-  `AppRuntimeConsoleSettings.cpp` -- never another string match. Each answers
-  with one `ok key="v"` or `err <code> <message>` line, keys in word
-  characters only. Anything that writes, or reads player data, gets a gated
-  capability, which puts it behind the PIN automatically.
-- `python tools/check_identifiers.py` runs in CI. It catches MACs and public
-  IPs; it cannot catch an SSID or a person's name, so a clean run is not
-  permission.
-- **Every file you add carries its own licence notice.** SPDX identifier,
-  holder (`iamankushpandit`), where it came from, what reuse requires -- source,
-  scripts, workflows, and documents as a visible footer. Do not type one: run
-  `python tools/check_licenses.py --fix`, which is also what CI checks. A
-  generated file gets its notice from its generator, via `header_for()` in that
-  same tool, so regenerating cannot strip it.
-
-## No data collection — the rule that outranks the feature
-
-Braino collects nothing about the player using it, and no change may alter
-that. It is not a setting that ships switched off; it is what the product is.
-Exactly three things leave the device: an NTP time query, one `ip-api.com`
-lookup to guess the timezone on first connect, and the opt-in, non-connectable
-BLE beacon. **That list is closed.** Do not add analytics, usage counters,
-crash reporting, any other HTTP/UDP/DNS request, any dependency that phones
-home at runtime, or anything transmitted that carries a player's name, profile
-name, score, progress or typing. A fourth outbound flow needs the maintainer's
-agreement in an issue *before* the code exists — it is a change to what the
-product promises, not a feature to be reviewed on merit.
-
-Storing is not collecting: scores and profiles live in this device's own NVS
-and never leave it. The full statement, including what to update if a
-transmitted-data change is ever agreed, is in
-[CONTRIBUTING.md](CONTRIBUTING.md#no-data-collection).
-
-**A privacy claim that has drifted from the hardware is worse than none at all,
-because it is believed.** If you add or change anything that transmits, stores
-or shares data, the About radio page and the README Privacy section are part of
-that change. Not a follow-up.
-
-About is also a system app, so it follows the orientation rule: lay out against
-`tft.width()` / `tft.height()`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`.
-
-## Responsiveness rule — know what a frame costs
-
-The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it
-sleeps only the remainder, so a slow frame is not punished twice. That budget is
-the whole allowance for touch, logic and drawing. Three things have each eaten
-most of it at some point in this codebase, and all three look harmless at the
-call site:
-
-1. **NVS reads.** `Preferences` is flash-backed — every getter is a hash lookup,
-   not a variable read. `screenSaverSeconds()` ran once per loop iteration and
-   `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
-   than once per screen change gets a write-through RAM mirror in `Board`**:
-   the setter updates the mirror and NVS together, so a stale read is not
-   possible. Theme, layout, screen flip, brightness, idle timeout, active profile, game
-   visibility and the Wi-Fi credentials all work this way now. Add to that list
-   rather than reaching for `prefs_` in a hot path.
-2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
-   and `Ui::drawTopBar()` calls two battery getters, so every top bar cost
-   ~20ms — a whole frame — before anything was drawn. **No `delay()` in
-   anything a render path can reach.** Sample on a cadence and cache.
-3. **Rebuilding content that did not change.** System Info reassembled every
-   row on every frame while scrolling. Scrolling changes an offset, not
-   content. Gate rebuilds behind a stale flag.
-
-Before claiming a screen is fast: System Info's Memory tab shows loop load,
-worst work and worst frame, and the watchdog logs a stall past
-`STALL_WARN_MS`. A worst frame above ~40ms is a bug, not a heavy screen.
-
-Related: full-screen repaints are ~150KB over SPI and ~30ms of visible blanking,
-which is why `Game` has two levels of invalidation. Guard static chrome behind
-`needsFullRender()` and repaint only what moved.
-
-## Redraw rule -- a full repaint is the exception
-
-**A FULL REDRAW IS THE EXCEPTION, IN EVERY GAME. Earn it.**
-
-`markFullDirty()` clears the screen and repaints the chrome: ~150KB over SPI
-and roughly 30ms of visible blanking, which is one and a half frame budgets.
-Doing it to change a few pixels is not a lost optimisation, it is a **visible
-flash** in the player's hand, and on a screen that updates often it is the
-first thing anybody notices.
-
-Before reaching for it, ask what actually changed on the panel:
-
-- **Something appeared?** Draw it. Nothing needs erasing, so nothing needs
-  clearing: overdraw it and touch nothing else.
-- **Something moved?** Erase its own box and repaint the guide over that box.
-  Derive the box from the geometry that drew the thing; never type in a
-  rectangle. Drawing functions that paint exactly what is already there in the
-  same colours are **idempotent**, so re-running one whole is visually a no-op
-  outside the box you cleared, which is usually cheaper and always simpler than
-  working out precisely which pieces overlapped.
-- **Something animating on its own clock?** Make it change colour rather than
-  size. A marker that never grows never has to be erased, which is what keeps
-  the incremental path available at all.
-- **The scene genuinely changed** (a new question, a new letter, a new screen,
-  an end-of-game banner)? *Then* repaint fully. A stable picture is worth the
-  frame it costs when the whole picture is new.
-
-This is not theoretical. `LetterTracer`'s direction arrow was first written to
-`markFullDirty()` whenever it moved, on the reasoning that a moving arrow
-changes the picture's shape and turns are rare. Turns are not rare: a
-three-letter joined word has about eleven, so tracing one word cleared the
-screen eleven times, and it was reported from the device as the screen
-flashing. The fix was fifteen lines (erase the arrow's own box, repaint the
-ghost and the dots over it) and the reasoning that produced the bug was a guess
-about frequency that was never checked.
-
-The same rule holds for the top bar: route clock, battery and notification
-changes through `requestChromeRender()`, not `requestRender()`.
-
-Related: `Game` has two levels of invalidation for exactly this reason.
-`markDirty()` repaints the moving parts; `markFullDirty()` repaints the
-background and chrome as well. Guard static chrome behind
-`needsFullRender()`.
-
-## Memory rule — there is no garbage collector
-
-C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.
-So the thing that kills this device is not the leak you are picturing. There is
-not one `new`, `delete`, `malloc` or `free` in this firmware — every screen is a
-`static` instance and everything else is stack or a fixed member. **Keep it that
-way**, and the classic leak is impossible by construction.
-
-What actually kills it is **fragmentation**: many small allocations of differing
-sizes, made and freed over and over, chop the free space into pieces too small
-to satisfy a later request. Free heap looks fine right up to the allocation that
-fails, hours in. The only visible symptom beforehand is the fragmentation
-percentage, which is why System Info shows it.
-
-The offender is almost always Arduino `String`. Every concatenation allocates,
-every assignment may reallocate, and a `String` member that is rewritten each
-frame is a long-lived block being freed and re-made 27 times a second.
-
-Rules, in the order they bite:
-
-1. **No raw owning allocation.** No `new`/`delete`, no `malloc`/`free`, no
-   owning raw pointers. If something genuinely must be dynamic, justify it in a
-   comment and give it an owner with a destructor.
-2. **No `String` in anything that runs per frame.** Build text with `snprintf`
-   into a stack buffer, or store it in a fixed `char[]`. `RowList` (`src/ui/`)
-   is the worked example: it was 48 rows × 2 `String`s rebuilt every frame —
-   about 96 long-lived allocations churning at frame rate — and is now flat
-   char buffers that allocate nothing, ever.
-3. **Don't rebuild content on every frame.** Rebuild when the data changed and
-   keep a `stale` flag. Scrolling changes an offset, not the content.
-4. **A `String` member on a screen is a smell.** A few exist for genuinely
-   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) — that is
-   the bar. Anything derived from state belongs in a fixed buffer.
-5. **Give back what you borrowed, in `end()`.** Every screen transition goes
-   through `BrainoApp::leaveActiveGame()`, which compares free heap
-   against the value captured before that screen's `begin()` and logs
-   `[heap] '<screen>' left N bytes short` when a screen does not hand it back.
-   Watch the serial log after adding a screen.
-6. **Prefer fixed-size members over growth.** A statically sized array that is
-   occasionally half empty is cheaper and safer here than anything that grows.
-   Trading a few hundred bytes of static RAM for zero heap traffic is nearly
-   always the right call on this device — `RowList` cost 864 bytes of RAM and
-   *saved* 5.5 KB of flash.
-7. **Check the numbers before you claim it is fine.** `pio run` reports RAM and
-   flash; System Info's Memory tab reports free heap, minimum free heap,
-   largest allocatable block and fragmentation. Read them.
-
-## Adding a game or an app — the whole checklist
-
-The old version of this list had five items, all of them code. Everything that
-has since been shipped broken or stale was *outside* those five: the README game
-table, the screenshot gallery, `docs/screens/`, the changelog. A game that
-launches correctly and is invisible in every document describing the product is
-not finished.
-
-Work through all four groups. Nothing here is optional for a screen that ships.
-
-### 1. Code — miss one and it fails silently or won't link
-
-1. `src/games/NewGame.{h,cpp}` — subclass `Game`.
-2. `src/engine/GameCatalog.cpp` — append an entry. Blurbs render at font 1
-   across ~292 px, so keep them under ~46 chars. **`id` is a persisted NVS
-   visibility key**: renaming it later resets that game's visibility on every
-   existing device.
-3. `src/main.cpp` — add to `enum class EntryKind`.
-4. `src/main.cpp` — add to `CATALOG_KINDS[]` **at the same index as the catalog
-   entry**. Nothing enforces this; a misalignment compiles, links, and launches
-   the wrong game from the right tile.
-5. `src/main.cpp` — a `case` in `launchKind()` (wires the instance) and one in
-   `drawLauncherIcon()` (draws the tile icon).
-6. `src/engine/ScoreCatalog.cpp` — only if it records a score, so the Scores
-   screen can show it.
-
-### 2. Docs — the part that actually gets forgotten
-
-7. `README.md` — a row in the right game table (what it is and what it
-   builds), or a bullet under the system screens if it is an app.
-8. `README.md` — an `<img>` in the matching screenshot gallery.
-9. `CHANGELOG.md` — an entry under the unreleased heading.
-
-### 3. Screens
-
-10. `tools/gen_screens.py` — a render function plus an entry in `SCREENS` or
-    `EXTRA_SCREENS`. Take the geometry from the game's own `Rect` helpers so
-    the mock-up matches the device rather than approximating it.
-11. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
-    generated image; nothing else will tell you it came out wrong.
-
-### 4. Verify
-
-12. `pio run` — and put the new flash/RAM figures in `README.md` **and**
-    `CLAUDE.md`. They are the two places that disagree.
-13. `python tools/check_docs.py` — must be clean.
-14. Build the host version (`host/`, see `host/CLAUDE.md`) and look at the
-    new screen there. `BRAINO_TAPS` walks to it and `BRAINO_SHOTS`
-    photographs the firmware's own frame, which catches clipping and
-    repaint mistakes a mock-up cannot. It needs no board and no lock. If it
-    fails to build, the game reached for a platform call `host/shim/` does
-    not answer yet. Add the shim; do not put an `#ifdef` in the game.
-15. Flash it and actually play it. Take the board lock first. The host
-    build is not the panel: colours, SPI time and touch feel are only true
-    on hardware.
-
-### What you do NOT hand-edit
-
-These derive from `GAME_CATALOG` and update themselves. Editing them by hand is
-how About fell six games behind in the first place:
-
-- the **About** app's game list, count and blurbs
-- the **About** app's *This build* page, System Info's `Branch`/`Commit`/
-  `Built` rows and the `[boot] build=` serial line -- all three read
-  `BuildStamp::`, which `tools/build_stamp.py` fills in from git at build
-  time. Never type a branch or a commit into a screen
-- the **Settings → Games** visibility list
-- the **launcher** tiles and paging
-- the **GitHub Pages site** — `tools/gen_site.py` reads the version from
-  `AppVersion.h`, the game list and blurbs from `GAME_CATALOG`, the build
-  figures from `README.md` and the board name from `platformio.ini`. Edit
-  `site/index.template.html` for wording and layout only; `check_docs.py`
-  fails if a version number is typed into it
-
-### If it is a system app rather than a game
-
-Everything above still applies, plus:
-
-- It **must work in both orientations.** Read `tft.width()` / `tft.height()` at
-  render time, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Settings and Wi-Fi
-  currently violate this and are the reason the rule is stated so bluntly.
-- If it touches a radio, stores data, or changes what leaves the device, the
-  **About radios page** and the **README privacy section** are part of the same
-  change — and About must *read* the state, not restate it.
-
-## Supporting a new board — the whole checklist
-
-**The mechanics are in [docs/PORTING.md](docs/PORTING.md) and are now small**: a
-board is a profile header in `include/boards/` plus a `[board_*]` section in
-`platformio.ini`, and nothing under `src/` names a GPIO. Read that first — this
-section is about everything a port needs *around* the code, which is the part
-that has actually been getting skipped.
-
-Before adding support for a new hardware variant, complete a comprehensive hardware reference and verification app. This prevents silent failures, driver misconfigurations, and port-specific quirks from reaching users.
-
-### 1. Hardware documentation — must precede any game support
-
-1. **Check the board can be supported at all.** A panel of at least 320×240 in
-   landscape, a touch controller, the backlight on a GPIO, and 4 MB of flash
-   are hard requirements; a board missing one fails to compile and is out of
-   scope, not a porting task. SD, LED, speaker and battery sense are optional
-   and the firmware does without them. The table is in
-   [docs/PORTING.md](docs/PORTING.md).
-
-2. **Create `BOARD_<VARIANT>.md`** — complete hardware reference for the new board
-   - Copy structure from [`BOARD_E32R28T-1.md`](BOARD_E32R28T-1.md) — the template
-   - Sections: overview, GPIO pinout, display driver, touch, battery sensing, RGB LED, radios, memory, watchdog, known issues, verification procedures
-   - Include all TFT_eSPI flags, SPI frequencies, ADC attenuation, power thresholds
-   - Document every GPIO assignment and SPI bus topology (which devices share which buses?)
-   - **List every known hardware bug, quirk and workaround** (crossed LED pins, inverted polarity, ADC2 unavailable, etc.)
-   - Do NOT skip "known issues" section — it is where you prevent the next person from re-discovering the same bugs
-
-3. **Update `AGENTS.md`** to reference the new board file in this section
-
-4. **Write `include/boards/<id>.h`** — the board profile. Pins, rotations, the
-   battery divider, and `PIN_NONE` for anything the board does not wire. Label
-   every value with its field name in a `/* comment */`; `check_boards.py`
-   reads those labels to prove nothing was left out.
-
-5. **Add `[board_<id>]` and `[env:<name>]` to `platformio.ini`** — the board
-   section carries only `BOARD_NAME`, `GUME_BOARD_HEADER`, the driver and the
-   TFT_eSPI pin/size/SPI macros. Everything shared is already in `[common]`,
-   and putting a board-specific flag there fails `check_boards.py`. The
-   environment composes `${common.build_flags}` with exactly one
-   `${board_*.build_flags}`.
-
-6. **Put it on the web installer.** `tools/gen_site.py` derives its board list
-   from those same sections, so add a `BOARD_DETAILS` entry (label, chip
-   family, where to buy one) and make sure `.github/workflows/ci.yml` and
-   `pages.yml` build the environment. A board that can be supported must be
-   flashable by the person who owns it, not only by someone with a toolchain;
-   `check_boards.py` fails the port until that is true.
-
-### 2. Hardware verification app — exercises all subsystems before game support
-
-1. **Create a bringup/test app** (can extend the existing `env:bringup` environment)
-   - Exercises every hardware subsystem: display, touch, battery, BLE, Wi-Fi, RGB LED
-   - Each subsystem has a simple test: fill colors, show coordinates, read voltage, scan networks
-   - Display full-screen color test + rotation check + brightness slider
-   - Touch: show crosshairs, tap them, verify coordinates match screen, check pressure threshold
-   - Battery: show voltage and percentage against a meter (there is no charging state -- the CYD boards have no charge-status line)
-   - BLE: turn beacon on/off, use phone scanner to verify name and payload format
-   - Wi-Fi: connect to network, fetch NTP time, verify clock advances
-   - RGB LED: show all colours, verify no crossed polarity or missing channels
-   - Run tests from serial monitor or on-device UI menu
-
-2. **All tests must pass before merging the variant into main:**
-   - [ ] Display renders all colors correctly at native resolution
-   - [ ] Touch calibration works; coordinates accurate to ±10 pixels
-   - [ ] Battery readings within 0.1V of meter; percentage tracks a real discharge
-   - [ ] BLE beacon visible on phone with correct device name and manufacturer data payload
-   - [ ] Wi-Fi connects and fetches time; clock is correct
-   - [ ] RGB LED shows correct colours (no crossed channels)
-   - [ ] Watchdog reboot works (hang the loop; device reboots after 12s)
-
-3. **Document test procedures in the board file** — section 11: Hardware Verification Procedures
-   - Step-by-step instructions so future agents can verify a new board independently
-   - Expected success criteria (e.g., "voltage within ±0.1V of meter")
-
-### 3. Architecture changes for multi-board support (applies if adding non-playable-game code)
-
-1. **`ScaledRenderer` or similar display scaling** — if supporting different resolutions (e.g., 240×320 vs 480×320)
-   - Games author to fixed 320×240 logical canvas
-   - Renderer stretches to physical panel size
-   - Touch reverse-scales from physical space back to logical canvas
-
-2. **Pin abstraction layer** — already built; use it rather than adding to it
-   - Do NOT hardcode pins in driver code. Read `BOARD` (`include/BoardProfile.h`)
-   - If the fact you need is not on `BOARD`, add the field and fill it in for
-     every existing board in the same commit — do not add a `#if` instead
-   - It is all `constexpr`, so it costs nothing at runtime
-
-3. **Driver selection flags** — if multiple display/touch controllers
-   - Use `-D PANEL_<NAME>=1` and `#if PANEL_<NAME>` in driver init
-   - TFT_eSPI already supports this via `-D <DRIVER>=1` flags
-
-### 4. Verification before merge
-
-1. `python tools/check_docs.py` and `python tools/check_boards.py` — both must pass
-2. `pio run -e app` and `pio run -e <new variant>` — both must build
-3. The board is offered by the web installer, and CI builds its firmware — a
-   board people cannot flash from the page is not a supported board
-4. Firmware flashes successfully on the new board
-5. All hardware verification tests pass
-6. At least one playable game runs and is responsive (no frames > 40ms)
-
-### What NOT to do
-
-- Do NOT claim support for a board that trips one of the hard requirements. It
-  is out of scope, and the static_assert saying so is the answer, not an
-  obstacle to work around
-- Do NOT land a board the web installer does not offer — support that needs a
-  toolchain is not support for the person who owns the board
-- Do NOT add support for a new board without a `BOARD_<VARIANT>.md` file
-- Do NOT merge to `main` unless all verification tests pass
-- Do NOT ship a board driver without documenting known bugs and workarounds
-- Do NOT change display/touch driver code without also updating the board reference file
-
-## The web installer is part of the deliverable
-
-`https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all four PlatformIO
-environments on every push to `main`, runs `tools/gen_site.py`, and drops the
-resulting `.bin` files beside the manifest that points at them. Nobody
-regenerates it by hand, so it cannot go stale on its own — but three things
-break it, and all three fail in someone else's browser rather than here:
-
-1. **Adding or renaming a PlatformIO environment.** The page offers one
-   firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
-   build that env, its manifest points at binaries that do not exist and the
-   flash fails partway. `check_docs.py` cross-checks `VARIANTS` against
-   `platformio.ini` and the workflow.
-2. **Changing what the firmware transmits or stores.** The page carries a
-   privacy section, and the same rule applies to it as to the About radio page
-   and the README: a privacy claim that has drifted from the hardware is worse
-   than none, because it is believed.
-3. **Making CI unable to build.** `main` deliberately points `map-n-flag` at a
-   machine-local path; the workflow rewrites that line in its own working copy.
-   If `lib_deps` changes shape, fix the `sed` in the same commit.
-
-`python tools/gen_site.py` writes `site/_build/` locally so you can look at the
-page. The flash button will 404 there — the binaries only exist in CI.
-
-Four things that cause real damage here if you skip them:
-
-1. **Branch into your own worktree before you start, from `dev`.** New requirement → `git worktree add ../GUme-<slug> -b feat/<slug> dev`, then work there. **Every feature and every fix starts from `dev`** — the only exceptions are a base the maintainer explicitly asked for, or an agreed hotfix onto a release branch, and both are said out loud in the request before the work starts. **`dev` looking stale does not make it the wrong base, and this is not yours to overrule.** That has already gone wrong once: an agent saw `dev` 55 commits behind `main`, branched from `main` instead and justified it in prose — from local refs it had never fetched. `git fetch origin` showed `dev` was five commits *ahead*. So fetch before forming any opinion (`git rev-list --left-right --count origin/dev...origin/main`), and if it still looks wrong, **say what you measured and ask** — explaining a decision is not the same as being given one. Basing on `main` "and rebasing later" is not a shortcut either: `main`'s release commits ride along, carrying the version bump that drops `-SNAPSHOT` into a branch meant to keep it. Do **not** `git switch` inside the main checkout: it holds other agents' uncommitted work and switching under them strands it. A worktree also gives you a private `.pio/` build dir.
-2. **Multiple agents share this repo.** Read `git status` first; uncommitted work that isn't yours is normal. Stage explicit paths, never `git add -A`. Don't merge or push unless asked. **`main` and `dev` are protected on GitHub** — no force-push, no deletion, and every merge goes through a pull request with the `verify` CI job green. Land work on `dev`; `main` takes releases from `dev` once they have been tested on hardware. **A release is cut by pushing a `v*` tag on `main`** — `.github/workflows/release.yml` builds every environment, packs them with `tools/pack_release.py` and publishes the binaries, and it refuses to publish if the tag disagrees with `BRAINO_VERSION` or the version is a `-SNAPSHOT`. Do not assemble a release by hand. See [CONTRIBUTING.md](CONTRIBUTING.md#branches-and-protection).
-3. **`GAME_CATALOG[]` and `CATALOG_KINDS[]` are index-coupled across two files** and a bad merge misaligns them silently — it still compiles and links, and the only symptom is a tile launching the wrong game. Re-verify entry-for-entry after every merge.
-4. **One physical board, one serial port** — shared across all branches and worktrees. Don't flash or factory-reset without saying so; it wipes calibration, profiles and scores another agent may be testing against.
-5. **Take the board lock before building or flashing.** It lives at `(git rev-parse --git-common-dir)/gume-board.lock` so it's visible from every worktree. If it's held by a live process, wait and poll. If no build or flash process is actually running, the lock is stale — delete it and carry on, and say that you did. Release your own lock even when the build fails.
+| ESP32 boards (the published product) | `src/hal/CLAUDE.md`, `docs/PORTING.md`, `docs/boards/` |
+| Attaky Core (ESP32-S3, experimental: built by CI, never published) | `src/hal/CLAUDE.md`, `docs/boards/Attaky-Core.md` |
+| Linux: PC build and RG40XX V image | `host/CLAUDE.md` |
+
+One `src/` builds for all three. **`host/` adapts to `src/`, never the
+reverse**: no platform `#if` under `src/`; a difference is an interface with
+one implementation per platform. Code only one board carries compiles only
+into that board's image. `tools/check_platforms.py` checks both.
+
+## The rules in brief
+
+Each is written in full in the root `CLAUDE.md` under the heading given.
+
+**A commit trailer names who is accountable; a branch name says what
+changed.** ("Two standing rules") This project is built with AI coding tools
+and says so openly -- in the README, in NOTICE.md and on the website. Nothing
+in this rule hides that, and nothing in it may be read as asking you to. It is
+about what a git trailer *means*. `Co-Authored-By:` is a claim of authorship
+and, under the GPL, of copyright; a tool can hold neither, cannot accept the
+licence and cannot answer for a defect. The author of record is the person who
+directed the change, reviewed it, tested it and licenses it. So do not add
+`Co-Authored-By:` naming a model, a "Generated with..." footer, or any
+sign-off crediting a tool -- in commits, amends, squashes or PR bodies. If a
+change was substantially drafted by a tool and that is worth recording, write
+it as a plain sentence in the commit body ("drafted with an AI coding
+assistant; reviewed and tested by hand"). Branches are `feat/<game-id>`,
+`fix/<area>`, `docs/<topic>`, never named after a tool; rename one before
+opening the PR (`git branch -m`). The `CLAUDE.md` filename is the one
+exception.
+
+**Docs are part of the change, not a follow-up.** ("Two standing rules")
+README, the rulebooks, About, the mock-ups, the changelog -- in the same
+commit as the change they describe. Run every `tools/check_*.py` before you
+commit; "Which rules a machine checks" in `CLAUDE.md` says what each covers
+and which rules only review can catch.
+
+**Every file says who wrote it, and under what licence.** Run
+`python tools/check_licenses.py --fix` on a new file; never hand-type a notice.
+The holder is `iamankushpandit` and nothing else.
+
+**No identifiers in this repository.** ("No identifiers in this repository")
+Nothing that identifies one physical device, one network or one person: no
+MAC, no SSID, no PIN, no player's name -- not in a tool file, a comment or a
+fixture. Identify a board by `Board::deviceId()`; the boot banner prints
+`device=`, never `mac=`. `check_identifiers.py` catches MACs and public IPs
+and nothing else, so a clean run is not permission.
+
+**No data collection.** ("No data collection") Exactly four things leave the
+device: an NTP time query, one `ip-api.com` lookup to guess the timezone on
+first connect, the opt-in, non-connectable BLE beacon, and the daily
+update-availability check. **That list is closed**, on every platform. A fifth
+outbound flow needs the maintainer's agreement in an issue *before* the code
+exists. Anything that transmits, stores or shares data changes the About radio
+page and the README privacy section in the same commit.
+
+**Players.** The people holding the console are players, young players and the
+administrator -- never a word for an age group. `check_docs.py` checks it.
+
+**Know what a frame costs.** ("Responsiveness rule") A 20ms budget. No NVS
+read in a hot path (RAM mirror in `Board`), no `delay()` on a render path, no
+sampling a sensor from a getter, no rebuilding content that did not change.
+
+**A full redraw is the exception.** ("Rendering model") Draw what appeared;
+erase only what moved, with a clear rectangle derived from the geometry; route
+header changes through `requestChromeRender()`. A screen transition is always a
+full repaint.
+
+**There is no garbage collector.** ("Memory rule") No `new`/`malloc`, no
+`String` in anything that runs per frame, fixed buffers, give back what you
+borrowed in `end()`.
+
+**Refactor a large file first.** ("Modularity rule") A `.cpp` past ~600 lines,
+or a function in `src/main.cpp` past ~400 lines of logic, is split before the
+requested change, in a commit of its own that changes no behaviour.
+
+**Lay out against the panel you are on.** System screens read
+`tft.width()`/`tft.height()`, never `SCREEN_WIDTH`/`SCREEN_HEIGHT`. Portrait is
+decided screen by screen (issue 22); the launcher, lock screen and saver
+support it and must keep doing so.
+
+**Adding a game or an app** has a whole checklist -- code, docs, screens,
+verification -- under "Adding a game or an app" in `CLAUDE.md`. Games declare
+their own `AppMetadata`; `APP_REGISTRY` binds it; nothing derived from the
+registry (About, the launcher, Settings' games list, the site) is hand-edited.
+
+**Adding a board** is [docs/PORTING.md](docs/PORTING.md): a profile header and
+a `[board_*]` section, bring-up checked on the hardware, a page in
+`docs/boards/`, and on the web installer -- a board people cannot flash from
+the page is not supported.
+
+## Working alongside other agents
+
+("Working alongside other agents" in `CLAUDE.md` has the whole protocol.)
+
+1. **Start in your own worktree, from `dev`**:
+   `git worktree add ../GUme-<slug> -b feat/<slug> dev`. Never `git switch`
+   inside the main checkout. `git fetch origin` before forming any opinion
+   about a branch; if `dev` still looks like the wrong base, say what you
+   measured and ask -- an explanation is not an approval.
+2. **Read `git status` first.** Uncommitted work that is not yours is normal.
+   Stage explicit paths, never `git add -A`. Don't merge or push unless asked.
+   `main` and `dev` are protected: every merge is a pull request with `verify`
+   green.
+3. **After touching `AppRegistry.cpp` or a game's `AppMetadata`**, run
+   `python tools/check_catalog.py` before anything else.
+4. **One board, one serial port, shared by everyone.** Take the lock at
+   `$(git rev-parse --git-common-dir)/gume-board.lock` before any build, flash
+   or monitor; release it even on failure; a lock with no live process behind
+   it is stale -- delete it and say so. Never flash or factory-reset without
+   saying so first.
+5. **A release is a `v*` tag on `main`.** `release.yml` does the rest and
+   refuses a `-SNAPSHOT` or a tag that disagrees with `BRAINO_VERSION`.
 
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->

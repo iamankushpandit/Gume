@@ -65,31 +65,6 @@ const char* LudoGame::title() const {
     return ludoAppMetadata().title;
 }
 
-void LudoGame::begin(AppContext& host) {
-    confirmUntilMs_ = 0;
-    confirmShown_ = false;
-    if (!restoreGame(host)) {
-        mode_ = Mode::Lobby;
-    }
-    lobbyStale_ = true;
-    markFullDirty();
-}
-
-void LudoGame::end(AppContext& host) {
-    saveGame(host);
-    /* Hands the radio back, as Chess does: a turn stays on the air until it is
-     * replaced, so leaving without clearing it would leave this console
-     * advertising a game it is no longer in. A game across consoles is saved
-     * and says the same thing again when this screen comes back. */
-    if (net_ || mode_ == Mode::Table) {
-        host.nearbyStop();
-    }
-    if (mode_ == Mode::Table) {
-        leaveTable(host);
-        mode_ = Mode::Lobby;
-    }
-}
-
 bool LudoGame::canStart() const {
     uint8_t seats = 0;
     bool player = false;
@@ -130,15 +105,23 @@ bool LudoGame::blinkPhase() {
 }
 
 bool LudoGame::dieFlashing() const {
+    /* Not while the table is paused for a quiet console: the flash says
+     * "press", and a press would do nothing. */
     return mode_ == Mode::Play && phase_ == Phase::Roll && !state_.over &&
-           ownsSeat(state_.turn) && !isComputer(state_.turn);
+           ownsSeat(state_.turn) && !isComputer(state_.turn) &&
+           !(net_ && watch_.paused());
 }
 
 void LudoGame::startGame(AppContext& host) {
-    /* A local game: whatever a previous table left on the air goes. */
-    host.nearbyStop();
+    /* A local game: whatever a previous table left on the air goes -- unless
+     * it is an ending still being held for the consoles that have not heard
+     * it, which update() takes down when it has had its time. */
+    if (!wordHeld_) {
+        host.nearbyStop();
+    }
     net_ = false;
     ended_ = false;
+    setAside_ = false;   // Start is the player choosing this game over a kept one
     uint8_t mask = 0;
     uint8_t seats[Ludo::SEATS];
     uint8_t count = 0;
@@ -174,6 +157,7 @@ void LudoGame::startGame(AppContext& host) {
 void LudoGame::enterTurn(uint32_t now, bool bonus) {
     autoToken_ = Ludo::NO_TOKEN;
     turnCueAtMs_ = 0;
+    rollHeld_ = false;
     /* The seat list is NOT repainted for a new turn -- the turn dot moves
      * instead. It repaints when a place is decided (finishMove) and here. */
     actionStale_ = true;
@@ -217,6 +201,7 @@ void LudoGame::enterTurn(uint32_t now, bool bonus) {
         return;
     }
     phase_ = Phase::Roll;
+    rollBonus_ = bonus;
     timerMs_ = now + pace(CPU_ROLL_MS);
     /* A blank die for a new roll. Leaving the last number up reads as "you
      * have already rolled", which is exactly wrong for whoever is next. */
@@ -242,6 +227,7 @@ void LudoGame::doRoll(AppContext& host, uint32_t now) {
     const Ludo::RollResult result = Ludo::roll(state_, seed_);
     face_ = state_.pending;
     turnCueAtMs_ = 0;   // rolled before the cue came: it has nothing to say
+    rollHeld_ = false;
     host.playSound(Sound::Tap);
     switch (result) {
         case Ludo::RollResult::Choose:
@@ -425,7 +411,21 @@ uint8_t LudoGame::tokenAt(int16_t x, int16_t y) const {
 void LudoGame::pressAction(AppContext& host, uint32_t now) {
     if (phase_ == Phase::Over) {
         /* New game after a finish: back to the lobby with the same seats,
-         * which is what "again" usually means. */
+         * which is what "again" usually means. At a table our word may be the
+         * last move itself: it comes off the air now if every other console
+         * has it, and is held a while for them if not. The table is finished
+         * with, so its save goes too. */
+        if (net_) {
+            if (canPublish(host)) {
+                host.nearbyStop();
+                wordHeld_ = false;
+            } else {
+                holdWord(host, now);
+            }
+            closeTable(host);
+            host.playSound(Sound::Select);
+            return;
+        }
         leaveTable(host);
         mode_ = Mode::Lobby;
         confirmUntilMs_ = 0;
@@ -440,9 +440,8 @@ void LudoGame::pressAction(AppContext& host, uint32_t now) {
         /* The second press of End game: back to the lobby. At a table, tell
          * the others first, through the service's own ending, and every
          * console at it leaves to its lobby too (see pollTable()). The ending
-         * stays on the air after we leave -- nothing here clears it until the
-         * screen closes or another game starts -- so a console that has not
-         * heard it yet still will. */
+         * stays on the air after we leave -- see holdWord() -- so a console
+         * that has not heard it yet still will. */
         confirmUntilMs_ = 0;
         confirmShown_ = false;
         if (net_) {
@@ -492,6 +491,22 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
         if (updatePause(host, touch, now)) {
             return;
         }
+        /* Paused means paused, with the card up and after Keep waiting
+         * alike: a hop already in flight lands, so no token is left drawn
+         * between two squares, and nothing new starts -- no roll, no choice,
+         * no move that makes itself. End game, above, still works. */
+        if (watch_.paused()) {
+            if (phase_ == Phase::Moving) {
+                stepMove(host, now);
+            }
+            /* The line goes on saying who the table is waiting for. A hop
+             * that has just landed, or a roll pollTable() took off the air,
+             * wrote the next turn's line over it: that one is for later. */
+            if (phase_ != Phase::Moving && phase_ != Phase::Over) {
+                sayWhoIsQuiet();
+            }
+            return;
+        }
     }
 
     const uint8_t seat = state_.turn;
@@ -506,6 +521,14 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
                 turnCueAtMs_ = 0;
                 host.playSound(Sound::YourTurn);
             }
+            if (!computer && rollHeld_ && (!net_ || canPublish(host))) {
+                /* The others have caught up: the prompt comes back. The roll
+                 * itself still waits for a press -- one that fired by itself
+                 * seconds after the tap would be a surprise. */
+                rollHeld_ = false;
+                setMessage(rollBonus_ ? "Roll again!" : "Tap to roll");
+                markDirty();
+            }
             if (computer) {
                 if (now >= timerMs_ && (!net_ || canPublish(host))) {
                     doRoll(host, now);
@@ -517,6 +540,7 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
                     /* Somebody has not caught up with our last move yet --
                      * no one seat to name, so not "Waiting for". */
                     setMessage("One moment...");
+                    rollHeld_ = true;
                     markDirty();
                 } else {
                     doRoll(host, now);
@@ -561,9 +585,14 @@ void LudoGame::updatePlay(AppContext& host, const TouchPoint& touch, uint32_t no
 }
 
 void LudoGame::update(AppContext& host, const TouchPoint& touch) {
+    const uint32_t now = millis();
+    if (!(mode_ == Mode::Play && net_)) {
+        tickWord(host, now);
+    }
     switch (mode_) {
         case Mode::Lobby: updateLobby(host, touch); break;
         case Mode::Table: updateTable(host, touch); break;
-        case Mode::Play: updatePlay(host, touch, millis()); break;
+        case Mode::Play: updatePlay(host, touch, now); break;
     }
+    tellStops();
 }

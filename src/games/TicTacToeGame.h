@@ -25,6 +25,7 @@ public:
      * its grid bars are position-indexed constants. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     void resetBoard();

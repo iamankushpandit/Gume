@@ -12,6 +12,7 @@
 #include <Arduino.h>
 #include "engine/AppCapabilities.h"
 #include "engine/Game.h"
+#include "hal/GameVisibility.h"
 #include "ui/LauncherIcons.h"
 
 class Board;
@@ -57,6 +58,8 @@ struct AppDefinition {
     const AppScoreInfo* score() const;
     LauncherIcon icon() const;
     uint8_t launcherIndex() const;
+    /** What the game's visibility is stored under: its id, never its index. */
+    GameVisibility::Key visibilityKey() const { return GameVisibility::keyFor(id()); }
     bool defaultVisible() const;
     bool hasCapability(uint32_t capability) const;
     bool isCatalogApp() const;

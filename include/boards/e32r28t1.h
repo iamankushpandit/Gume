@@ -19,6 +19,10 @@
  * already at 75%. The TouchKind below is derived from this macro rather than
  * stated alongside it, so there is still exactly one statement of the fact. */
 #define GUME_TOUCH_CAPACITIVE 0
+/* The device part of this image's version: FIRMWARE_VERSION is
+ * BRAINO_VERSION "+" this, as semver build metadata, so it names the
+ * device without changing which release it is (include/FirmwareVersion.h). */
+#define GUME_VERSION_TAG "e32r28t1"
 
 /* No codec; DAC output on GPIO26 (ESP32 DAC2). The I2S peripheral drives it
  * directly (I2S_DAC_BUILT_IN), which is why `driver/i2s.h` is still needed --
@@ -88,6 +92,8 @@ inline constexpr BoardProfile BOARD = {
         /* sda                */ PIN_NONE,
         /* scl                */ PIN_NONE,
         /* reset              */ PIN_NONE,
+        /* resetExpanderAddress */ 0,
+        /* resetExpanderPort    */ 0,
         /* i2cAddress         */ 0,
         /* i2cHz              */ 0,
         /* pressureThreshold  */ 350,
@@ -102,12 +108,52 @@ inline constexpr BoardProfile BOARD = {
         /* activeLow */ true,
     },
 
+    /* keys: none. Touch and the BOOT key are the whole of the input. */
+    KeysProfile{
+        /* keyExpander   */ 0,
+        /* keyUp         */ PIN_NONE,
+        /* keyDown       */ PIN_NONE,
+        /* keyLeft       */ PIN_NONE,
+        /* keyRight      */ PIN_NONE,
+        /* keyEnter      */ PIN_NONE,
+        /* keyBack       */ PIN_NONE,
+        /* keyPower      */ PIN_NONE,
+        /* keysActiveLow */ true,
+    },
+
+    /* keyboard: none. */
+    KeyboardProfile{
+        /* keyboardLeft  */ 0,
+        /* keyboardRight */ 0,
+        /* leftLayout    */ nullptr,
+        /* rightLayout   */ nullptr,
+    },
+
+    /* gamepad: none. */
+    GamepadProfile{
+        /* padLeftExpander  */ 0,
+        /* padRightExpander */ 0,
+        /* padLeftLayout    */ nullptr,
+        /* padRightLayout   */ nullptr,
+        /* faceLayout       */ nullptr,
+        /* faceShapes       */ nullptr,
+    },
+
     SdProfile{
         /* cs    */ 5,
         /* mosi  */ 23,
         /* miso  */ 19,
         /* sclk  */ 18,
         /* spiHz */ 16000000,
+    },
+
+    /* No Expand modules share this board's SD lines; nothing to look for. */
+    ExpandProbeProfile{
+        /* fmRadioAddress */ 0,
+        /* fmSda          */ PIN_NONE,
+        /* fmScl          */ PIN_NONE,
+        /* gpsRx          */ PIN_NONE,
+        /* gpsBaud        */ 0,
     },
 
     /* RGB LED, common anode (drive LOW to light a channel). From the vendor's
@@ -123,6 +169,7 @@ inline constexpr BoardProfile BOARD = {
         /* g           */ 16,
         /* b           */ 17,
         /* commonAnode */ true,
+        /* expander    */ 0,
     },
 
     /* GPIO26 is ESP32 DAC channel 2, driven through I2S_DAC_BUILT_IN into an
@@ -156,10 +203,16 @@ inline constexpr BoardProfile BOARD = {
         /* adcPin        */ 34,
         /* dividerRatio  */ 2.0f,
         /* sensorMaxVolts*/ 4.50f,
+        /* fuelGaugeAddress */ 0,
     },
 
     /* 4 MB part, partitioned huge_app.csv: 3 MB for the app. */
     MemoryProfile{
         /* flashBytes */ 4u * 1024u * 1024u,
+    },
+
+    /* No expander to park: nothing on this board is behind one. */
+    ParkedExpanderProfile{
+        /* parkedExpander */ 0,
     },
 };

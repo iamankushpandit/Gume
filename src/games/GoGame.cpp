@@ -12,14 +12,14 @@
 #include <string.h>
 
 #include "engine/AppRegistry.h"
-#include "engine/Entropy.h"
+#include "ui/Stops.h"
 
-/* Go: the game's life, a tap on the board, the computer's pace, the marking
- * phase and the score. Five files against one header --
+/* Go: a game from its first stone to its score, a tap on the board, the
+ * computer's pace and the marking phase. Four files against one header --
  *   GoGame.cpp   this
- *   GoDraw.cpp   geometry and every pixel
+ *   GoDraw.cpp   geometry and every pixel of the board and its panel
  *   GoNet.cpp    the lobby and a game against a nearby console
- *   GoSave.cpp   remembering a game in NVS
+ *   GoSave.cpp   opening the screen, leaving it, and what is remembered
  * over GoRules (the rules) and GoAi (the computer), which are pure. */
 
 namespace {
@@ -63,36 +63,19 @@ const char* GoGame::title() const {
     return goAppMetadata().title;
 }
 
-void GoGame::begin(AppContext& host) {
-    confirmUntilMs_ = 0;
-    confirmShown_ = false;
-    ghost_ = Go::NO_POINT;
-    haveUndo_ = false;
-    watch_.reset();
-    pausePainted_ = false;
-    rng_.x = Entropy::below(0xFFFFFFFFU) | 1U;
-    if (!restoreGame(host)) {
-        mode_ = Mode::Lobby;
-    }
-    lobbyStale_ = true;
-    turnStale_ = capturesStale_ = infoStale_ = buttonsStale_ = resultStale_ = true;
-    seatCount_ = 0;
-    seatsAtMs_ = 0;
-}
-
-void GoGame::end(AppContext& host) {
-    if (mode_ == Mode::Local || mode_ == Mode::Computer || mode_ == Mode::Remote) {
-        saveGame(host);
-    }
-    host.nearbyStop();
-}
-
 // ---- the game --------------------------------------------------------------------
 
 void GoGame::newGame(Mode mode) {
+    newGame(mode, (boardSize_ > 9 && BIG_BOARD_AVAILABLE) ? 19 : 9, rules_);
+}
+
+void GoGame::newGame(Mode mode, uint8_t n, Go::Rules rules) {
     mode_ = mode;
-    const uint8_t n = (boardSize_ > 9 && BIG_BOARD_AVAILABLE) ? 19 : 9;
-    Go::reset(state_, n, rules_);
+    Go::reset(state_, n, rules);
+    /* A game played here is written to the player's save, over whatever game
+     * was waiting there. An invitation or a nearby game is not, so a game
+     * the lobby was offering to carry on is still offered afterwards. */
+    if (mode == Mode::Local || mode == Mode::Computer) shelved_ = Mode::Lobby;
     phase_ = Phase::Play;
     ghost_ = Go::NO_POINT;
     haveUndo_ = false;
@@ -103,9 +86,10 @@ void GoGame::newGame(Mode mode) {
     deadPlayoutsLeft_ = 0;
     memset(dead_, 0, sizeof(dead_));
     memset(own_, 0, sizeof(own_));
-    ended_ = false;
+    toggledThisMarking_ = false;
     watch_.reset();
     pausePainted_ = false;
+    pauseHold_ = false;
     setMessage(mode == Mode::Waiting ? "Asking..." : "Tap a point");
     turnStale_ = capturesStale_ = infoStale_ = buttonsStale_ = resultStale_ = true;
     anyDirty_ = false;
@@ -193,10 +177,7 @@ void GoGame::applyMove(AppContext& host, uint16_t p, bool byHuman) {
         setMessage(humanTurn() || mode_ == Mode::Local ? "Tap a point" : "");
     }
     if (mode_ == Mode::Remote && byHuman) {
-        ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
-        Go::Net::encode(p == Go::PASS ? Go::Net::Kind::Pass : Go::Net::Kind::Play, p, ourFrom_,
-                        ourTo_);
-        publishOurs(host);
+        sendWord(host, p == Go::PASS ? Go::Net::Kind::Pass : Go::Net::Kind::Play, p);
     }
     turnStale_ = true;
     buttonsStale_ = true;
@@ -284,8 +265,15 @@ void GoGame::pressAction(AppContext& host, uint32_t now) {
          * argued about dead stones would be a worse thing to hand a young player
          * than one that is occasionally wrong. Across consoles both must
          * agree, and ours goes on the air (GoNet). */
+        confirmUntilMs_ = 0;   // a half-asked End game does not outlive other input
         if (mode_ == Mode::Computer) {
             finishGame(host);
+            return;
+        }
+        /* Across consoles, pressing Agreed again says nothing new and must
+         * not spend a ply; and nothing is said until our last word is heard. */
+        if (mode_ == Mode::Remote &&
+            ((agreed_ & agreedBit(humanColour_)) != 0 || !remoteMayMark(host))) {
             return;
         }
         /* Whose agreement this press is. Locally the console is passed and
@@ -298,11 +286,7 @@ void GoGame::pressAction(AppContext& host, uint32_t now) {
                                                             : state_.toMove)
                 : humanColour_;
         agreed_ = static_cast<uint8_t>(agreed_ | agreedBit(who));
-        if (mode_ == Mode::Remote) {
-            ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
-            Go::Net::encode(Go::Net::Kind::Accept, Go::PASS, ourFrom_, ourTo_);
-            publishOurs(host);
-        }
+        if (mode_ == Mode::Remote) sendWord(host, Go::Net::Kind::Accept, Go::PASS);
         host.playSound(Sound::Select);
         if (agreed_ == agreedBoth()) {
             finishGame(host);
@@ -315,16 +299,29 @@ void GoGame::pressAction(AppContext& host, uint32_t now) {
         return;
     }
     if (phase_ == Phase::Over) {
+        /* To the lobby. A nearby game is finished with here, and its last
+         * move stays on the air for the rest of its minute (sayLastWord). */
+        host.playSound(Sound::Select);
+        if (mode_ == Mode::Remote) {
+            lobbyAfterNearby(host);
+            return;
+        }
+        watch_.reset();
+        pausePainted_ = false;
         mode_ = Mode::Lobby;
         lobbyStale_ = true;
-        host.playSound(Sound::Select);
         saveGame(host);
         markFullDirty();
         return;
     }
+    if (mode_ == Mode::Waiting) {
+        /* Nothing to end: the invitation is taken back, in one press. */
+        takeBackInvite(host);
+        return;
+    }
     if (now < confirmUntilMs_) {
         confirmUntilMs_ = 0;
-        if (mode_ == Mode::Remote || mode_ == Mode::Waiting) {
+        if (mode_ == Mode::Remote) {
             endRemoteByUs(host);
             return;
         }
@@ -378,6 +375,8 @@ void GoGame::enterMarking(AppContext& host) {
     memset(dead_, 0, sizeof(dead_));
     memset(alive_, 0, sizeof(alive_));
     agreed_ = 0;
+    toggledThisMarking_ = false;
+    confirmUntilMs_ = 0;
     ghost_ = Go::NO_POINT;
     haveUndo_ = false;
     /* The computer's opinion arrives a few playouts per frame, like a move;
@@ -406,7 +405,6 @@ void GoGame::resumeFromMarking(AppContext& host) {
 }
 
 void GoGame::updateMarking(AppContext& host, const TouchPoint& touch, uint32_t now) {
-    (void)now;
     if (deadPlayoutsLeft_ > 0) {
         /* Two playouts a frame, judged against the person's own stones as
          * well as the computer's: a group is dead when its points mostly end
@@ -438,7 +436,7 @@ void GoGame::updateMarking(AppContext& host, const TouchPoint& touch, uint32_t n
     }
     if (passRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         if (mode_ == Mode::Remote) {
-            host.beepError();   // no resuming across consoles: agree or end
+            pressEndInMarking(host, now);   // no resuming across consoles
             return;
         }
         resumeFromMarking(host);
@@ -446,14 +444,16 @@ void GoGame::updateMarking(AppContext& host, const TouchPoint& touch, uint32_t n
     }
     const uint16_t p = pointAt(touch.x, touch.y);
     if (p == Go::NO_POINT || state_.at[p] == Go::EMPTY) return;
+    confirmUntilMs_ = 0;
+    if (!remoteMayMark(host)) return;
     Go::toggleDead(state_, dead_, p);
     Go::ownership(state_, dead_, own_);
     agreed_ = 0;   // a change unagrees everybody
     host.playSound(Sound::Tap);
     if (mode_ == Mode::Remote) {
-        ourPly_ = static_cast<uint8_t>((ourPly_ + 1) & 0x7F);
-        Go::Net::encode(Go::Net::Kind::ToggleDead, p, ourFrom_, ourTo_);
-        publishOurs(host);
+        sendWord(host, Go::Net::Kind::ToggleDead, p);
+        lastTogglePly_ = ourPly_;
+        toggledThisMarking_ = true;
     }
     buttonsStale_ = true;
     saveGame(host);
@@ -478,6 +478,7 @@ void GoGame::finishGame(AppContext& host) {
         }
     } else if (mode_ == Mode::Remote) {
         host.playSound(state_.winner == humanColour_ ? Sound::Victory : Sound::GameOver);
+        sayLastWord(host);   // the other console may not have heard how it ended
     } else {
         host.playSound(Sound::Victory);
     }
@@ -490,18 +491,54 @@ void GoGame::finishGame(AppContext& host) {
 
 // ---- input ------------------------------------------------------------------------------
 
+void GoGame::updateStops() {
+    /* The result card is over the board with the two buttons that matter:
+     * while it is up, only what is inside it is a stop. */
+    const bool card = mode_ != Mode::Lobby && phase_ == Phase::Over;
+    if (card) {
+        Ui::setOverlayStops(resultRect());
+    } else if (resultOverlay_) {
+        Ui::clearOverlayStops();
+    }
+    resultOverlay_ = card;
+    if (mode_ == Mode::Lobby) {
+        Ui::clearBoardStops();
+        return;
+    }
+    /* The points stay drawn whoever is to move. They are stops exactly while
+     * a press on one would be acted on: this console's turn, or the marking.
+     * Never while an invitation is unanswered, and not under the pause card,
+     * which takes every press while it is up. After Keep waiting the game is
+     * still paused but a stone can be played -- it goes on the air for when
+     * they are back -- so the board is live again. */
+    bool live = false;
+    if (mode_ != Mode::Waiting && !(mode_ == Mode::Remote && watch_.cardShown())) {
+        live = phase_ == Phase::Marking || (phase_ == Phase::Play && humanTurn());
+    }
+    Ui::setBoardStops(boardRect(), live);
+}
+
 void GoGame::update(AppContext& host, const TouchPoint& touch) {
+    frame(host, touch);
+    /* After the frame's work, not before: on the frame a move is played or
+     * arrives, or the card goes up, the stops must already say so. */
+    updateStops();
+}
+
+void GoGame::frame(AppContext& host, const TouchPoint& touch) {
     const uint32_t now = millis();
     if (mode_ == Mode::Lobby) {
         updateLobby(host, touch);
+        lobbyHold_ = mode_ != Mode::Lobby && (touch.justPressed || touch.down);
         return;
     }
+    if (lobbyHold_ && (touch.justPressed || !touch.down)) lobbyHold_ = false;   // a new press
     if (confirmShown_ && now >= confirmUntilMs_) {
         buttonsStale_ = true;
         markDirty();
     }
     if (mode_ == Mode::Remote || mode_ == Mode::Waiting) {
-        pollRemote(host, now);
+        pollRemote(host);
         if (mode_ == Mode::Lobby) return;   // the other console ended it
         if (updatePause(host, touch, now)) return;
     }
@@ -516,14 +553,12 @@ void GoGame::update(AppContext& host, const TouchPoint& touch) {
     if (phase_ == Phase::Over) {
         if (!touch.justPressed) return;
         if (resultButtonRect(0).contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            host.playSound(Sound::Select);
             if (mode_ == Mode::Remote) {
-                /* Again across consoles is a new invitation. */
-                host.nearbyStop();
-                mode_ = Mode::Lobby;
-                lobbyStale_ = true;
-                markFullDirty();
+                /* Again across consoles is a new invitation, made from the
+                 * lobby; this game is finished with on the way there. */
+                pressAction(host, now);
             } else {
+                host.playSound(Sound::Select);
                 newGame(mode_);
                 saveGame(host);
             }
@@ -536,6 +571,7 @@ void GoGame::update(AppContext& host, const TouchPoint& touch) {
         return;
     }
     if (!touch.justPressed && !touch.down) return;
+    if (lobbyHold_) return;   // the rest of the press that left the lobby
     if (touch.justPressed && actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         pressAction(host, now);
         return;

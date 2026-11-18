@@ -61,6 +61,26 @@ void CoinFlipGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* A sequence under way, or the verdict it reached, may have settled
+ * something, so it comes back -- with no question, because Flip and the
+ * best-of buttons are always there to start again once a sequence ends, and
+ * one that is running ends on its own. Before the first Flip, or after the
+ * choice cleared the result, there is nothing to come back to. */
+Game::Keep CoinFlipGame::keepsGame() const {
+    return (busy_ || finished_) ? Keep::Quietly : Keep::No;
+}
+
+/* A sequence left part-way carries on from the coin it had reached, with
+ * that coin's spin or hold given back the time it was away. Outside a
+ * sequence the stamps are not read until the next Flip sets them. */
+void CoinFlipGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (busy_) {
+        movedOn(phaseUntilMs_, awayMs);
+        movedOn(nextSpinStepMs_, awayMs);
+    }
+}
+
 Rect CoinFlipGame::choiceRect(uint8_t index) const {
     return Rect{static_cast<int16_t>(86 + index * 52), 46, 44, 26};
 }

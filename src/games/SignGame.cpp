@@ -249,6 +249,15 @@ void SignGame::end(AppContext& host) {
     progress_.flush();
 }
 
+Game::Keep SignGame::keepsGame() const {
+    return (stage_ == Stage::Lessons || stage_ == Stage::Result) ? Keep::No : Keep::Ask;
+}
+
+void SignGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    if (phase_ == Phase::Feedback) movedOn(feedbackUntil_, awayMs);
+}
+
 void SignGame::update(AppContext& host, const TouchPoint& touch) {
     if (phase_ == Phase::Feedback && millis() >= feedbackUntil_ &&
         (stage_ == Stage::Quiz || stage_ == Stage::Practice)) {

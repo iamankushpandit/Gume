@@ -107,6 +107,27 @@ void MicrokuGame::begin(AppContext& host) {
     markDirty();
 }
 
+/* Worth coming back to once a cell is filled in, or once the 2x2 is behind
+ * the player: begin() starts the chain from the 2x2 again, so even a solved
+ * 4x4 waiting for its tap is a place that would be lost. The last board
+ * solved is not -- its tap goes back to the 2x2, which is what begin() does.
+ * The message deadline needs no moving: running out only asks for a repaint. */
+Game::Keep MicrokuGame::keepsGame() const {
+    if (solved_ && stageIndex_ + 1 >= STAGE_COUNT) {
+        return Keep::No;
+    }
+    if (stageIndex_ > 0) {
+        return Keep::Ask;
+    }
+    const uint8_t total = size_ * size_;
+    for (uint8_t i = 0; i < total; ++i) {
+        if (!fixed_[i] && board_[i] != 0) {
+            return Keep::Ask;
+        }
+    }
+    return Keep::No;
+}
+
 void MicrokuGame::loadStage(uint8_t stageIndex) {
     const StageDef& stage = STAGES[stageIndex];
     size_ = stage.size;

@@ -10,7 +10,7 @@
 // Host-side test of the Go rules and computer player, compiled against the
 // real src/games/GoRules.cpp and GoAi.cpp. Both are pure C++ with no Arduino
 // in them; this file is what proves it, since it will not compile otherwise.
-// Not run by CI; build it with any host C++17 compiler:
+// Run by CI (tools/run_host_tests.py); build it by hand with any host C++17 compiler:
 //
 //   g++ -std=c++17 -O2 -Wall -Wextra -I src/games test/host/go_rules_test.cpp src/games/GoRules.cpp src/games/GoAi.cpp -o go_test && ./go_test
 //
@@ -20,7 +20,8 @@
 // and every kind and refusing the service's presence and ending words; then,
 // on hundreds of random games at 9x9 and a few at 19x19, that no stone is
 // ever left with zero liberties, that every game ends, that the easy player
-// never fills its own eye and only ever plays legal moves, and that the
+// fills its own eye only when it has no other move (a Capture rule set has
+// no pass) and only ever plays legal moves, and that the
 // medium player's search completes and answers with a legal move.
 #include "GoRules.h"
 
@@ -63,6 +64,15 @@ static bool noDeadStones(const State& s) {
         if (s.at[p] != EMPTY && liberties(s, p) == 0) return false;
     }
     return true;
+}
+
+/* Is there a legal move for s.toMove that does not fill its own eye? */
+static bool hasNonEyeMove(const State& s) {
+    const uint16_t total = points(s.n);
+    for (uint16_t p = 0; p < total; ++p) {
+        if (s.at[p] == EMPTY && legal(s, p) && !fillsOwnEye(s, p, s.toMove)) return true;
+    }
+    return false;
 }
 
 static void testCapture() {
@@ -111,19 +121,19 @@ static void testSuicide() {
     };
     State s = fromRows(rows, 5, Rules::Area, BLACK);
     CHECK(!legal(s, point(5, 1, 1)), "a lone stone with no liberties is suicide");
+    /* Black at (1,0) joins the corner stone and takes the pair's last
+     * liberty; both white stones beside it keep liberties of their own, so
+     * nothing is captured. Suicide. */
     const char* rows2[5] = {
         "XO...",
-        ".XO..",
-        "XO...",
+        ".O...",
+        "O....",
         ".....",
         ".....",
     };
-    /* Black at (1,0) would have no liberties of its own but captures nothing
-     * -- wait: the white stones at (0,1),(1,2),(2,1) are not captured by it.
-     * Suicide. */
     State t = fromRows(rows2, 5, Rules::Area, BLACK);
-    CHECK(!legal(t, point(5, 1, 0)) || captures(t, point(5, 1, 0)) > 0,
-          "no liberties and no capture is suicide");
+    CHECK(captures(t, point(5, 1, 0)) == 0, "it captures nothing");
+    CHECK(!legal(t, point(5, 1, 0)), "filling a group's last liberty is suicide");
     /* A capture is never suicide: white in the corner in atari, black takes
      * it by playing the point that would otherwise be dead. */
     const char* rows3[5] = {
@@ -266,7 +276,13 @@ static void testRandomGames() {
             const uint16_t p = chooseEasy(s, rng);
             if (p == NO_POINT) break;   // capture rules, nothing at all to play
             CHECK(legal(s, p), "easy picks a legal move (game %d move %d)", g, moves);
-            if (p != PASS) CHECK(!fillsOwnEye(s, p, s.toMove), "easy never fills an eye");
+            /* An eye is filled only when nothing else is legal: a Capture
+             * rule set has no pass, so a player left with eyes alone must
+             * fill one. */
+            if (p != PASS && fillsOwnEye(s, p, s.toMove)) {
+                CHECK(!legal(s, PASS) && !hasNonEyeMove(s),
+                      "easy fills an eye only when forced (game %d move %d)", g, moves);
+            }
             CHECK(play(s, p), "and it plays");
             CHECK(noDeadStones(s), "no stone without liberties (game %d move %d)", g, moves);
             ++moves;

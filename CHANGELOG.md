@@ -32,6 +32,665 @@ modularity rule allows.
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**Turning the launcher's page leaves nothing of the page before.** On page
+3, Cinnamon's highlighted pad left the bottom of its white ring on the tile
+that took its place, and every tile lost the four corner pixels of its
+outline whenever the page turned, on every board. A page turn repaints only
+the inside of each tile, and Cinnamon's ring (and Shape & Color's triangle,
+by a pixel) reached past it onto the tile's border; both now stay inside the
+icon box their file states, a host test checks all 47 icons against it, and
+the erase is rounded to match the border instead of cutting its corners.
+
+**Every game can be switched off for a player now.** Chess, Sea Battle,
+Cursive, Ludo, Backgammon, Go, Space and Roman -- the last eight in
+the launcher -- could not be hidden, from Profiles or from the console's
+`game` command, because which games a player sees was stored one switch per
+launcher position and held in a mask with room for 32. It is kept per game
+now, by the game's id, in one small record per player with room for 64, so a
+game added to the launcher later no longer moves anybody's settings onto the
+game next to it. The first start of this firmware carries every player's
+existing choices across, and the console's `game` no longer answers
+`err limit` for those eight.
+
+**Every build says which device it is for, after one version.** About,
+System Info, the `[boot]` line and `identify` now show the version with the
+device after a `+` -- `5.14.0+e32r28t1`, `5.14.0+fnk0104b`, `5.14.0+h700` on
+the handheld card image, `5.14.0+host` on a PC -- so a screenshot or a pasted
+log says which build it is without a second question. Every platform carries
+the same version under the same `v*` tag; the separate release line one board
+had, with its own version, tags and changelog heading, is gone. The part after
+the `+` decides nothing: the update check, the update manifest, the release
+tag and the release notes use the plain version, and the checks refuse a
+published version with a `+` in it. On a narrow screen About drops the word
+"Version" rather than cut the version short.
+
+**A board can be experimental: built and tested, never published.** Beside
+`product` and `diagnostic` there is a third kind of environment. CI builds an
+experimental one on every push and attaches its image to the run for testers;
+no release, web installer page or update manifest carries it, and its image
+ignores the manifest's fallback line, so it is never told of a release it is
+not in.
+
+**An asleep console no longer drains its battery overnight.** A tester's
+4-inch console went from a full 3000 mAh pack to about a tenth overnight with
+the screen dark. Sleep only switched the panel off; three other things kept
+running, and all three are fixed on the ESP32 boards:
+
+- **Wi-Fi power saving comes back on when you leave the Wi-Fi screen.**
+  Scanning turns it off so that no network is missed, and nothing turned it
+  back on until a restart, so a console that had ever had Wi-Fi set up kept
+  its radio fully awake from then on.
+- **Wi-Fi switches off after five minutes asleep**, and reconnects as soon as
+  the screen is touched, while you unlock. The clock keeps time meanwhile and
+  is not asked to sync again just for waking. Bluetooth is left alone, so a
+  console with the beacon on is still seen in Nearby and can still be found.
+- **The processor slows from 240 MHz to 80 MHz while asleep**, and is back at
+  full speed before anything is drawn.
+
+None of this has been measured on a board yet.
+
+**A notice is along the bottom of the screen now, and the header stays whole.**
+A low battery, a newer firmware and Nearby each raise a one-line strip. It was
+painted over the top bar, so for as long as it was up there was no Home, no
+padlock, no clock and no battery badge, and on a console with a d-pad the
+selector was drawn across it. It lies along the bottom edge instead, and three
+things came with the move:
+
+- **A press on it puts it away**, and presses nothing under it. The BOOT key
+  (B on a gamepad) does the same, for a console with no touch screen; the
+  next press is Home as before.
+- **Nothing else is drawn on it.** A game repainting under a notice used to
+  paint over it and have it painted back, which flickered. The strip is now
+  out of reach of every other painter while a notice is up, the selector
+  included: its ring stops at the strip's edge, and a control the notice
+  hides completely cannot be selected until the notice has gone.
+- **When it goes, only that strip is redrawn.** The rest of the screen does
+  not blink.
+
+`notice "<words>"` on the serial console raises one on demand, after
+`unlock`, so the strip can be looked at on a panel without running a battery
+down.
+
+**The RG40XX V shows Braino on a television, and headphones take the sound
+from the speaker.** Neither port had been tried, and neither is on the ESP32
+boards or the Attaky Core, which are unchanged. With a TV on the mini HDMI port
+the picture moves to it and the console's own screen goes dark, its lamp too:
+the room watches the TV and the console in the player's hands is the
+controller. It is the panel's 640x480 picture at a whole scale, centred -- 2x
+on a 1080p TV. A television plugged in before power-on used to become the size
+Braino laid itself out on, so pulling it out left the panel dark; the layout
+is now always the panel's, a 4K TV is driven at 1080p rather than in a mode
+too big for the kernel's display memory (raised to 64 MB on the boot line for
+it), and a TV whose best mode is smaller than the panel is ignored. Sleep turns
+off whichever is showing, and a TV unplugged while asleep wakes to the panel.
+Sound stays on the console: the H700's HDMI audio needs an audio-hub driver
+that mainline Linux does not have. Plugging headphones into the 3.5 mm jack
+now silences the speaker and powers its amplifier down; pulling them out
+brings it back, and the jack is read at boot too. Volume and Mute are the
+same on both, because one line output feeds both and Braino sets its level
+before the codec. Neither has been tried on a console yet.
+
+**The PC build and the RG40XX V draw at the screen's own resolution, with
+smooth text.** They drew a 320x240 picture and stretched it to the panel, so
+a 640x480 console showed every line and letter as a block of four pixels.
+The size is now found when Braino starts -- the display mode on the
+handheld, the desktop's in fullscreen, 640x480 in a window, or
+`BRAINO_PANEL=WxH` -- and every pixel is drawn at it. The menus are laid out
+over a whole-number UI scale, 2 on the RG40XX V, so the top bar, the player
+buttons and the tiles keep the proportions they have on the 2.8-inch board;
+`BRAINO_UI_SCALE=1` lays them out on the full resolution instead. All text
+on the Linux build is GNU FreeSans, anti-aliased at the screen's real
+resolution, instead of the ESP32's pixel fonts. It sits in the same places
+and is measured with the same widths it is drawn with, so nothing is cut
+short that was not before: where FreeSans would run wider than the
+ESP32's font on a word, it is drawn a little narrower. The Braino! mark is
+drawn from its artwork at the screen's resolution too, rather than as
+doubled pixels, and so are the icons: on the Linux build every circle,
+rounded corner, slanted line and triangle -- the header's padlock, speaker,
+gear and Wi-Fi badge, every launcher tile's icon, the pies, the clocks and
+the game boards -- is drawn at the screen's own resolution with smooth
+edges, where it was a staircase of doubled pixels. Every screen and all forty games were photographed at
+640x480 and checked: the eight games that came out small on the first
+RG40XX V card (Trace, Counting, Tic-Tac-Toe, Math, Multiply, Time, US States,
+State Flags) are the same size as the rest. Games keep their 320x240 canvas, drawn at the
+largest whole scale that fits, centred, with their text at that scale. That
+is the rule for every platform from here on: it states how big its panel is
+(`PanelSize`), and nothing is stretched after the fact. The ESP32 boards'
+pictures do not change.
+
+**A new sound set: smooth, pure tones that glide.** Every cue was a tone or a
+square wave switched on at one level and switched off, which is heard as a
+beep however pleasant the notes. The synthesiser can now strike a note and
+let it ring -- a few milliseconds up, then falling away -- glide it from one
+pitch to another, and let the next note start while the last still rings, so
+a run of notes blooms into the chord it spells. Three directions were offered
+on a listening page, and the one chosen is the smooth one: pure sine tones,
+most of them gliding.
+
+- **Tap, Select, Correct and Wrong**, the four heard most, glide: Tap and
+  Select up, short and soft; Correct up twice, E to B to E; Wrong one slow
+  fall instead of two low buzzes.
+- **Reveal, Coin, Level Up, Victory, High Score, Countdown, Pop, Step,
+  Your Turn, Cinnamon's pads and the piano** keep their notes and their
+  shapes and are played the same smooth way. A piano key held down stays
+  held, and the same key pressed twice is struck twice.
+- **Whoosh** is new: a pure tone swelling in and gliding down, with a breath
+  of air under it, where it was the air alone.
+- **The Bell** for Find my Braino keeps a soft octave above its note, the one
+  sound that is not a pure tone, because it has to be heard through a
+  cushion.
+- **Game Over and "Let's play Braino!"** are unchanged.
+
+Nothing here is a recording: a note is still a few numbers in a table, and
+the struck-note engine and the new cues cost about 2 KB of flash. `test/host/audio_synth_test.cpp`
+renders every shape the new notes make -- glides, chords past full scale,
+more notes than voices, a held key -- and fails on a click. Nobody has heard
+the set on a board yet.
+
+**Three clicks are gone from the sounds, and nothing else about them
+changed.** Rendered off the device, sample by sample, each had one cause:
+
+- **Wrong, Your Turn, High Score and the Bell clicked at their rests.** A
+  rest output nothing from its first sample, so the sound stopped wherever
+  its wave stood -- for Wrong's first buzz a step of nearly the whole
+  amplitude. A rest now lets the note before it fade over the same 4ms every
+  sound already starts with. The notes, their lengths and their spacing are
+  as they were.
+- **"Let's play Braino!" ended on a click** for the same reason: its last
+  segment is a rest. Its pauses between words are faded the same way.
+- **A held piano key went quiet once, about a third of a second in.** The
+  sound is made ahead of the speaker, so the first "keep sounding" arrived
+  after the note had already ended. Piano now asks again every 120ms, which
+  is early enough by a stated margin and changes nothing that is heard.
+
+The synthesiser is now its own file, `src/hal/AudioSynth.cpp`, with no board
+in it, and `test/host/audio_synth_test.cpp` renders the cues and fails on any
+of the three.
+
+**A game left by mistake is still there.** Home is one press, and on a
+console with keys it is the key beside the one that answers; players pressed
+it and lost their game. Every game is now kept when it is left in the middle,
+until the console is switched off. Opening it again asks *Carry on?* or *New
+game*, and Carry on puts back the question, the score or the half-done puzzle
+exactly as it was. Trace, Cursive, the Elements table and the board games
+come straight back without the question. A game is kept for the player who
+left it; another player gets a new one. Time away is no longer counted
+either: a countdown or a stopwatch stops while its game is off the screen and
+while the console sleeps or is locked, where it used to run out behind a dark
+panel.
+
+**Math, Multiply and Counting remember how far each player has got.** All
+three started at level 1 on every visit and drew their questions at random,
+so the same sums came round again while others never came up at all. Each is
+now a course with many more levels -- twelve in Math, from sums to ten
+through number bonds, crossing ten, carrying and borrowing to three-digit
+sums and missing numbers; twelve in Multiply, from the twos, fives and tens
+through every table to missing numbers and division; seven in Counting, from
+counting to five through ten-frames, one more and one less, and tens and
+ones to counting in twos, fives and tens. Each player's level is kept between
+visits. It goes up after a run of right answers, with a flourish and the new
+level's name over its first question, and quietly back down after repeated
+misses. Every question of a level comes up before any comes back, and one
+answered wrong returns three questions later. The wrong buttons are the
+mistakes players really make -- a carry forgotten, a borrowed ten never paid
+back, the next fact along in a times table -- and the right answer no longer
+gives itself away by its last digit or by always sitting in the middle. Math's word problems now start at
+level 4 and never have one of anything. Multiply asks "Tap the missing
+number" or shows a division sign when that is the question. The bottom edge
+of the question panel in Multiply and Counting is no longer rubbed out on
+every answer, and Counting no longer reads a number range from an SD card.
+The serial console's new `level` command reads or sets the level of the
+player in use, and `games` with no slot lists every game id.
+
+**The Attaky Core is ported, as an experimental environment, and not
+published.** Its entries are under "The Attaky Core (experimental)" below.
+It reports this version with `+attaky`, CI builds it, and no release,
+installer or update manifest carries it. Four
+things in that work change every board's tree: each CI build of a product
+environment is packed and attached to its run for 30 days, so a tester can
+flash a pull request's build; a board with no audio path compiles again
+(three `using namespace audio;` directives sat outside their guard); the
+launcher, Wi-Fi, Profiles, `Board.cpp` and the runtime loop were each split
+into smaller files past the size CLAUDE.md allows; and no document states
+how many environments there are any more, because two branches adding a
+board each changed that number the same way and git merged the two edits
+silently. None of the Attaky code is in these images: the only cost to them
+is a few hundred bytes of flash from the file splits, and their RAM is
+unchanged.
+
+**The player picker shows the battery**, between Add Player and Done, and it
+repaints only what changed: the badge when the charge moves, the speaker when
+mute is toggled. It used
+to answer every header change with a full repaint, which was harmless only
+while it showed nothing that changed.
+
+**The minute changes the clock's digits and nothing else.** The header used
+to be wiped and redrawn once a minute to change the time; now the new time
+is drawn over the old one, on the top bar and on the launcher, and only a
+time of a different width -- which moves what sits beside it -- takes the
+header repaint. The picker, which has no clock, no longer repaints its
+header at all on the minute.
+
+**The selector's arithmetic and job table are shared.** `ui/FocusMath.h` and
+`hal/ControlJobs.h` moved from `host/` into `src/` so the Attaky Core's
+selector uses the same two pieces as the RG40XX V's; the host keeps its old
+names as forwarders. `ControlJobs::bit()` is now `maskOf()`, because Arduino
+defines `bit` as a macro.
+
+**The d-pad reaches the Wi-Fi password's Show box.** It was always a stop, but
+up from a key went only to a control in that key's column or close beside it,
+and Show sits alone at the right end of the field: from the middle of the
+keyboard, where the selector arrives, up did nothing at all. Up and down now
+go to the nearest control above or below when nothing lies in that column,
+once a list that scrolls that way has had its turn, so a control set off to
+one side of a wide row is reachable on every screen. The same on the RG40XX V
+and the Attaky Core. The RG40XX V's card no longer logs the selector's list.
+
+**Joining Wi-Fi sets the clock to the right time zone straight away.** A
+console that joined a network from the Wi-Fi screen synced its clock at once
+but in UTC, because that path skipped the timezone lookup the boot connect
+makes; it stayed hours out until somebody pressed Sync or restarted it. Seen
+on an Attaky Core and on the RG40XX V. Every sync now follows one rule: with
+the zone on automatic, the first one after boot looks it up, whichever path
+that is -- still the one `ip-api.com` request a boot makes.
+
+**Shape Arith is a course too.** It asked thirty-two questions, sums to eight
+and differences to four, and began every visit with squares. It now has eight
+levels: adding to five, taking away within five, the same within ten, zero,
+how many more fill a frame, adding past ten and taking away back past ten.
+Shapes sit in rows of five, as on a ten-frame, up to eighteen in a panel. The
+level is shown beside the score and kept between visits, an answer stays on
+the screen until the next tap, and the wrong buttons are the mistakes players
+make: counting the shapes taken away, not taking any away, or counting only
+one of the two groups. The screen no longer clears itself while a question
+plays out -- each shape is drawn as it arrives, and only the ones taken away
+are repainted as they blink and go.
+
+**Fingers is a course, and showing a number can now be wrong.** "Show me N"
+scored the moment N fingers were up, so tapping fingers one after another
+without counting always won. Showing a number now ends on Done. The game has
+six levels: one hand, raised in order from the thumb; a whole hand and some
+more; any fingers; how many are down; both hands added together; and
+changing a number already shown. The level is shown in the header and kept
+between visits, an answer stays until the next tap, the wrong buttons
+include the likeliest mistake -- the fingers that are up when the question
+is how many are down, one hand when it is both -- and a finger tapped
+repaints its own hand rather than the whole screen.
+
+**Cursive is a course of five stages**, on the same engine as Trace's: small
+letters first, since joined writing is built from them, then capitals, then
+joined words, each moved on by tracing it through; then less help, without
+the arrows; then from memory. It opened at capital A on every visit; now it
+opens on the stage's own tab, the stage is kept between visits, and the
+letter that moves a player on says so on its badge. Every tab stays open.
+
+**Trace is a course of six stages.** It opened at A on every visit, with
+every arrow and dot showing, and remembered nothing. Now a player's stage
+says which tab it opens on and how much help is drawn: capitals, small
+letters, numbers and words, each moved on by tracing it through (26, 26, 10
+and 20 finished); then less help, without the numbered arrows and the guide
+arrow (30 finished, in any tab); then from memory, without the ghost line
+or the dots not yet reached -- the caption, the start ring and the next dot
+stay. Tracing has no wrong answer, so a stage only ever moves forward, and
+no tab is ever locked. The stage is kept between visits, and the letter
+that moves a player on says so on its "Great job" badge ("Next: Numbers").
+
+**Elements is a course of nine levels.** Its quiz drew one of six kinds of
+question at random, and its pool grew once enough elements had been answered
+right once, any way -- so a player who could name Iron was taken to know
+where it sits. Now each level asks its own kinds, and each element gets each
+of them in turn: the 26 famous elements' names, then symbols and states,
+then the chart and protons; the 63 common ones the same ways, with families
+("Which family is Argon in?", "Which one is a noble gas?") and the element
+that comes next; all 118, names and then places (row, column, family); and
+last all of it. Every element of a level comes up before any repeats, the
+level is kept between visits and moves down as well as up, and a step up is
+named on the score line. A family is asked only where its label has one
+right answer; a fact that names its own element is not asked, and facts true
+of two elements (Polonium and Radium, Rubidium and Cesium, the steel metals)
+are never offered against each other. The state buttons are shuffled (Solid
+was the answer nineteen times in twenty-six), the prompt says "at room
+temperature", the fourth answer button is no longer clipped by the score
+line, and "Find it"'s hint is no longer printed over. The Level tab's Easy,
+Common and All pin the pool at levels 3, 6 and 9 without moving the level.
+The per-element practice record ("elemProg") is no longer kept.
+
+**GRE Words is a course of six levels.** The quiz asked one thing -- a word,
+pick its meaning -- with the wrong meanings drawn from anywhere, so a verb's
+gloss could often be struck out beside three adjectives' glosses. Now it
+asks the meaning with the wrong ones another part of speech, then all four
+the same part of speech, then the word from its meaning, then the word that
+fills the gap in its own sentence, then a word against its look-alikes (the
+words beside it in the alphabet), then all of them mixed. Every word comes
+up before any repeats; a word answered wrong, or marked "Didn't" in Study,
+returns a few words later. The level is kept between visits and moves down
+as well as up, and a step up is named in the footer, which now shows the
+level where it showed the word's place in the table. The per-word practice
+record ("greProg", 250 bytes a player) is no longer kept.
+
+**Space is a course of eight levels.** It had 41 questions in three levels
+worked out from this visit's right answers, so every visit began again with
+the same twelve. Now it has 123 written questions and 53 generated from the
+planets and the layers of air in order -- 176 in all -- over eight levels:
+the Sun, Earth and Moon; the eight planets; rocky worlds and giants; moons
+and small worlds; the air above us; days, years and seasons; exploring
+space; stars and beyond. Every question of a level comes up before any
+repeats, a missed one returns a few questions later, the level is kept
+between visits and moves down as well as up, and a new level is named over
+its first question. The airliners fact now says they cruise at the bottom of
+the stratosphere or just below it.
+
+**US States is a course of eight levels.** It asked a capital or a state at
+random from three tiers climbed by six right in a row and never come down
+from, and never asked the postal codes in its own table. Now it asks the
+nine famous states' capitals, the same nine the other way round, the next
+eighteen, those twenty-seven both ways, the last twenty-three, all fifty
+both ways, the postal codes both ways, and everything mixed. Every question
+of a level comes up before any repeats, a missed one returns a few questions
+later, the level is kept between visits and moves down as well as up, a new
+level is named over its first question, and from the postal codes on the
+wrong answers share the code's first letter where they can. The level
+button shows "Level N" and steps up one; a tap on it during feedback no
+longer throws the feedback away. The per-state practice record ("stateSrs")
+was written and never read, and is no longer kept.
+
+**State Maps is a course of five levels**, the same five as State Flags:
+the nine famous states, the next eighteen, the last twenty-three, all fifty,
+and all fifty with the capital counting as much as the outline. Every outline
+of a level comes up before any repeats, the level is kept between visits and
+moves down as well as up, and a new level is named over its first outline.
+The capital round used to keep the four options where they were, so the
+capital was always on the button that had just been right; it is shuffled
+now. Colorado and Wyoming, the same rectangle, are never offered against
+each other, and a press near the top of a lower button no longer answers
+the one above.
+
+**State Flags is a course of five levels.** Its tiers were climbed by six
+right in a row and never come down from, and it dealt from the pool's
+positions, so the first tier was the same nine questions in a loop. Now it
+asks the nine famous states, then the next eighteen, then the last
+twenty-three on their own, then all fifty, then all fifty with the capital
+counting as much as the flag. Every flag of a level comes up before any
+repeats, a missed one returns a few flags later, the level is kept between
+visits and moves down as well as up, and a new level is named over its first
+flag; a player who had climbed the old tiers starts at the matching level.
+The capital round is a plain shuffle (it used to give one of the four away),
+a press near the top of a lower button no longer answers the one above, and
+a tap on the level button during feedback no longer throws it away.
+
+**Flags is a course of nine levels.** It had three tiers -- thirty
+countries, then sixty, then all 195 at once -- climbed by six right in a row
+and never come down from, and its continent column was never read. Now it
+deals the famous flags, the well known, then Europe, the Americas, Asia,
+Oceania and Africa one at a time, with every wrong answer from the same
+continent, then the whole world, then the whole world with the capital
+counting as much as the flag. Every flag of a level comes up before any
+repeats, a missed flag returns a few flags later, the level is kept between
+visits and moves down as well as up, and a new level is named over its first
+flag. The level button shows "Level N" and steps up one, as the tier button
+did; a player who had climbed the old tiers starts at the matching level.
+Look-alike flags are never offered against each other, the capital round's
+shuffle no longer moves the answer off the button that was just right
+(which gave one of the four away), a press near the top of a lower button
+is no longer taken by the button above it, a tap on the level button during
+feedback no longer throws the feedback away, and the bonus question for a
+long name is shown whole. The per-country practice record ("flagSrs", 195
+bytes a player) is no longer read or written.
+
+**Cinnamon is a course of six levels.** Every run began at one step at one
+pace, so the first rounds were trivial for a practised player, and at 32
+steps the sequence quietly stopped growing. Now it grows one step at a time,
+then quicker, then deals a new sequence every round, then the same at speed,
+then asks for it backwards, then backwards and new every round. A round of
+four steps or more repeated correctly counts as right; a run that ends
+before four steps, or on a level's first round, counts as wrong. The level is
+kept between visits, a new level is named over its first showing, and 32
+steps ends the run as a win. The score and best now update during a run
+rather than on the failure screen, the pad pressed by mistake goes dark so
+only the one that was owed is bright, a quick tap is no longer dropped while
+the last pad is still lit, and the best is kept for forwards levels only.
+
+**Memory is a course of eight levels.** Every board was 24 cards of the same
+twelve letters, A to L, for ever: nothing started small and nothing grew. Now
+it starts with six cards and grows to the full board, then deals look-alike
+faces, then pairs that belong together -- a capital and its small letter, a
+number and a sum that makes it. Faces are dealt from a deck, so the next
+boards show faces not yet seen. A board cleared in no more than two moves a
+pair counts as right, more than three a pair as wrong; the level is kept
+between visits and a step up is named on the finished board. The best is
+kept for the full board only, the face of a turned card is now readable on
+its slate fill, and an SD card's memory.json is read once a visit rather than
+on every deal.
+
+**Sorting is a course of ten levels.** Its difficulty was the rounds
+finished this visit, the direction ran four boards up and two down in that
+order for ever, it never went past two-digit whole numbers, a board could
+not be got wrong, and it made no sound at all. Now it orders three small
+numbers, to twenty, both ways round, two digits, look-alikes, three digits
+made of the same digits, numbers below zero, decimals, fractions, and
+decimals and fractions together; from level 3 the direction is drawn at
+random, never three boards the same way. A board sorted with no wrong tap
+moves the player up, the level is kept between visits, a step up is named
+on the finished board, and every tap now sounds.
+
+**Roman is a course of eight levels.** Its level was the visit's score, so
+every visit began with I, V and X; its level 3 asked 90 to 99, which need a
+C its key did not show; and its last level brought D, CD, CM and M in at
+once. Now each level adds one sign -- I V X, tens, L (to 89), C, D, M --
+then the whole notation, with one question in four from a lower band so
+small numbers come back, and last, spotting the numeral written wrongly: IC
+for 99, XXXX for 40, VV for 10. The level is kept between visits, numbers
+with a 4 or a 9 come up more often, and the key and its rule cover all
+eight levels.
+
+**Percent is a course of ten levels, and no wrong answer is marked right
+any more.** It truncated 25% of 10 to 2 and 75% of 50 to 37 and marked them
+correct; most rounds showed one wrong percent on two buttons; its level
+followed the streak, so one wrong tap fell to level 1, and levels 4 and 5
+were level 3 again; and the shading round printed the shaded amount, so the
+circle was never read. Now it reads and shades quarters, tens and fives (the
+amount hidden from fives on); turns fractions into percents; finds 50% and
+10% of a number, 25% and 75%, any ten percent and the fives; asks what
+percent one number is of another; and adds or takes a percent off. Every
+answer is exact, the level is kept between visits, every question of a level
+comes up before any repeats, one try a question, and the answer is shown
+beside the circle rather than on a card over it.
+
+**Fractions is a course of twelve levels.** It took its kind of question
+from the visit's score, so every visit began with halves in the same order;
+its level 4 was its level 3 again; equal fractions were excluded rather than
+taught; its wrong answers included 0/4 and 4/4; and tapping all four buttons
+still scored. Now it names and finds pies in halves and quarters, thirds,
+then fifths, sixths and eighths; compares one piece each, the same bottom
+number and the same top number; finds equal fractions; compares any two,
+with pies and then without; and works written questions: a fraction of a
+number, adding and taking away with the same bottom number, and more than
+one whole. The level is kept between visits, every question of a level comes
+up before any repeats, the wrong answers are the misreadings players make
+-- the empty slices counted, the bottom numbers added -- and none is ever
+equal to the right one. One try a question, with the answer on the line
+under the header rather than on a panel over it.
+
+**Money is a course of eight levels.** Its level and its kind of question
+both came from the visit's score -- Total, Make, More, Change in that order
+for ever -- and a wrong tap could be tried again without limit, so the level
+counted rounds played. In Change the answer was the only amount ending in 0
+or 5. Now the levels are ones and fives; tens and making an amount; quarters
+and which pile is worth more; a whole dollar; change in fives; change to the
+cent; the fewest coins; and change from two prices. The kinds of question
+are mixed within a level, every question comes up before any repeats, and
+the level is kept between visits. The wrong amounts are a coin missed or
+counted twice, every coin counted as one cent, the price given back as the
+change, ten out. One try a question -- Make can still be put right, but
+only its first Done counts -- with the answer on the line under the header
+rather than on a panel over the buttons, and Make now shows a second row of
+coins.
+
+**Odd One Out is a course of eight levels.** It worked its difficulty out
+of the visit's score, so every visit began with colour again; the odd size
+was always the bigger one, the odd turn always the upside-down one, the
+colours never came closer, and tapping round the grid always found the
+answer. Now the levels are colour, shape, size and turned, each on its own;
+any of them without saying which; a colour a shade lighter or darker; the
+cards differing among themselves in a way that does not matter, with one
+differing in a way that does; and the smallest steps. Every grid has
+exactly one card that is alone in anything that can be seen. A grid has
+one try: the odd card is ringed green and a wrong tap red, then the next
+grid. The level is kept between visits.
+
+**Shapes is a course of seven levels.** It matched a filled shape to its own
+outline -- the same picture twice -- so the name on the row was never asked,
+and its level was the rounds played this visit, so every visit dealt the
+same three rounds in the same order. A round is still four shapes and four
+targets, and the level decides what a target is: the outline, in any
+colour; the lookalikes (with a parallelogram and a kite added); how many
+sides the shape has; its name, with none on the picture; its outline turned
+a quarter or half way round; concave or convex; and the sides of any shape,
+the stars and the cross included. A round with no wrong match moves the
+player up, one with two or more moves them down, the level is kept between
+visits, every shape of a level comes up before any repeats, and the targets
+are never in the rows' own order.
+
+**Color Mix is a course of six levels.** It had six questions, and its
+wrong buttons came from seven names one of which, brown, was never the
+answer, so a player learned to skip it; "pink" was a magenta swatch. It now
+mixes the first six, then lighter and darker with white or black, then the
+same mixes backwards ("red + ? = pink"), the colours in between a primary
+and its neighbour, opposite colours that make brown, and mixing light, where
+red and green make yellow. The level is kept between visits and every
+question of a level comes up before any repeats. The wrong buttons are the
+colours a mix is mistaken for -- another mix sharing one of its colours,
+darker for lighter, and for light what the same two colours make as paint --
+never a second right answer, and never two look-alike shades on one
+question. A question has one try: the right colour is ringed and the line
+says what the pair makes, where any number of taps used to find it. Button
+labels take their ink from the colour they sit on.
+
+**Calendar is two courses, days and months, with a level each.** It had
+thirty-four questions and no levels, never asked across the join -- after
+Sunday, after December -- and offered wrong tiles drawn at random, so most
+questions could be answered by striking out the far-away names. The Days
+button now runs the next day, round the week, two or three days on, and a
+week and more; the Months button the next month, round the year, which
+month is which number, how many days a month (and a week, a year, a leap
+year) has, and several months on. Each track's level is kept between
+visits, every question of a level comes up before any repeats, the wrong
+tiles are the mistakes players make -- the day before given for the day
+after, the starting day counted as the first, the month one out on a
+number -- and answering repaints the tiles rather than the whole screen.
+
+**Number Line is a course of nine levels, and no longer gives the answer
+away.** The frog used to hop to the answer and stand on it with the number
+written inside before the buttons appeared, so a player who could read a
+numeral could not be wrong, and there were thirty questions. Now only the
+first level shows the hops first and asks where the frog landed; from the
+second the question comes first and the frog hops afterwards to check it.
+The levels: adding within five, adding and taking away within ten, how many
+hops from one mark to another, crossing ten in two hops -- to ten and then
+the rest -- hops of ten to a hundred, which ten a number is nearest, equal
+hops from zero, and the line from -5 to 5. The level is kept between visits,
+every question of a level comes up before any repeats, the wrong buttons are
+the mistakes the line invites -- the starting mark counted as a hop, the
+hop count read off as the answer, a ten lost crossing ten -- and a hop
+repaints the line and nothing else, where it used to clear everything under
+the top bar.
+
+**Time is a course of ten levels.** It used to work its level out of the
+visit's score, so every visit began at o'clock, and its wrong answers were
+whole hours away on the first two levels -- the minute hand was never tested
+-- and a single minute away on the last, closer than the dial can show. It
+now goes o'clock, half past, quarter past and quarter to, minutes past and
+minutes to in fives, and any minute, with the sixty minutes marked round the
+rim; then the time in words, in 24-hour time, twenty minutes later or
+fifteen earlier, and how many minutes until the next o'clock. The level is
+kept between visits, every question of a level comes up before any repeats,
+and the wrong buttons are the readings players really make: the hands read
+the wrong way round, the hour hand read as the next number when it is nearly
+there, 2:20 read as 2:04, "past" and "to" mixed up, 3 p.m. as 13:00. The
+question above the buttons changes with the level, and a new level is named
+over its first question.
+
+**A nearby game no longer pauses for a console that is right there.** Chess
+and the other games played across two consoles kept showing the "waiting
+for" card between moves. The scan listened 300ms in every 900ms against a
+beacon sent every second, so the two drifted in and out of step: three
+advertisements heard, then six in a row missed, and six seconds of silence
+was exactly when a game decided the other console had gone quiet. The scan
+now runs 260ms in every 780ms -- the same share of the radio's time -- which
+never lets the two fall out of step for long, and a game waits fifteen
+seconds rather than six before pausing.
+
+**Every game played across consoles has a lobby that shows the room.**
+Chess, Go, Backgammon, Sea Battle and Ludo list every console nearby and what
+it is doing: inviting you, asking somebody else, playing whom, or free. A row
+that only describes a console is not drawn as a button. Three changes, each
+agreed with the maintainer as a change to how the existing beacon is used and
+none adding a byte to it:
+
+- **An invitation stands until it is answered** (issue 232). It left the air
+  after six seconds, so the console that asked waited for ever and a late tap
+  on the other became a second invitation crossing the first. It now stays up
+  until it is accepted, taken back or replaced; two consoles that ask each
+  other at once are settled by tag, with no clock.
+- **A game across consoles is the console's.** It is saved in the console's
+  own slot rather than the player's, kept through a change of player and a
+  power cut -- Guest included -- and never written over a player's own game
+  against the computer. Each game saves under its own key; all five shared
+  one, so playing Ludo destroyed a Chess game in the middle.
+- **Go states its rules and board in the session number**, so two consoles
+  with different chips can no longer play different games at each other.
+
+A console that is heard but has left the game -- lost it, started another,
+switched Nearby off -- now pauses the game like one gone quiet, with "Not in
+this game" on the card. On the other player's turn the board takes no press
+and the d-pad's selector does not stop on it. In Go the press that left the
+lobby no longer goes on to put a stone's ghost on the board, and the console
+that asked for a game of Go now takes in the answer. Go and Backgammon now
+take an ending that arrives after a move they never heard, and Sea Battle
+refuses a shot sent out of turn. A console you are playing no longer raises
+"is playing" notices over the board -- one sat on Sea Battle's End game --
+and the waiting card's *Keep waiting* is no longer cut short. Walked on two
+and three PC consoles through the loopback radio; not yet on two real radios.
+
+**Leaving a nearby game no longer ends it.** Going Home in the middle of a
+game of Chess, Go, Backgammon, Sea Battle or Ludo played across consoles
+saves it and keeps its last move on the air, so the other console still
+receives it; coming back carries on where it was. A game across consoles
+ends only when a player presses End game.
+
+**The RG40XX V's Bluetooth should now come up at boot.** The built-in driver
+probed the Bluetooth half of the Wi-Fi chip before the chip had power, so no
+radio appeared and Nearby stayed on "Radio starting". `S05hardware` now
+rebinds the driver once the chip is up and waits for the radio. Card images
+with the fix have been built; it is not yet confirmed on the device.
+
+**A change to Braino builds the RG40XX V's card in minutes, not an hour.**
+Every card-image build compiled the toolchain, glibc, the kernel and every
+library from scratch, 58 to 79 minutes a run, though a change to a game
+touches none of them. A full build on `dev` or `main` now stores its output,
+cut from 17 GB to 3 GB by `host/rg40xxv/os-base.sh`, as an artifact named
+after a hash of everything the OS is built from, and a later run with the
+same hash builds Braino on top of it and relinks the kernel around the new
+root filesystem -- 57 seconds on a desk. A change to the OS itself still
+builds everything. Only bases stored by pushes to `dev` or `main` are used,
+never one a pull request made, since a base goes into published images. The
+source bundle of a build on a base is the base's, with Braino's source,
+licence and manifest row replaced by the commit's own.
+
+**CI runs every host test, and builds the card image weekly from source.**
+`ci.yml`'s `host` job ran one of the thirteen tests in `test/host/`; it now
+runs all of them on every pull request, documentation-only ones included,
+through `tools/run_host_tests.py`. The runner has no list: it builds each
+test with the `g++` line its own header gives a reader, so the documented
+command and CI's cannot drift, and a test with no such line fails rather than
+being skipped. Each test runs whatever the others did and prints its whole
+output, and the summary names every one. `card-image.yml` gained a weekly
+run that builds the whole image from source, ignoring the stored OS base,
+so a source tarball that disappears upstream is found within a week rather
+than on the day an OS change needs a full build; it also keeps the stored
+base fresh. Its Buildroot output now goes to the log in full as it runs,
+rather than only the step names.
+
 **CI builds the RG40XX V's card image, and a tag publishes it.**
 `card-image.yml` builds the image with Buildroot on every change to what it is
 made from, and uploads it with its source bundle: Buildroot's `legal-info`,
@@ -279,6 +938,22 @@ settings, and a copy an older build left there is removed. When Braino
 sleeps, the console's backlight is switched off rather than left lit behind a
 black screen, and any button wakes it.
 
+**The router is told `braino`, not half of the board's MAC.** Nothing in the
+firmware named the Wi-Fi station, and the Arduino core does not leave it
+unnamed: it sent `esp32-` (or `esp32s3-`) plus the low three bytes of the
+Wi-Fi MAC as the DHCP host name, so every console wrote the identifying half
+of its hardware address into the router's client list, and *System Info ->
+Network* drew the same name on a screen that gets photographed for bug
+reports. Every console now gives the one fixed name `braino`, set at boot and
+again before each start of the station (`Board::applyWifiHostname()`), which
+is where the core applies it. The Hostname row stays, reading what the Wi-Fi
+stack actually holds, so it is the name to look for in a router's list.
+`tools/check_privacy.py` fails if the name stops being a literal, if anything
+else names an interface, or if the station is started without it. The Wi-Fi
+MAC itself is still in every frame the radio sends; a router sees that for
+any device. The bench probes are unchanged: they scan and never join a
+network, so they give no router a name.
+
 **The boards on the landing page launch games.** The picture of Braino on
 three bare boards now plays: each board taps a tile on its launcher, the game
 opens sideways as it does on a board standing upright, the board turns to
@@ -373,6 +1048,280 @@ beside the four buttons asking for it; the circle now carries only its shading.
 And in both multiple-choice rounds a wrong tap flashed the *correct* button --
 in red, so it told the answer and mislabelled it at once. The button that was
 pressed is the one that flashes now.
+
+**Go's info box says the whole message.** On the 9x9 board the box under
+Captured showed one line of about fifteen characters and dropped the rest with
+no sign, so "Tap groups that cannot live" read "Tap groups that" and "Waiting
+for them to agree" read "Waiting for"
+([issue 231](https://github.com/iamankushpandit/Gume/issues/231)). It now
+wraps the message against the panel into two lines, centred in the box, and a
+message too long even for two ends in a mark rather than losing words. The
+message buffer was one character short for the two longest messages, which
+had lost their last letter; it is now sized to what the box can show.
+
+Percent's answer buttons also take their ink from the theme now. A right or
+wrong answer was written in black on the green or red fill whatever the
+theme, so on the themes whose success and error colours are dark the number
+on the button went dark with them. It is `Ui::onFill()` of the fill, as on
+every other quiz. And "Try again" was written in small type across the
+middle of the question for as long as the red flash lasted; it is in the
+strip along the bottom now, beside the score. The read-the-circle mock-up
+draws the question where the game does, large and centred over the buttons.
+
+**Scores shows whose scores they are.** The player's name and the `best` /
+`worst` headings were drawn inside the first row, which was painted after
+them, so on every board and in both orientations the screen showed five rows
+and no name ([issue 143](https://github.com/iamankushpandit/Gume/issues/143)).
+The rows already use all the height there is, so the name moved up to the tab
+row, right-aligned beside the Mine and Device tabs, and the headings are gone:
+best is green, worst is grey, and a game where lower is better says so in its
+row. All five rows a page are kept. The Device tab's "Add a player to compete"
+moved to the same place, and is left out on a panel too narrow to hold it
+whole. The mock-ups had drawn the rows a row lower than the device does, which
+is how this went unseen; they now match it. "lower is better" sat at a fixed
+place in its row and ran under a best score as wide as `35moves`; it now goes
+in the gap between the game's name and the score, as "lower wins" where that
+is all that fits, and not at all where nothing does.
+
+The same screen ignored the theme in two places: Switch player was a fixed
+blue with white text, and the record holder's name, when it is you, a fixed
+gold that disappeared on the light themes' cards. They are the theme's accent
+and warning colours now. Scores is also on the theme sheets again -- they
+asked for a screen called `scores` that no longer existed, and left it out
+without saying so.
+
+### The Attaky Core (experimental)
+
+The same console on Attaky's modular handhelds. It reports this version as
+`5.14.0+attaky` and is an experimental environment: CI builds it and
+attaches the image to the run, and no release, installer or update manifest
+carries it. First run on a Cyber Deck Plus on 2026-11-12.
+
+**With the keyboard clipped on, the text fields leave the on-screen keypad
+off.** A player's name, a Nearby peer's name, both admin PIN pads and the
+Wi-Fi password used to draw the whole on-screen keypad beside a keyboard that
+was already typing into them. When boot found the keyboard, those screens now
+draw the field larger -- the PIN's dots too -- with "Type on the keyboard"
+under it, and keep only what is not a key: OK or JOIN, Cancel or Back, and
+Show on the password. The keyboard has its own Delete, so no DEL is drawn.
+The module comes off and is looked for only at boot, so nothing is reachable
+only by typing: a small button with a keyboard on it brings the keypad back
+for the rest of that visit, and if the keyboard stops answering -- five
+frames of failed scans, counted on the scan that already runs every frame --
+the keypad comes back by itself and the log says `[keyboard] not answering`.
+Other boards carry none of it.
+
+**The Wi-Fi password keeps its symbols on screen beside the keyboard.** The
+keyboard types letters in both cases, digits, space, and of the punctuation
+only `,` `.` and `#`; it has no symbol layer. With the keypad off, the Wi-Fi
+password screen therefore keeps the on-screen keypad's whole symbol page --
+three rows, `!@#$%^&*()`, `-_=+[]{};:` and `'",.<>/?~\` -- in the space the
+keys used, under the hint, reachable by touch and by the d-pad's selector, so
+a password with `@`, `_` or `-` in it can be typed without bringing the
+keypad back. Its field keeps its size. The names and the PINs take only
+capitals, digits and space, all on the keyboard, so they need no such row.
+The Wi-Fi screen's password phase moved into `WifiPassword.cpp` first: the
+file had passed the 600 lines CLAUDE.md allows.
+
+**Locked, the Attaky Core's own lights go out, and it stops holding sixteen
+lines low.** With a Cyber Deck Plus locked and its panel dark, three lights
+stayed on: one above the display, one on the gamepad, one on the battery
+pack. Three things changed, and one cannot. The status LED's off is now
+certain: the firmware used to record the colour before writing it, so a
+single I2C write the expander did not take would leave the LED lit with
+every later "off" skipped as already done; it now records only what the
+expander took,
+reads the LED's state back as the panel goes to sleep, and keeps asking on
+every poll of the sleeping console until off is confirmed. The keyboard's
+caps-lock light goes out while the panel sleeps and comes back on wake, by a
+new `panelSleep` hook every module driver can take. The gamepad's lights are
+left inputs, which is off as Attaky document their wiring, and since one was
+seen lit the boot log now reports what those lines read -- `[gamepad] leds
+as inputs: left P1=0x.. right P1=0x..` -- so they are driven only once that
+has been read on a device. The battery pack's light is the charging
+hardware's own, with no line the Core can reach.
+
+With that build on the console all three lights were still on when it was
+locked. The serial console's new `lights` command asks the hardware which of
+them the firmware reaches: it blinks one light at a time, names each on the
+log, tries the gamepad's undriven lines both low and high, and ends with
+every light at rest. It works on every board, where it blinks the status
+LED's three channels by name -- which is how a red and a green declared the
+wrong way round is found.
+
+Looking for those lights found something else. The Core has a second AW9523
+expander, at 0x58, carrying the other chips' interrupt lines -- touch, the
+motion sensor, the power module's gauge, the gamepad's and keyboard's
+halves. The firmware reads none of them and had never written to that part,
+but an AW9523 at that address powers up with all sixteen ports as outputs
+driving low, so every one of those lines was held low against the chip on
+its other end for as long as the console ran. Boot now makes them inputs and
+switches that expander's interrupt output off, before the touch controller
+leaves reset, and logs `[expander] 0x58 inputs P0=0x.. P1=0x..`. The board
+profile gained `parkedExpander` for it, 0 on every other board, whose images
+carry none of this. Not yet run on a device.
+
+**Its keys work every screen, the way the RG40XX V's do.** The D-pad moves a
+selector to every control -- buttons, tiles, keyboard keys, tabs, and the
+header's Home, padlock, speaker, gear and player name -- and A presses it, as
+a touch at its middle, so no screen changed. B is Home, L1 and R1 turn
+pages, L2 mutes, R2 locks, Menu goes to the next tab, and Select with Start
+held restarts: the RG40XX V's job table, now shared. Past a row's end is the
+next page and past a list's end scrolls it. The selector's ring is painted
+and unpainted in colours it knows, never by asking a screen to repaint --
+the first version did that on the header and flashed the launcher -- and
+takes the theme colour that stands out most against what it is on. This
+replaces the launcher-only focus ring. The gamepad is read in full, from
+Attaky's own Retro-Go map rather than the datasheet's six keys.
+
+**In a quiz, the gamepad's four round keys answer, and the answers show
+which.** Four answers in two columns and two rows are answered by the four
+round keys between the D-pad and the face buttons, each the one in its own
+corner, and every answer wears its key's symbol -- triangle, upside-down
+triangle, circle, square -- so a young player can see which key to press.
+No game changed for it: the runtime finds the four answers as they are
+drawn and presses one as a tap. Only with the gamepad clipped on. Option,
+the circle, had no name before and now does. The d-pad selector also
+keeps System Info's tabs within reach after its list has been scrolled.
+
+**The d-pad plays every game.** Every board's squares are stops for the
+selector, so all 40 games play from the keys: Chess, Go, Backgammon and
+Ludo pick up and put down with A, Tic-Tac-Toe, Whack A Mole, Microku, Piano
+and the Elements table press the square selected, Maze steps the dot towards
+it, and in Trace and Cursive the selector waits on the next dot and A draws
+to it. Ludo's die, the GRE study card and Sea Battle's hand-over screen can
+be pressed too. Every screen looks as it did, and a square is redrawn whole
+when the selector moves on, so no piece, token or grid line is left with a
+notch in it.
+
+**A sixth board: the Attaky Core, as built into the Cyber Deck Plus -- not yet
+run on hardware.** Attaky's modular handhelds are an ESP32-S3 (the same N16R8
+module as the Freenove board) with a 2.0-inch ST7789 at 240x320 and an FT6636
+capacitive touch controller, so Braino's four hard requirements are met as
+they stand. The profile, `include/boards/attaky-core.h`, was written from
+Attaky's published datasheets and hardware catalog before a device was
+available here, and every pin agrees with the two firmwares Attaky ship for
+it; `docs/boards/Attaky-Core.md` lists the four things a person holding one
+has to confirm. Touch, the display and the SD slot are wired. The keyboard's
+up-arrow Shift, tapped on its own, now turns caps lock on and off, with the
+left half's LED green while it is on; held with a letter it still shifts
+that one letter. On the first
+device red and blue came out exchanged, so the panel's colour order is BGR,
+not the RGB that Attaky's Retro-Go init suggested.
+
+**One firmware for every Attaky build: what is clipped on is found at boot.**
+Every Attaky module this firmware knows -- the keyboard, the gamepad, the
+Power module's fuel gauge, and each Expand module (Media I/O, LoRa/GPS,
+FM/AM) -- is now one entry in a module table (`src/hal/modules/`), with a
+name, a boot-time probe and what it gives the console. The board profile says
+where each module could be; boot decides whether it is there, and nothing a
+module gives is used unless its probe found it. The keyboard, gauge and
+Expand checks moved behind the table and behave as they did -- the same
+probes, the same `[keyboard]`, `[battery]` and `[expand]` log lines -- and a
+module Attaky adds later is one driver file plus its addresses in the profile,
+with nothing else changed. **System Info -> Board** and a new **About ->
+Modules** page list every module and whether it was found, read from the
+table. Not yet run on a device.
+
+**The Attaky Core reads its gamepad.** Every key, held, joins the Core's own
+keys as one set that turns with the screen exactly as the Core's do. One
+register a half per frame, from the two TCA9555s at 0x22 and 0x26, and only
+when the module answered at boot.
+
+**No Attaky code in any other image.** The key routing, the keyboard and
+gamepad, the expander LED, the fuel gauge and the module table are behind
+board-header macros defined only for the Attaky Core, so the other five
+product images carry none of it: no symbol of it in their ELF, and their RAM
+is back to `dev`'s figure.
+
+**The Attaky Core's battery badge reads its power module.** It has no
+divider: the power module reports the cell on the touch bus, through a
+MAX17048 fuel gauge on the Standard Cell 1.0, an INA219 on the Standard Cell
+1.1 (the one seen on the first device) or an INA226 on the 18650 Cell. The
+firmware identifies whichever is fitted, as Attaky's Retro-Go does, and an
+INA's voltage goes through the LiPo curve. A full Standard Cell 1.1 reads
+4.07 V -- its full-charge light was lit and the deck showed 87% -- so for that
+module the curve's top is 4.07 V, measured; below 70% nothing changed. `BatteryProfile` gained `fuelGaugeAddress` (0 on every other
+board), and on a board that names one the battery task reads the gauge's
+cell voltage and state of charge instead of the ADC, and shows the state of
+charge directly rather than through the LiPo curve -- with the same deadband
+and the same low and critical thresholds. A gauge that does not answer, which
+is what an unclipped power module looks like, is no reading: no badge and no
+warning, never an empty cell. The five ADC boards sample, filter and display
+exactly as before. Not yet run on a device.
+
+One thing about it was new to the board contract. Its touch reset is a port
+on an AW9523 I2C expander rather than a GPIO, so `TouchProfile` gained
+`resetExpanderAddress` and `resetExpanderPort`, every board fills them in,
+and `Board::begin()` drives the reset through the expander with the same
+hold-then-release a GPIO reset gets. Every CI build of a product environment
+is now also packed as a release would be and attached to its run for 30
+days, so someone holding a board nobody here has can flash the build its
+pull request was checked against.
+
+**The Attaky Core's keys come through `KeysProfile` and
+`Board::pollControls()`**, which reports what is held and turns each
+direction for the current screen rotation the way touch already is; boards
+without keys compile the key paths away.
+
+**The Attaky Core makes sound -- not yet heard.** Its Media I/O module has an
+NS4168 class-D amplifier that decodes I2S itself, with no codec, no MCLK and no
+enable line, which neither audio backend could drive. A third,
+`GUME_HAS_AUDIO_I2S`, is the codec path with the codec taken out: the same
+synthesiser, the same `braino-audio` task and the same `generateBlock()`, into
+standard 16-bit I2S on BCLK IO17, word select IO21 and data IO18 at 16 kHz,
+with volume applied as a linear multiplier in software as the built-in DAC
+does. The volume ceiling is a cautious 50% until it has been set by ear on
+the device. `GUME_HAS_AUDIO` now answers "does this board have sound?" in one
+place, and `BoardConfig.h` refuses a board that states two backends.
+
+**A clip-on keyboard types into the text fields.** On a board that can carry
+one -- the Attaky Core, with Attaky's keyboard module -- a player's name, a
+Nearby peer's name, both admin PIN pads and the Wi-Fi password take typing,
+with Delete and Enter as DEL and OK. The name fields accept what their
+on-screen keypad offers, capitals, digits and spaces; the password takes
+exactly what is typed. The on-screen keypad stays everywhere: the module
+clips off, so the firmware probes for it at boot. The keyboard is read in
+the loop at one register a half while nobody types. Boards without one carry
+400 bytes for it. Not yet run on a device. The Wi-Fi and Profiles screens
+were each split into two files first, past the size CLAUDE.md allows.
+
+**The Attaky Core's power key locks it.** A short press of the power key
+does what the on-screen Lock button does: the panel goes dark and wakes to
+Hold to unlock. It is read beside the D-pad, from P0_7 of the same expander,
+through a new `KeysProfile::keyPower`, and follows BOOT's rules -- it wakes
+the panel and stops the saver like any key, does nothing on the lock screen,
+and reaches nothing touch cannot. The long press is Attaky's hardware power
+switch and is left alone. Not yet run on a device.
+
+**The Attaky Core's status LED lights.** The LED is on the same AW9523 as
+the keys (red P1_0, green P1_1, blue P1_2, common anode), so `RgbLedProfile`
+gained `expander`: 0 for an LED on GPIOs, as every other board has, or the
+expander's address, in which case `r`/`g`/`b` are its ports. It is driven in
+the expander's GPIO mode, each channel on or off, so a colour shows as the
+channels at least half as bright as its brightest; the `beepOk()`/
+`beepError()` pulses and the saver's rally colour work as on the other
+boards. The driver reads, modifies and writes only those three bits, and
+`BoardConfig.h` refuses an LED port that is the touch reset, which sits
+beside them on P1_3. The bus is written only when the colour changes. Not
+yet run on a device.
+
+**The Attaky Core leaves the SD slot and the speaker alone if another module
+owns their lines.** Three of Attaky's Expand modules share IO5-8, and this build is for
+Media I/O, so on a Core wearing the LoRa/GPS or FM/AM module the SD slot's
+bring-up would clock someone else's chip. Before the slot -- and before
+audio -- the firmware now looks for both, without driving anything they own,
+as Attaky's module-detection guide sets out: the FM/AM tuner answers at 0x64
+on that module's own I2C bus, and the GPS sends checksummed NMEA on IO17
+unasked, which is listened to for 1.5 s with the pin an input. Finding either,
+or being unable to ask, skips the SD slot and the I2S amplifier for the boot
+-- the amplifier's IO17/IO18/IO21 are the GPS UART and LoRa interrupt on one
+module and the tuner's I2S on the other -- and logs `[expand] module=...
+sd=skipped audio=skipped`, so the firmware runs on Attaky's LoRa and radio
+builds of the Core, silent and without SD. Media I/O cannot be recognised, so
+finding neither brings both up as before. A new `ExpandProbeProfile` says what to look
+for; every other board fills it with nothing and pays nothing. It adds 1.5 s
+to the Core's boot. Not yet run on a device.
 
 ## 5.12.3 — 2026-09-15
 

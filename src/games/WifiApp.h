@@ -11,6 +11,7 @@
 
 #include "BoardConfig.h"
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 class WifiApp : public Game {
@@ -22,6 +23,8 @@ public:
      * renderStatic() in the .cpp and its entry in docs/RENDER_AUDIT.md. */
     void renderStatic(GameHost& host) override;
     void renderDynamic(GameHost& host) override;
+    /* Puts the radio's power saving back; see the .cpp. */
+    void end(GameHost& host) override;
 
 private:
     enum class Phase : uint8_t { Idle, Scanning, List, Keyboard, Connecting, Done, TimeZone };
@@ -31,6 +34,9 @@ private:
     static const char KEYS_SYMBOL[4][11];
 
     Phase phase_ = Phase::Idle;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
     int8_t netCount_ = 0;
     int8_t selectedNet_ = -1;
     uint8_t listPage_ = 0;
@@ -69,6 +75,10 @@ private:
     void checkScan();
     void runScan();
     void startConnect(GameHost& host);
+    void typePassword(GameHost& host, char typed);
+    /* The password phase, in WifiPassword.cpp. */
+    void updatePassword(GameHost& host, const TouchPoint& touch);
+    void renderPassword(GameHost& host);
     /** Reconnect to the network already in NVS, if there is one. */
     void rejoinSaved(GameHost& host);
     void checkConnect(GameHost& host);

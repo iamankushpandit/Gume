@@ -52,6 +52,12 @@ void begin();
 /* The panel shim's Sleep In (false) and Sleep Out (true). */
 void setAwake(bool awake);
 
+/* Whether the built-in panel has the picture. While a television on HDMI has
+ * it (HostDrm), the panel's CRTC is off and its lamp is kept off too, awake
+ * or asleep; when the picture comes back, so does the lamp. Cheap to call
+ * every frame: it does nothing unless the answer changed. */
+void setPanelShown(bool shown);
+
 /* Put the lamp back on if it is off. Called on the way out. */
 void restore();
 

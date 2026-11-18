@@ -45,9 +45,33 @@ void BrainoApp::nearbyStop() {
     NearbyPlay::stopTurns();
 }
 
+void BrainoApp::nearbyStopLater() {
+    NearbyPlay::stopTurnsLater();
+}
+
+void BrainoApp::loadConsoleBlob(const char* key, void* dst, size_t len) {
+    board_.loadConsoleBlob(key, dst, len);
+}
+
+void BrainoApp::saveConsoleBlob(const char* key, const void* src, size_t len) {
+    board_.saveConsoleBlob(key, src, len);
+}
+
+void BrainoApp::clearConsoleBlob(const char* key) {
+    board_.clearConsoleBlob(key);
+}
+
 bool BrainoApp::nearbyTurnFrom(const char* deviceId, uint8_t session,
                                NearbyTurn& out) {
     return NearbyPlay::turnFrom(deviceId, session, out);
+}
+
+uint32_t BrainoApp::nearbyPeerAwayMs(const char* deviceId) {
+    return NearbyPlay::peerAwayMs(deviceId);
+}
+
+uint8_t BrainoApp::nearbyFreshSession(uint8_t lowBits, uint8_t lowBitCount) {
+    return NearbyPlay::freshSession(lowBits, lowBitCount);
 }
 
 const char* BrainoApp::nearbySelfId() {

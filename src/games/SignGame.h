@@ -55,6 +55,14 @@ public:
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
     void end(AppContext& host) override;
+    /* A lesson, a quiz or Practice left by mistake comes back through
+     * Carry on?; the Lessons screen and the result card are menus, so
+     * there is nothing to come back to and they open as ever. The lesson
+     * a player has reached is stored, so it is never lost either way. */
+    Keep keepsGame() const override;
+    /* The one clock is how long an answer stays lit; it moves on by the
+     * time away, so a player coming back still sees what they answered. */
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Stage : uint8_t { Lessons, Teach, Quiz, Result, Practice };

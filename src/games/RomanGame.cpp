@@ -33,73 +33,13 @@ constexpr AppMetadata ROMAN_METADATA = {
     true,
 };
 
-/* The notation itself, once. Both the writer and the decomposition below walk
- * this table, so a numeral and its explanation cannot disagree: the pieces the
- * player is shown ARE the pieces that were used to build it. */
-struct RomanPiece {
-    uint16_t value;
-    const char* symbol;
-};
-
-const RomanPiece PIECES[] = {
-    {1000, "M"}, {900, "CM"}, {500, "D"}, {400, "CD"},
-    {100, "C"},  {90, "XC"},  {50, "L"},  {40, "XL"},
-    {10, "X"},   {9, "IX"},   {5, "V"},   {4, "IV"},
-    {1, "I"},
-};
-constexpr uint8_t PIECE_COUNT = sizeof(PIECES) / sizeof(PIECES[0]);
-
-/* The same table with the four subtractive pairs removed: this is what a
- * player writes before anyone has explained that IV is not IIII. Offered as a
- * wrong answer on purpose. */
-const RomanPiece PLAIN_PIECES[] = {
-    {1000, "M"}, {500, "D"}, {100, "C"}, {50, "L"}, {10, "X"}, {5, "V"}, {1, "I"},
-};
-constexpr uint8_t PLAIN_PIECE_COUNT = sizeof(PLAIN_PIECES) / sizeof(PLAIN_PIECES[0]);
-
-void writeRoman(uint16_t value, const RomanPiece* table, uint8_t count,
-                char* out, size_t outLen) {
-    size_t at = 0;
-    for (uint8_t i = 0; i < count && at + 3 < outLen; ++i) {
-        while (value >= table[i].value) {
-            const char* s = table[i].symbol;
-            while (*s != '\0' && at + 1 < outLen) {
-                out[at++] = *s++;
-            }
-            value = static_cast<uint16_t>(value - table[i].value);
-        }
-    }
-    out[at] = '\0';
-}
-
-void toRoman(uint16_t value, char* out, size_t outLen) {
-    writeRoman(value, PIECES, PIECE_COUNT, out, outLen);
-}
-
-/** One letter's value, or 0 for anything that is not a numeral. */
-uint16_t letterValue(char c) {
-    switch (c) {
-        case 'I': return 1;
-        case 'V': return 5;
-        case 'X': return 10;
-        case 'L': return 50;
-        case 'C': return 100;
-        case 'D': return 500;
-        case 'M': return 1000;
-        default:  return 0;
-    }
-}
-
-/* What the numeral says if you add every letter up and never subtract: XIV
- * read as 10 + 1 + 5 = 16. This is the misreading the whole screen is about,
- * so it is computed rather than hand-listed. */
-uint16_t readAdditively(const char* roman) {
-    uint32_t total = 0;
-    for (const char* p = roman; *p != '\0'; ++p) {
-        total += letterValue(*p);
-    }
-    return static_cast<uint16_t>(total);
-}
+/* The notation lives in RomanCourse.h, once: the course builds the
+ * questions from it and this screen takes numerals apart with the same
+ * table, so a numeral and its explanation cannot disagree. */
+namespace RC = RomanCourse;
+using RomanCourse::toRoman;
+constexpr const RC::Piece* PIECES = RC::PIECES;
+constexpr uint8_t PIECE_COUNT = 13;
 
 /* "XIV = X + IV = 10 + 4". Returns false when the number has too many pieces
  * for the line to be worth reading -- MMMDCCCLXXXVIII taken apart is fourteen
@@ -150,7 +90,7 @@ struct LevelKey {
     const char* rule;
 };
 
-const LevelKey LEVEL_KEYS[5] = {
+const LevelKey LEVEL_KEYS[RC::LEVEL_COUNT] = {
     {"I=1   V=5   X=10",
      "Count up: I, II, III. Then IV is one before V."},
     {"I=1   V=5   X=10",
@@ -159,8 +99,14 @@ const LevelKey LEVEL_KEYS[5] = {
      "XL is 10 before 50 = 40. LX is 50 and 10 = 60."},
     {"I=1  V=5  X=10  L=50  C=100",
      "Only I, X and C are ever put in front to subtract."},
+    {"I=1  V=5  X=10  L=50  C=100  D=500",
+     "CD is 100 before 500 = 400. DC is 600."},
     {"I=1 V=5 X=10 L=50 C=100 D=500 M=1000",
-     "Biggest first, and never four of the same in a row."},
+     "CM is 100 before 1000 = 900. MC is 1100."},
+    {"I=1 V=5 X=10 L=50 C=100 D=500 M=1000",
+     "Biggest first; never four of one sign in a row."},
+    {"I=1 V=5 X=10 L=50 C=100 D=500 M=1000",
+     "I before V, X; X before L, C; C before D, M."},
 };
 }
 
@@ -174,34 +120,29 @@ const char* RomanGame::title() const {
         : romanAppMetadata().title;
 }
 
+/* A new visit, or New game from the Carry on card: the tally starts over,
+ * the level does not. It used to be the visit's score, so every visit began
+ * with I, V and X. */
 void RomanGame::begin(AppContext& host) {
     score_ = 0;
     streak_ = 0;
     best_ = static_cast<uint16_t>(host.getScore(romanAppMetadata().score->bestKey, 0));
-    recent_.reset();
+    ladder_.start(RC::LEVEL_COUNT, host.courseLevel());
+    startLevel();
+    announce_ = false;
     newQuestion();
     markDirty();
 }
 
-uint8_t RomanGame::level() const {
-    return min<uint8_t>(5, 1 + score_ / 5);
+/* An answered question is something to come back to. No resume(): nothing
+ * here runs on a clock. */
+Game::Keep RomanGame::keepsGame() const {
+    return score_ > 0 || streak_ > 0 || answered_ ? Keep::Ask : Keep::No;
 }
 
-/* Five rungs, each one adding the next symbol. The ceilings are where the new
- * letter stops being needed rather than round numbers: 39 is the largest that
- * needs no L, 99 the largest that needs no C, 399 the largest that needs no D. */
-uint16_t RomanGame::levelCeiling() const {
-    static const uint16_t CEILING[5] = {10, 39, 99, 399, 3999};
-    return CEILING[level() - 1];
-}
-
-/* And the floor is where the level's NEW material starts, so a player who has
- * just reached level 3 is actually asked about L rather than being given XII
- * again. newQuestion() drops back to the full range one time in four, or the
- * smaller numbers would never be revised. */
-uint16_t RomanGame::levelFloor() const {
-    static const uint16_t FLOOR[5] = {1, 11, 40, 100, 400};
-    return FLOOR[level() - 1];
+void RomanGame::startLevel() {
+    deck_.reset(RC::poolSize(ladder_.level()));
+    recent_.reset();
 }
 
 Rect RomanGame::answerRect(uint8_t index) const {
@@ -227,128 +168,39 @@ Rect RomanGame::noteRect() const {
 }
 
 void RomanGame::newQuestion() {
-    const uint16_t ceiling = levelCeiling();
-    const uint16_t floor = levelFloor();
-
-    uint16_t pick = 1;
-    bool askNumber = true;
-    for (uint8_t attempt = 0; attempt < 30; ++attempt) {
-        /* Three questions in four come from the level's new range; the fourth
-         * revises everything below it. */
-        const uint16_t low = (random(4) == 0) ? 1 : floor;
-        pick = static_cast<uint16_t>(random(low, ceiling + 1));
-        askNumber = random(2) == 0;
-        const uint32_t token = static_cast<uint32_t>(pick) * 2 + (askNumber ? 1 : 0);
-        if (!recent_.recentlyUsed(token)) {
-            recent_.remember(token);
-            break;
-        }
-    }
-
-    value_ = pick;
-    askNumber_ = askNumber;
-    if (askNumber_) {
-        toRoman(value_, subject_, sizeof(subject_));
+    const uint8_t lvl = ladder_.level();
+    if (RC::numbered(lvl)) {
+        item_ = deck_.next(esp_random());
+        RC::make(lvl, item_, esp_random(), q_);
     } else {
-        snprintf(subject_, sizeof(subject_), "%u", static_cast<unsigned>(value_));
+        for (uint8_t tries = 0; tries < 20; ++tries) {
+            RC::makeDrawn(lvl, esp_random(), q_);
+            if (!recent_.recentlyUsed(RC::token(q_))) break;
+        }
+        recent_.remember(RC::token(q_));
     }
-    makeOptions();
-
+    value_ = q_.value;
+    askNumber_ = q_.askNumber;
+    snprintf(subject_, sizeof(subject_), "%s", q_.subject);
+    for (uint8_t i = 0; i < 4; ++i) {
+        snprintf(options_[i], TEXT_MAX, "%s", q_.options[i]);
+    }
+    correctButton_ = q_.correct;
+    banner_ = announce_;
+    announce_ = false;
     selected_ = -1;
     answered_ = false;
 
     /* Everything a new question changes. The button trackers are in here
      * because a button that was never highlighted goes from state 0 to state 0
      * and would otherwise keep the previous question's label -- the trap
-     * docs/RENDER_AUDIT.md warns about. The key strip is NOT invalidated here:
-     * it belongs to the level, and repainting it per question would be two
-     * lines of text redrawn for nothing. */
+     * docs/RENDER_AUDIT.md warns about. The key strip belongs to the level and
+     * is repainted when the level the question was dealt from changes. */
     drawnQuestion_ = false;
     drawnHeader_ = false;
     drawnNote_ = 0xFF;
     for (uint8_t i = 0; i < 4; ++i) {
         drawnButton_[i] = 0xFF;
-    }
-}
-
-bool RomanGame::optionExists(const char* candidate, uint8_t upTo) const {
-    for (uint8_t i = 0; i < upTo; ++i) {
-        if (strcmp(options_[i], candidate) == 0) return true;
-    }
-    return false;
-}
-
-/* The first wrong answer is the mistake this screen exists to correct; the
- * rest are near misses. A distractor nobody would ever pick tests nothing. */
-void RomanGame::makeOptions() {
-    correctButton_ = static_cast<uint8_t>(random(4));
-    for (uint8_t i = 0; i < 4; ++i) {
-        options_[i][0] = '\0';
-    }
-
-    if (askNumber_) {
-        snprintf(options_[correctButton_], TEXT_MAX, "%u", static_cast<unsigned>(value_));
-    } else {
-        toRoman(value_, options_[correctButton_], TEXT_MAX);
-    }
-
-    /* The classic error, computed from this very numeral: read every letter as
-     * an addition. For XIV that is 16; for a number with no subtractive pair
-     * it equals the answer, and then it is simply not offered. */
-    char roman[TEXT_MAX];
-    toRoman(value_, roman, sizeof(roman));
-    char teaching[TEXT_MAX];
-    teaching[0] = '\0';
-    if (askNumber_) {
-        const uint16_t misread = readAdditively(roman);
-        if (misread != value_) {
-            snprintf(teaching, sizeof(teaching), "%u", static_cast<unsigned>(misread));
-        }
-    } else {
-        char plain[TEXT_MAX];
-        writeRoman(value_, PLAIN_PIECES, PLAIN_PIECE_COUNT, plain, sizeof(plain));
-        if (strcmp(plain, roman) != 0) {
-            snprintf(teaching, sizeof(teaching), "%s", plain);
-        }
-    }
-
-    for (uint8_t i = 0; i < 4; ++i) {
-        if (i == correctButton_) continue;
-
-        if (teaching[0] != '\0' && !optionExists(teaching, 4)) {
-            snprintf(options_[i], TEXT_MAX, "%s", teaching);
-            teaching[0] = '\0';
-            continue;
-        }
-
-        char candidate[TEXT_MAX];
-        uint8_t attempts = 0;
-        do {
-            const int16_t spread = level() <= 2 ? 3 : (level() <= 4 ? 12 : 60);
-            int32_t other = static_cast<int32_t>(value_) + random(-spread, spread + 1);
-            if (other < 1) other = static_cast<int32_t>(value_) + 1;
-            if (other > 3999) other = static_cast<int32_t>(value_) - 1;
-            if (other == value_) other = static_cast<int32_t>(value_) + 1 + random(3);
-            if (askNumber_) {
-                snprintf(candidate, sizeof(candidate), "%u", static_cast<unsigned>(other));
-            } else {
-                toRoman(static_cast<uint16_t>(other), candidate, sizeof(candidate));
-            }
-            ++attempts;
-        } while (optionExists(candidate, 4) && attempts < 40);
-        /* Forty near misses all taken is possible only for a tiny value, so
-         * walk outwards until something is free rather than shipping a blank
-         * button. */
-        uint16_t walk = value_;
-        while (optionExists(candidate, 4)) {
-            ++walk;
-            if (askNumber_) {
-                snprintf(candidate, sizeof(candidate), "%u", static_cast<unsigned>(walk));
-            } else {
-                toRoman(walk, candidate, sizeof(candidate));
-            }
-        }
-        snprintf(options_[i], TEXT_MAX, "%s", candidate);
     }
 }
 
@@ -358,15 +210,7 @@ void RomanGame::update(AppContext& host, const TouchPoint& touch) {
     }
 
     if (answered_) {
-        const uint8_t before = level();
         newQuestion();
-        /* The key strip is the one thing on this screen that belongs to the
-         * level rather than the question. It is repainted only when the level
-         * actually moves -- which is every fifth correct answer, not every
-         * tap -- and it is still only two lines, not a screen. */
-        if (level() != before) {
-            drawnKeyLevel_ = 0xFF;
-        }
         markDirty();
         return;
     }
@@ -377,15 +221,30 @@ void RomanGame::update(AppContext& host, const TouchPoint& touch) {
         }
         selected_ = static_cast<int8_t>(i);
         answered_ = true;
-        if (i == correctButton_) {
+        const bool right = i == correctButton_;
+        if (right) {
             ++score_;
             ++streak_;
             if (host.saveBestScore(romanAppMetadata().score->bestKey, score_, false)) {
                 best_ = score_;
             }
-            host.beepOk();
         } else {
             streak_ = 0;
+            if (RC::numbered(q_.level)) deck_.missed(item_);
+        }
+        /* One try, so the first press is the only one the ladder hears. */
+        const Course::Ladder::Step step = ladder_.answer(right);
+        if (step != Course::Ladder::Step::Stay) {
+            host.setCourseLevel(ladder_.level());
+            startLevel();
+        }
+        if (step == Course::Ladder::Step::Up) {
+            announce_ = true;
+            host.pulseRgb(0, 255, 40, 450);
+            host.playSound(Sound::LevelUp);
+        } else if (right) {
+            host.beepOk();
+        } else {
             host.beepError();
         }
         markDirty();
@@ -450,8 +309,14 @@ void RomanGame::drawNote(Ui::Renderer& tft) {
     const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
 
     if (!answered_) {
+        char line[RC::LEVEL_LINE_MAX + 1];
+        if (banner_) {
+            RC::levelLine(q_.level, line, sizeof(line));
+        } else {
+            snprintf(line, sizeof(line), "%s", q_.level == 8 ? "Which is written right?" : "Tap the answer");
+        }
         tft.setTextColor(YELLOW, Ui::bg());
-        tft.drawString("Tap the answer", cx, static_cast<int16_t>(r.y + 1), 2);
+        tft.drawString(line, cx, static_cast<int16_t>(r.y + 1), 2);
         tft.setTextDatum(TL_DATUM);
         return;
     }
@@ -488,7 +353,7 @@ void RomanGame::renderDynamic(AppContext& host) {
     /* One header row, cleared at both ends before either is written: Correct
      * grows and Level is redrawn beside it, and a right-aligned string that
      * gets narrower leaves its tail at the LEFT. */
-    if (!drawnHeader_ || score_ != drawnScore_) {
+    if (!drawnHeader_ || score_ != drawnScore_ || drawnKeyLevel_ != level()) {
         tft.fillRect(10, 32, 120, 18, Ui::bg());
         tft.fillRect(GAME_CANVAS_WIDTH - 10 - 190, 32, 190, 18, Ui::bg());
         char buf[40];
