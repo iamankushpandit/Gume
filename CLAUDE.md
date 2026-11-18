@@ -41,10 +41,12 @@ build), `AGENTS.md` (agent protocol) and the relevant directory `CLAUDE.md`.
 A README claiming the wrong game count or a stale flash figure is a defect
 belonging to whoever last changed the thing it describes.
 
-**Run `python tools/check_docs.py` and `python tools/check_boards.py` before
-you commit.** It fails if the version,
-the game count, the source-tree listing or the build figures have drifted, and
-if the About app has started restating facts instead of deriving them. These
+**Run every `python tools/check_*.py` before you commit** (and
+`python tools/run_host_tests.py` when `src/` changed); the table under
+"Which rules a machine checks" below says what each one covers. `check_docs.py`
+fails if the version, the game count, the source-tree listing or the build
+figures have drifted, and if the About app has started restating facts instead
+of deriving them. These
 rules existed and the docs went stale anyway -- the README shipped claiming 23
 games when there were 26, and the source listing missed three files that had
 been added. Asking for vigilance does not work at the end of a long change; the
@@ -99,6 +101,39 @@ every pull request. Three things follow from it:
 The related rule this does not replace: **trademark is not copyright.**
 NOTICE.md keeps them apart, and a fork renames the product while keeping the
 attribution. See `include/AppVersion.h`.
+
+## Which rules a machine checks
+
+Each check below passes on a clean tree; run them all before you commit.
+`ci.yml` runs every one on each pull request except `check_contrast.py` and
+`check_platforms.py`, which run locally until the workflow calls them. A rule a machine cannot check is still a
+rule; the last group is the part only reading catches.
+
+| Rule | Checked by |
+|---|---|
+| Version, game count (README, CONTRIBUTING and every rulebook), system-app count, source listing, build figures, About derives its facts, screenshots, the site, the badges | `check_docs.py` |
+| Players are players, young players or the administrator: no word for an age group in a rulebook, the README, `docs/`, the site templates or any string under `src/` | `check_docs.py` |
+| `AGENTS.md` links every rulebook in the tree | `check_docs.py` |
+| A board is two files; no board flag in `[common]`; every board is flashable from the installer; TFT_eSPI and the profile agree | `check_boards.py` |
+| Launcher indices contiguous; no two game ids share a course or visibility key | `check_catalog.py` |
+| Every theme's colour pairs meet the contrast floors | `check_contrast.py` |
+| No `new`/`malloc`, no `String` per frame, no `delay()` under `src/` (a ratchet: counts may only fall) | `check_frame_rules.py` |
+| No MAC address or public IP anywhere in the repository | `check_identifiers.py` |
+| Every file carries its licence notice | `check_licenses.py` |
+| Only the four outbound flows; the update request is anonymous; Linux adds nothing underneath; the router is told one fixed name; no rulebook miscounts the flows | `check_privacy.py` |
+| No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/CMakeLists.txt` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
+| No image but the Attaky Core's carries an Attaky-only symbol | `check_platforms.py --elf .pio/build`, after a build |
+| Every host test states its build line, builds and passes | `run_host_tests.py` |
+| The pin tables and diagrams in `docs/boards/` match the profiles | `gen_board_docs.py --check` |
+| Every environment says whether it is product, experimental or diagnostic | `envs.py` |
+| No animation shows the number 13 | `gen_gameplay.py` refuses to write one |
+
+**Written only -- no machine can tell:** commit trailers and branch names; an
+SSID, a hostname, a PIN or a player's name in a diff; whether a full repaint
+was earned and a clear rectangle derived; whether a hot-path read has a RAM
+mirror; whether docs, mock-ups and theme sheets were updated and *looked at*;
+whether a screen still reaches every control by touch; the admin gates; the
+`dev` base, the worktree and the board lock. Those are what review is for.
 
 ## The About app is user-facing documentation — keep it true
 
@@ -226,8 +261,8 @@ because it is believed.** If you add or change anything that transmits, stores
 or shares data, the About radio page and the README Privacy section are part of
 that change. Not a follow-up.
 
-About is also a system app, so it follows the orientation rule: lay out against
-`tft.width()` / `tft.height()`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`.
+About is also a system app, so it lays out against `tft.width()` /
+`tft.height()`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT` (see "Rendering model").
 
 ## Responsiveness rule — know what a frame costs
 
@@ -387,7 +422,24 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 40 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240×320 resistive-touch board): ILI9341 320×240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
+## One firmware, three kinds of platform
+
+Braino! is a handheld educational console for young players: 40 games, all
+built in, no accounts, no telemetry, no SD card required. One `src/` (C++17,
+written against the Arduino API) builds for every platform below. The rules in
+this file are the product's and hold on all of them; a rule that is true of one
+platform lives beside that platform, and this file points at it.
+
+| Platform | What it is | Built by | Its rules |
+|---|---|---|---|
+| **ESP32 boards** | The product boards: E32R28T-1, the inverted-panel ESP32-2432S028, E32R32P, E32R40T and Freenove FNK0104B. Resistive or capacitive touch, 320x240 to 480x320, all published on the web installer | PlatformIO, `custom_env_kind = product` | [src/hal/CLAUDE.md](src/hal/CLAUDE.md) (hardware notes, battery, sound, touch), [docs/PORTING.md](docs/PORTING.md), one page per board in [docs/boards/](docs/boards/) |
+| **Attaky Core** | An ESP32-S3 board with an I2C expander, keys, a clip-on keyboard and gamepad and swappable modules. Experimental: CI builds it, nothing publishes it | PlatformIO, `custom_env_kind = experimental` | [src/hal/CLAUDE.md](src/hal/CLAUDE.md#the-attaky-core-experimental-standing-rules), [docs/boards/Attaky-Core.md](docs/boards/Attaky-Core.md) |
+| **Linux** | The same `src/` as a PC program (SDL2), and the Anbernic RG40XX V's whole-device image, which is nothing but Braino | CMake in `host/`; Buildroot in `host/rg40xxv/` | [host/CLAUDE.md](host/CLAUDE.md) |
+
+The four outbound flows (see "No data collection" above) are the same on
+every platform; so are the identifier, licence, memory, frame and redraw
+rules. How many boards there are is deliberately not stated anywhere: `tools/envs.py`
+and the `[board_*]` sections are the list.
 
 ## Build
 
@@ -561,106 +613,27 @@ would otherwise say "HEAD". A tree with no `.git` at all -- a source tarball --
 is a supported way to build, and stamps "unknown" rather than inventing
 something plausible.
 
-### The host build: the same firmware, on a PC
+### The Linux platform: the same firmware, on a PC and a handheld
 
-`host/` compiles `src/` unchanged into a desktop program with SDL2, in Linux
-or WSL (`cmake -S host -B build/host && cmake --build build/host -j`). It is
-the road to Linux handhelds such as the Anbernic RG40XXV, and it is already
-the quickest way to see a real screen without a board. `host/CLAUDE.md` is
-the guide. Three things about it are load-bearing:
+`host/` compiles `src/` unchanged into a desktop program with SDL2 (`cmake -S
+host -B build/host && cmake --build build/host -j`), and into the RG40XX V's
+whole-device image. Two rules about it bind every change to `src/`, so they
+stay here:
 
-- **Every platform draws at its own resolution, found at run time.** The
-  panel's size is `PanelSize` (`src/hal/PanelSize.h`), one implementation per
-  platform: a board answers from its profile (`hal/PanelSizeEsp32.cpp`), the
-  host from the display it found when it started -- 640x480 on the RG40XX V,
-  or `BRAINO_PANEL=WxH` -- divided by a whole-number UI scale, 2 there, so
-  text and controls keep the 2.8-inch board's proportions
-  (`host/src/HostPanelSize.cpp`). Every pixel is still drawn at the panel's
-  own resolution: nothing draws a 320x240 picture to be stretched by somebody
-  else, and on Linux text is GNU FreeSans, anti-aliased at that resolution,
-  measured with the advances that draw it, in the bitmap fonts' cells, and
-  narrowed where its widest word would outrun the bitmap font's
-  (`host/src/HostText.cpp`). Circles, rounded corners, slanted lines and
-  triangles are drawn at the real resolution with smooth edges too, and a
-  redraw stays a no-op (`host/src/HostTftShapes.cpp`). The product mark and
-  the few arcs plotted pixel by pixel are offered to the platform through
-  `PanelArt` (`src/ui/PanelArt.h`): a board's answer declines, and the
-  one-bit `LogoMask` and the plotted pixels stay the art, one pixel to one. Anything that means "the
-  panel in front of the player" -- the canvas fit, touch mapping, the boot
-  banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
-  are the profile's compile-time panel and on the host only the floor the
-  static_asserts check. System screens read `tft.width()` / `tft.height()`,
-  which is the same size turned to their rotation. Games keep their 320x240
-  canvas and `ScaledRenderer` fits it: the largest whole scale, centred, with
-  text at that scale, on a panel at least twice the canvas both ways (640x480
-  is exactly 2x); the fractional fill below that (the 4-inch board's
-  480x320). **A new platform implements `PanelSize` and gets the rest.**
-- **`host/` adapts to `src/`, never the reverse.** There is no host `#ifdef`
-  under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
-  answered by `host/src/`. It is deliberately outside `include/boards/`,
-  because a header there is a claim of support. Only the hardware watchdog and
-  the codec/DAC backend are replaced, and `CMakeLists.txt` names them; the
-  radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
-  through `host/shim/NimBLEDevice.h` on a raw HCI socket).
+- **`host/` adapts to `src/`, never the reverse.** No platform `#if` under
+  `src/` or `include/`; a difference between platforms is an interface in
+  `src/` with one implementation per platform (`PanelSize`, `PowerProbe`,
+  `SystemSuspend`, `SleepPower`, `PanelArt`). `tools/check_platforms.py`
+  checks both, and that `host/CMakeLists.txt` leaves out exactly the ESP32
+  implementations.
 - **A new platform call in `src/` breaks the host build until `host/shim/`
-  answers it.** The shims hold only what `src/` calls. CI builds the host
-  on every pull request that touches source (`ci.yml`'s `host` job, which
-  `verify` waits for), so a missing shim is a red pull request; building it
-  yourself first is still quicker than waiting for CI to say so.
-- **The host's network is the firmware's, and nothing more.** Wi-Fi is the
-  computer's own radio, driven through NetworkManager or wpa_supplicant
-  (`host/src/HostWifiOs.cpp`), and UDP and HTTP are real sockets. But the
-  shims only answer: every packet that leaves is one the firmware's own code
-  chose to send, behind its own `WL_CONNECTED` checks, so the closed list of
-  outbound flows holds for this program unchanged. A shim must never add a
-  request, a header or a field. `esp_read_mac()` returns random bytes rather
-  than the PC's MAC, and `WiFi.macAddress()` answers `--`.
-- **On a handheld the settings file is on a card any laptop reads, so the
-  Wi-Fi name and password and the admin PIN are sealed in it**
-  (`host/src/HostSecret.h`), with a key derived from the processor serial and
-  never stored. With no processor-bound key, a handheld build keeps the
-  network in memory rather than write it readably. muOS's
-  `wpa_supplicant.conf` is never given a copy. A new secret setting in `src/`
-  belongs in `SECRET_KEYS` in `host/src/HostNvs.cpp` in the same commit.
-- **Sleep must switch the real lamp off.** The backlight PWM is only a
-  brightness multiplier on the window here, so `host/src/HostScreenPower.cpp`
-  follows the panel's Sleep In and Sleep Out and switches the handheld's own
-  backlight. While the panel sleeps, any button press becomes a BOOT press
-  that wakes it and reaches nothing else. Sleep also takes the Wi-Fi
-  interface and three of the four cores down and slows polled input such as
-  the joypad (`host/src/HostSleep.cpp`), and a run that ends asleep leaves
-  markers in `/run/braino` so the next start puts them back. **Never the
-  display output under muOS**: re-enabling its vendor driver's output woke the
-  RG40XXV mirrored with inverted colours, and muOS ships that toggle off. The
-  whole-device image's mainline DRM driver is a different driver, and there
-  sleep does switch the output off (`HostDrm::setPower()`).
-- **The RG40XX V has a whole-device image that is nothing but Braino**
-  (`host/rg40xxv/`, a Buildroot external tree; its README is the guide).
-  Mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A built from
-  source, the whole system in RAM, no GPU driver: `BRAINO_HOST_DRM` draws
-  through the kernel's DRM driver (`host/src/HostDrm.cpp`) and keeps SDL for
-  the gamepad and sound only. Four rules hold it together. **Nothing but
-  Braino draws on the panel** -- no text console, boot messages on the serial
-  port only -- so the screen is dark until the splash. **No service, login or
-  shell exists**: init runs the scripts in `board/overlay/etc/init.d` and
-  Braino, and the closed list of outbound flows covers the whole device.
-  **`host/rg40xxv/rocknix/` is ROCKNIX's, verbatim** (fetched by `fetch.sh`
-  from one pinned commit, recorded in `PROVENANCE.txt`), applied in ROCKNIX's
-  order with patch's default fuzz, and stops the build on any hunk that does
-  not apply. **The image is a release asset, never in git**, and it ships
-  with Buildroot's `legal-info` as its source offer.
-  **A television on HDMI takes the picture from the panel, and headphones
-  take the sound from the speaker** -- both RG40XX V only, so nothing else
-  changes. The TV shows the panel's frame at a whole scale and the layout
-  never moves to the TV's size; the panel's lamp follows the picture; sleep
-  turns off whichever output shows. The jack is the kernel's and the image's
-  init scripts' (`acpid` switching the codec's `Speaker` pin), so no line of
-  `src/` knows about it. There is no HDMI sound: the H700's audio hub has no
-  mainline driver. See `host/CLAUDE.md` and `host/rg40xxv/README.md`.
+  answers it**, and a shim only answers: it never adds a request, a header or
+  a field to what the firmware sends.
 
-`BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
-replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,
-overdraw and partial-repaint mistakes.
+Everything else about the Linux platform -- resolution and scale, the
+network, the sealed secrets, sleep and the lamp, the RG40XX V image's four
+rules, HDMI and the headphone jack -- is in
+[host/CLAUDE.md](host/CLAUDE.md#standing-rules-for-the-linux-platform).
 
 ### Build gotchas
 
@@ -1040,147 +1013,13 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   exactly as with BOOT, and every job is also a control on the screen.
   Directions are seen right at the landscape rotation; the sign to change
   if portrait is wrong is in `src/hal/BoardKeys.cpp`.
-- **An LED can live on an I2C expander, and then it is on or off.**
-  `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)
-  or an AW9523's address, with `r`/`g`/`b` as its ports -- the Attaky Core's
-  P1_0..P1_2. `BoardExpander::driveLed()` reads, modifies and writes only
-  those bits, because P1_3 beside them is the touch reset, and
-  `BoardConfig.h` refuses an LED port that is the reset. A colour becomes
-  the channels at least half as bright as its brightest, and the bus is
-  written only when that changes -- the saver sets a colour per rally.
-  **What is remembered is what the part took, not what was asked**:
-  `driveLed()` says whether the bus answered, and a write it did not take
-  leaves the state unknown, so the next call tries again. Recorded before
-  the write, one failed transaction on the way into sleep left the LED lit
-  and the firmware sure it was off. While the panel sleeps, off is read
-  back from the part and held (`Board::keepExpanderRgbDark()`, from
-  `displaySleep()` and every `tickRgb()`), at no bus cost once confirmed.
-- **The firmware's lights are out while the panel sleeps -- on the Attaky
-  Core, where there is more than one.** The status LED as above; and each
-  module that is clipped on is told through `Modules::Driver::panelSleep`,
-  called from `Board::displaySleep()` and `displayWake()`, so the keyboard
-  puts its caps-lock light out and brings it back on wake. The battery
-  pack's light is the charging hardware's and no line of the host's reaches
-  it; do not go looking for one. The gamepad's LEDs are left inputs, and
-  the probe logs what those lines read (`[gamepad] leds as inputs: ...`)
-  -- **they are not to be driven until that has been read on a device**.
-- **An expander the firmware drives no port of is parked, not ignored.**
-  An AW9523 strapped to 0x58 powers up with all sixteen ports outputs
-  driving LOW, and the Core's is wired to the other chips' interrupt
-  lines, so a firmware that never wrote to it held them all low.
-  `BoardProfile::parked.parkedExpander` names it (0 on every other board),
-  `Board::begin()` calls `BoardExpander::park()` before the touch reset is
-  released -- every port an input, the part's own interrupt output off --
-  and logs `[expander] 0x58 inputs P0=0x.. P1=0x..`. See `src/hal/CLAUDE.md`.
-- **Neither the SD slot nor the speaker is brought up over another
-  module's lines.** On the Attaky Core three Expand modules share IO5-8, and
-  the speaker's I2S (IO17/IO18/IO21) is the LoRa/GPS module's GPS UART and
-  radio interrupt and the FM/AM module's I2S; this firmware is built for
-  Media I/O. The three are the module table's `expand` slot, decided once
-  in `begin()` by `Modules::probeAll()`, before `beginAudio()` and
-  `mountSd()`, from `ExpandProbeProfile`: an address write to the FM/AM
-  tuner on that module's own bus, then a passive `GPS_LISTEN_MS` (1.5 s)
-  listen for a checksummed NMEA sentence on IO17, the UART's receiver only.
-  Either found, or the radio's bus failing to start, leaves the slot down
-  and the I2S backend uninstalled for the boot -- `mountSd()` and
-  `beginAudio()` ask `Modules::allows()` for Storage and Sound, which only
-  Media I/O provides -- and logs
-  `[expand] module=... sd=skipped audio=skipped`. Silent is the state an I2S
-  install failure already produced, so nothing downstream is new. Media I/O
-  has no host-readable identity, so finding neither is the only answer that
-  brings either up. Nothing it touches is driven, and it must stay ahead of
-  `beginAudio()`: on Media I/O, IO17 is the amplifier's bit clock.
-- **A power key's short press is the Lock button.** `KeysProfile::keyPower`
-  names its port (P0_7 on the Attaky Core) and `pollNavKey()` reports it as
-  `NavKey::Power`, which the runtime consumes above the active screen --
-  on the launcher too -- and turns into `lockAndSleepNow()`; no screen ever
-  sees it. It follows BOOT's rules: it counts as activity, wakes a sleeping
-  panel and dismisses the saver like any key, does nothing on the lock
-  screen, and reaches nothing the padlock does not. The long press switches
-  the power in hardware and never reaches the firmware -- build nothing on
-  it.
-- **A physical keyboard types into the text fields, and while it does, the
-  on-screen keypad is off -- one tap away, never gone.** `KeyboardProfile` names the two halves
-  of Attaky's clip-on keyboard and spells out each half's 25 positions;
-  the module table probes both at boot and the keyboard is off unless both
-  answer, because the module is detachable. `Board::pollTypedChar()` reads one
-  register a half per frame while nobody types -- the rows are held low,
-  so any key shows on the columns -- and walks the rows only while a key
-  is down. The runtime hands the character to the active screen through
-  `GameHost::typedChar()`, beside `navKey()`. Five fields take it: a
-  player's name and a Nearby peer's (through `Ui::Keypad::fromTyped()`,
-  so they accept exactly the keypad's capitals, digits and space), both
-  admin PIN pads (digits, Delete, Enter), and the Wi-Fi password (what was
-  typed, case and punctuation included). The keyboard's one Shift is
-  printed as a phone's up arrow and is pressed like one: tapped alone it
-  toggles caps lock, held with a letter it shifts that letter. Caps lock is
-  shown on the left half's own LED, which shares the AW9523's P1 with the
-  matrix rows -- so every row write carries the LED bits (`rowsLow()`), or
-  the scan would put the light out on the first key. **A screen must handle a typed
-  character apart from the touch**: on its frame the touch coordinates are
-  the last touch's, and running the hit tests would press that again.
-  Each screen reads it through `hostTypedChar()`, a constant 0 where
-  `GUME_HAS_KEYBOARD` is off, so the boards without one carry none of this.
-  **With the keyboard found at boot, those five fields draw no keypad**
-  (`ui/TypingPanel.h`): the field is drawn larger, the PIN's dots too, with
-  "Type on the keyboard" under it, and only what is not a key stays -- OK or
-  JOIN, Cancel or Back, Show. No DEL: the keyboard has Delete. Three things
-  are load-bearing. **Each screen keeps a `Ui::KeypadChoice`, decided as
-  the field opens**, so the choice is per visit and the next visit asks
-  again. **A keyboard button on every one of them brings the keypad back
-  for that visit** -- the module comes off and boot is the only time
-  anybody looks, so without it a field could be reachable only by key.
-  **A field that takes what the keyboard cannot type keeps it on screen**:
-  the keyboard has letters, digits, space and only `,` `.` `#` of the
-  punctuation, so the Wi-Fi password keeps the on-screen symbol page's three
-  rows where the keys were (`WifiPassword.cpp`); the names and PINs take
-  nothing the keyboard lacks. A new field, or a keyboard with a different
-  layout, has to be checked the same way. **And the
-  keypad comes back by itself when the keyboard stops answering**:
-  `Modules::keyboardAnswering()` counts the per-frame scan's own failures
-  (five in a row is gone), and each screen asks `KeypadChoice::lost()`
-  every frame and repaints fully on a yes. Elsewhere `KeypadChoice` is an
-  empty class with a constant-false `hidden()` and the drawing helpers are
-  inline no-ops, so every screen's branch folds away.
-- **The profile says where a module could be; boot decides whether it is
-  there.** A board that takes plug-in modules -- the Attaky Core's keyboard,
-  gamepad, Power module and Expand modules all come off -- states in its
-  profile what it would need to know about each one it can carry, and
-  nothing about whether one is attached. `src/hal/modules/` holds one driver
-  file per module: a `Modules::Driver` (name, the `ModuleCapability` bits it
-  provides, a boot probe, per-frame or battery hooks, a slot for modules that
-  share lines) and a `Modules::Registration` that puts it in the table from
-  its own file. `Modules::probeAll()` runs every probe once in
-  `Board::begin()`, and nothing a module provides is used unless its probe
-  found it. **Supporting a new module is one driver file plus its facts in
-  the profile**: the boot sequence, the navigation-key stream, typing, the
-  battery path, the SD and speaker gates, System Info's Board tab and
-  About's Modules page all read the table, so none of them changes. See
-  `src/hal/CLAUDE.md`.
-- **Attaky code compiles only into the Attaky image.** Five board-header
-  macros -- `GUME_TOUCH_CAPACITIVE`, `GUME_HAS_IO_EXPANDER`,
-  `GUME_HAS_NAV_KEYS`, `GUME_HAS_KEYBOARD`, `GUME_HAS_ATTAKY_MODULES` -- are
-  defined only in `include/boards/attaky-core.h` (the first also in
-  `fnk0104b.h`), default to 0 in `BoardConfig.h`, which static_asserts the
-  profile agrees with them both ways, and preprocess out everything behind
-  them: whole files, `Board`'s members and accessors, `GameHost`'s
-  `typedChar()` virtual, the runtime's key routing and its selector, the
-  focus recorder, the screens' typed paths, the gauge and the module
-  table. **Prefer a whole file that compiles to nothing** over an `#if` in a
-  shared file, and where shared code must call across, an inline no-op
-  beside the declaration (`hostTypedChar()`, `Modules::allows()`, the
-  recorder's `Focus::note*()` calls in `TftRenderer`). A `BOARD.hasX()`
-  test is not enough -- both arms still compile and its declarations stay
-  in every class. Checked rather than hoped: on each other product
-  environment `xtensa-esp32-elf-nm -C firmware.elf` finds none of
-  `pollControls`, `pollTypedChar`, `typedChar`, `selectorFrame`,
-  `Focus::`, `BoardExpander`, `sampleModuleBattery`, `Modules::` or
-  `i2sUp`, and it carries no RAM beyond what the shared code costs.
-  **One stated exception: `src/ui/Stops.{h,cpp}`**, what a game says about
-  its board (`Ui::setBoardStops()`) and a card over it. It compiles on every
-  board because the PC and RG40XX V builds read it (`HostTftFocus.cpp`), and
-  they define no `GUME_HAS_NAV_KEYS` -- their selector is the host's. It is
-  two rectangles and a flag, assigned per frame and drawn by nothing.
+- **Some boards carry code no other board does, and it compiles only into
+  their image.** Today that is the Attaky Core: the I2C expander and its LED,
+  the power key, the clip-on keyboard and gamepad, the module table and the
+  Expand-slot probe. The five board-header macros, the rules each part keeps
+  and how the absence is measured (`nm` on every other image, which
+  `tools/check_platforms.py --elf` does) are in
+  [src/hal/CLAUDE.md](src/hal/CLAUDE.md#the-attaky-core-experimental-standing-rules).
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -1218,7 +1057,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   - **Only the first try at a question moves the ladder.** These screens have no second try; a game that offers one calls `answer()` for the first press only, or guessing all four buttons would climb.
   - **The deck is for a level that can be numbered, `RecentQuestions` for one that cannot.** Up to 256 items, `QuestionDeck` guarantees coverage. A level of hundreds or millions of questions -- Math from level 6 -- draws at random and draws again while the question is among the last ten. Call `deck_.missed(item)` BEFORE the ladder moves: a step resets the deck, and an item number belongs to the level that dealt it.
   - **Up is announced and down is not.** A step up plays `Sound::LevelUp` with a green `pulseRgb()` in place of `beepOk()` -- a tick armed first is cut off by the flourish -- and the new level's name stands over its first question. A step down says nothing at all; the questions get easier, and that is the whole of it.
-- **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
+- **Never sample the battery on the render path.** A task samples it every `Board::BATTERY_SAMPLE_MS` (2s) and publishes a snapshot; `Board::readBatteryTelemetry()` and every accessor only read that snapshot. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them; a 2s cache after that only moved the cost onto whichever frame found it expired. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
 - **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** — that is what makes it a guest rather than a sixth player. The one exception is the state of a game being played against another console, which is the console's and not a player's (`saveConsoleBlob()`, see below).
 - **Device settings are global, not per-profile**: theme, layout, screen flip, brightness,
@@ -1518,7 +1357,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   table, no sample bank, and nothing decoded at runtime. This is a flash rule
   before it is an aesthetic one: one second of 16-bit 16kHz mono is 32 KB, so
   the vocabulary as recordings would cost more than the whole game catalogue's
-  artwork, on a budget already at 84.9%. As synthesis it is under a kilobyte.
+  artwork, on a budget already above 85%. As synthesis it is under a kilobyte.
   The spoken phrase is a phoneme table, not text-to-speech -- there is no
   dictionary and there is no second phrase; adding one means writing its
   phonemes out by hand, which is the intended cost.
@@ -1695,9 +1534,10 @@ how About fell six games behind in the first place:
 
 Everything above still applies, plus:
 
-- It **must work in both orientations.** Read `tft.width()` / `tft.height()` at
-  render time, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`. Settings and Wi-Fi
-  currently violate this and are the reason the rule is stated so bluntly.
+- It **lays out against the panel it is on.** Read `tft.width()` /
+  `tft.height()` at render time, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`: the
+  same screen runs at 320x240, 480x320 and on the Linux panel. Whether it
+  also supports portrait is decided for that screen (see "Rendering model").
 - If it touches a radio, stores data, or changes what leaves the device, the
   **About radios page** and the **README privacy section** are part of the same
   change — and About must *read* the state, not restate it.
@@ -1769,7 +1609,9 @@ Most games still repaint wholesale. Cinnamon is the reference for partial redraw
 
 Playable games are authored against a fixed 320×240 landscape canvas, which `ScaledRenderer` fits to the panel `PanelSize` reports -- a whole scale centred from twice the canvas up, the fractional fill below it. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
 
-**System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
+**System/UI apps** (Settings, Wi-Fi, System Info, Profiles, Scores, About, Nearby, and any future app-style screen beyond the playable game catalog) read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out against them: the same screen runs on every panel size.
+
+**Portrait is decided screen by screen, not owed by every screen.** The rule used to be that every system app must work in both orientations, and Settings and Wi-Fi were listed as violating it. The maintainer withdrew it when closing issue 22 as not planned: no supported board has a gyro, so orientation is a setting somebody chooses rather than how the console is held, and some screens -- the status row is the clearest -- are better in landscape because of screen space, not taste. So a screen that reads better in one orientation may say so (Settings is always landscape). What already works stays working: the launcher, the lock screen and the saver lay out against the live size in both orientations and must keep doing so. Reopening portrait for a screen is its own issue for that screen. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
 ## Layout
 
@@ -1902,6 +1744,12 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           check_boards.py, check_catalog.py,
                           check_contrast.py (every theme's colours against
                           the WCAG floors),
+                          check_platforms.py (one src/ for every platform:
+                          no platform #if, an implementation per platform,
+                          Attaky code only in the Attaky image),
+                          check_privacy.py (the closed list of outbound
+                          flows), run_host_tests.py (every test in
+                          test/host/),
                           check_frame_rules.py, check_identifiers.py (no MAC
                           or public IP may reach this repo -- see the rule
                           above),
@@ -2074,11 +1922,13 @@ flashed from `dev` cannot be mistaken for the release it is ahead of.
 ## The web installer is part of the deliverable
 
 `https://iamankushpandit.github.io/Gume/` flashes a board from the browser over
-Web Serial. `.github/workflows/pages.yml` builds all four PlatformIO
-environments on every push to `main`, runs `tools/gen_site.py`, and drops the
-resulting `.bin` files beside the manifest that points at them. Nobody
-regenerates it by hand, so it cannot go stale on its own — but three things
-break it, and all three fail in someone else's browser rather than here:
+Web Serial. `.github/workflows/pages.yml` builds every product environment
+(`tools/envs.py --product`) on every push to `main`, runs `tools/gen_site.py`,
+and drops the resulting `.bin` files beside the manifest that points at them.
+It offers the ESP32 boards only: the Attaky Core is experimental and the Linux
+platform ships as a card image, not over Web Serial. Nobody regenerates it by
+hand, so it cannot go stale on its own — but these things break it, and all
+of them fail in someone else's browser rather than here:
 
 1. **Adding or renaming a PlatformIO environment.** The page offers one
    firmware per entry in `gen_site.py`'s `VARIANTS`; if the workflow does not
@@ -2091,8 +1941,8 @@ break it, and all three fail in someone else's browser rather than here:
    than none, because it is believed.
 3. **Making CI unable to build.** `platformio.ini` is expected to build on a
    clean checkout, locally and in GitHub Actions. If `lib_deps` changes shape,
-   keep both `.github/workflows/ci.yml` and `.github/workflows/pages.yml`
-   building all four environments in the same commit.
+   the workflows still build every environment `tools/envs.py` names; check
+   the change builds there in the same commit.
 4. **Touching `site/assets/`.** The photos, the one-minute hero video and the
    A2 poster are the one part of the page that is *not* derived from the
    firmware, so they are the one part that can rot with nothing noticing. Both
@@ -2171,33 +2021,12 @@ of them leaves a page that still generates, still deploys and still flashes the
 current version perfectly; the symptom appears only on the day somebody needs
 an older one.
 
-## Hardware notes
+## The serial console
 
-Pins live in `include/boards/<board>.h` -- one profile header per supported
-board, and the only place in the tree that names a GPIO. Read the profile
-rather than trusting generic ESP32 pinouts online, and never copy a pin map
-between CYD variants: GPIO34 is battery sense here and the light sensor on the
-ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
+Every platform answers on its serial port (the PC build and the RG40XX V
+on standard input); the rules are the same everywhere.
 
-- **A panel can be colour-inverted, and TFT_eSPI's macro will not fix it.**
-  A CYD panel can invert every channel relative to the driver it is built
-  with: the board comes up with backlight, touch, layout and a clean serial
-  log, and only the colours are wrong, which reads as a theme bug. `TFT_INVERT_COLORS` is consulted **only** by TFT_eSPI's ST7789 and
-  ST7735 init paths, so defining it on an ILI9341 build does nothing at all --
-  that was tried on the bench and looked like the flag being ignored. The fix
-  is `PanelProfile::invertColours`, which `Board::begin()` turns into a runtime
-  `invertDisplay()` after `init()` and before anything is drawn.
-- **The boot log states what the board IS.** `[boot] device=...` is the
-  firmware's own id (`Board::deviceId()`), never the MAC -- see "No identifiers
-  in this repository". `board=` and `panel=` are compiled in and therefore
-  describe the firmware, not the hardware, which is exactly how a 2.8-inch
-  board reported itself as a 4-inch for half an hour.
-- **A running board answers `identify` with the same facts, unreset.** One
-  line, every value quoted; `ESP32_boardUtil.py` asks before it resets
-  anything. It carries **only the banner's facts** (no MAC, profile, score or
-  SSID) and needs no PIN. Open the port with DTR and RTS already low, or
-  opening it resets the board and defeats the point.
-- **The serial port is a console, and it was widened on purpose.** The
+**The serial port is a console, and it was widened on purpose.** The
   maintainer asked for bench boards to be set up from a cable rather than by
   hand, and plans a layered framework whose shell reaches every service the UI
   does (`docs/FRAMEWORK_PLAN.md` on the platform-separation branch), so the
@@ -2273,102 +2102,13 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
     changing the admin PIN or which profile is admin, peer labels, the update
     check and the NTP server. Each is a decision for the maintainer, not a
     convenience.
-- **An EN reset can strand an E32R40T, and the flash tool now recovers it.**
-  After the reset button, an RTS reset from a serial tool, a USB power surge
-  -- and, most often, the hard reset at the end of an upload -- the ROM loops
-  `flash read err, 988` or `invalid header: 0x20000368` / `RTCWDT_RTC_RESET`
-  every ~350ms with the panel dark. **It is not the GPIO12 strap**, which was
-  the first guess (GPIO12 is also the shared MISO): the ROM prints
-  `boot:0x17`, whose MTDI bit is clear, so 3.3V flash was selected. **Nor is
-  the image damaged**: read back while looping, the bootloader at 0x1000 was
-  byte for byte correct, and the failing read differed from it by three bits
-  at the same address -- a marginal read at the moment of some resets. Cause
-  not yet found. What recovers it without a battery pull is a reset that comes
-  *from download mode*: `esptool --after no_reset flash_id`, then `esptool
-  --before no_reset --after hard_reset read_mac`, repeating the pair (never
-  the second step alone) if it fails. `ESP32_boardUtil.py --flash` asks every
-  board it flashed for its build afterwards and runs that recovery on any
-  whose serial shows the loop (`check_boot()`), so a flash no longer leaves a
-  dark 4-inch board behind. By hand: capture the serial passively before
-  reflashing; it cannot be flashed while looping.
-- **There is no `id=` field in the banner, and putting one back needs more
-  care than it looks.** 5.9.0 printed the controller's ID register and broke the
-  display on two of the seven boards: `tft.readcommand8()` writes an
-  undocumented 0xD9, toggles CS mid-sequence and restores neither the address
-  window nor MADCTL, so a panel whose MISO is not wired back is left
-  mid-command and the next write inherits it. The symptom is the top bar
-  crushed into a band at one edge and the rest of the screen never painted,
-  while the loop reports 48fps, a 23ms worst frame and a flat heap -- every
-  instrument saying the firmware is healthy, because it is. The corruption was
-  in the panel, put there by the diagnostic. Across all seven boards the field
-  only ever answered `00:00:00` or `FF:FF:FF`; not one returned a real ID, so
-  it could not do the job it cost a panel to attempt. The remaining three lines
-  turn "which board is this?" into a paste rather than an afternoon.
-- **The E32R28T-1's RGB LED is red IO22, green IO16, blue IO17**, from the vendor's pin table, and **IO4 is its amplifier enable, active low** -- not an LED. It was once declared `rgb.r = 16`, `rgb.g = 4` on the belief that red and green were crossed; the observations behind that (orange came out green, purple came out cyan) are exactly what IO16 being green produces, and driving IO4 as an LED held the speaker's amplifier in shutdown. Common anode, so drive is inverted -- which the profile states rather than the driver assuming.
-- Touch is bit-banged SPI on the E32R28T-1 and the ESP32-2432S028 variants
-  (the TFT owns HSPI); on the E32R32P and the E32R40T the XPT2046 **shares the
-  display bus** with its own CS on GPIO33, and `TOUCH_CS` in the board section
-  is what switches `BoardTouch.cpp` to TFT_eSPI's touch extension. Either way,
-  3-point affine calibration persisted in NVS behind a magic number. `touch.pressureThreshold = 350`, `touch.hitSlop = 8` in the profile.
-- **A touch reset can be an expander port rather than a GPIO.** The Attaky
-  Core wires its FT6636's reset to port P1_3 of an AW9523 at 0x59, so
-  `TouchProfile` carries `resetExpanderAddress` and `resetExpanderPort` beside
-  `reset`, and `Board::begin()` brings I2C up early to hold it through the
-  panel init and release it after -- the same pulse a GPIO reset gets. It
-  writes every AW9523 register it depends on rather than issuing a software
-  reset, because that part wants a settle and a boot-time `delay()` is what
-  `check_frame_rules.py` refuses here; and it leaves every other port an
-  input, since the firmware reads none of them. That board was ported from
-  Attaky's documents before a device existed here -- see
-  `docs/boards/Attaky-Core.md` for what is still unchecked.
-- **A battery can be a gauge on I2C rather than a divider.** The Attaky Core's
-  Power module reports the cell on the touch bus, so `BatteryProfile` carries
-  `fuelGaugeAddress` (0 on every other board) beside the ADC fields, and a
-  board states one or the other, never both. `hasBatterySense()` covers
-  either; `hasBatteryAdc()` is what guards the ADC pin. **Attaky make three
-  power modules with three different chips**, and `FuelGaugeModule.cpp`
-  identifies the one fitted the way Attaky's own Retro-Go does: a MAX17048 at
-  0x36 by its VERSION register, an INA226 by its die ID, an INA219 by a config
-  write it reads back -- never by a bare address ack, because the INA parts'
-  addresses overlap and their voltage maths differs. The first module seen on
-  a device was the INA219 one, not the MAX17048 the catalog documents; that
-  is why. A MAX17048's state of charge goes to the percentage directly; an
-  INA reports only the voltage (`Modules::PERCENT_FROM_VOLTS`) and goes
-  through the LiPo curve -- **with its top at the module's own full
-  voltage** (`Modules::gaugeFullVolts()`, `Board::curvePercentTo()`): the
-  Standard Cell 1.1 reads 4.07 V with its full-charge light lit, which the
-  curve's 4.20 V showed as 87%. Only the part above the curve's 70% point
-  moves, so the low and critical warnings are where they were. Same task, same snapshot, same deadband and
-  thresholds. **A gauge
-  that does not answer is no reading** -- -1, no badge, no warning -- never an
-  empty cell, because the module unclips. See `src/hal/CLAUDE.md`.
-- Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` — at lower duty the panel is unreadable and a player could not see the slider to undo it.
-- `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
-  variant, E32R32P and E32R40T
-  reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
-  = GPIO26). `GUME_HAS_AUDIO_DAC 1` is set on all of them; the I2S
-  peripheral drives the DAC directly via `I2S_DAC_BUILT_IN` with no external
-  codec. The full cue vocabulary and the spoken boot phrase play from the same
-  synthesiser as the Freenove FNK0104B. The codec path is `GUME_HAS_AUDIO_CODEC
-  1` (FNK0104B only). The third is `GUME_HAS_AUDIO_I2S 1` (Attaky Core only):
-  a bare I2S amplifier, the Media I/O module's NS4168, on BCLK IO17, word
-  select IO21 and data IO18 with no codec, no MCLK and no enable line -- the
-  codec path without the I2C, standard I2S at 16 kHz, volume as a linear
-  multiplier in software like the DAC's. `GUME_HAS_AUDIO` (`BoardConfig.h`)
-  is the one "has any audio path" test, every audio guard uses it, and a board
-  stating two backends fails to compile; boards with none have no audio.
-  `maxVolume` in `BoardProfile.audio` is 85 for the codec board and 75 for the
-  built-in-DAC boards, which feed an onboard amplifier (the 1-inch driver
-  distorts above 75%), and a provisional 50 on the Attaky Core, which nobody
-  has heard yet -- it is to be set by ear on the device, as the others were.
-  See `src/hal/CLAUDE.md`.
-  Since 5.10.0 it is **on** for the E32R28T-1 and the inverted-panel CYD too,
-  whose touch clock is GPIO25 -- DAC channel 1, the 5.5.0 collision.
-  `beginAudio()` powers that channel down and returns the pad to the GPIO
-  matrix, logging `[audio] GPIO25 released: ...`, and `Board::begin()`
-  re-applies the touch pins after it; `BoardConfig.h` allows a touch pin on
-  the non-speaker DAC pad and nothing else.
-- Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup — routers don't advertise one in practice.
+## Hardware notes
+
+The ESP32 boards' hardware notes -- inverted panels, the boot banner,
+`identify`, the E32R40T's reset loop, the RGB LED, touch wiring, the fuel
+gauges, the speaker and DAC, Wi-Fi/NTP -- are in
+[src/hal/CLAUDE.md](src/hal/CLAUDE.md#esp32-boards-hardware-notes). Pins live
+only in `include/boards/<board>.h`; `docs/PORTING.md` adds a board.
 
 ## Conventions
 
