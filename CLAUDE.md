@@ -1,8 +1,8 @@
-# GUme â€” Braino!
+# GUme — Braino!
 
 These rules apply to everyone changing this repository, human or agent. `CONTRIBUTING.md` covers how a change reaches the protected `main` and `dev` branches; this file covers what the change itself has to honour.
 
-## Two standing rules â€” do these without being asked
+## Two standing rules — do these without being asked
 
 **A commit trailer names who is accountable; a branch name says what changed.**
 This project is built with AI coding tools and says so in the open -- in the
@@ -100,7 +100,7 @@ The related rule this does not replace: **trademark is not copyright.**
 NOTICE.md keeps them apart, and a fork renames the product while keeping the
 attribution. See `include/AppVersion.h`.
 
-## The About app is user-facing documentation â€” keep it true
+## The About app is user-facing documentation — keep it true
 
 `AboutApp` is the only documentation most owners will ever read, and the only
 one they read *while holding the device*. It is part of the deliverable, not a
@@ -120,8 +120,8 @@ The fix, and the standing rule, is to **derive rather than restate**:
 | Branch, commit and build time | `BuildStamp::branch()` / `commit()` / `builtAt()` |
 
 If you are about to type a fact into About that the firmware already knows, read
-it from the firmware instead. Anything genuinely static â€” the credits, the
-privacy statements â€” must be re-read whenever the thing it describes changes.
+it from the firmware instead. Anything genuinely static — the credits, the
+privacy statements — must be re-read whenever the thing it describes changes.
 
 ## No identifiers in this repository - the rule that cannot be broken
 
@@ -229,7 +229,7 @@ that change. Not a follow-up.
 About is also a system app, so it follows the orientation rule: lay out against
 `tft.width()` / `tft.height()`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`.
 
-## Responsiveness rule â€” know what a frame costs
+## Responsiveness rule — know what a frame costs
 
 The loop runs at a 20ms budget (`FRAME_BUDGET_MS`) and paces to a deadline: it
 sleeps only the remainder, so a slow frame is not punished twice. That budget is
@@ -237,7 +237,7 @@ the whole allowance for touch, logic and drawing. Three things have each eaten
 most of it at some point in this codebase, and all three look harmless at the
 call site:
 
-1. **NVS reads.** `Preferences` is flash-backed â€” every getter is a hash lookup,
+1. **NVS reads.** `Preferences` is flash-backed — every getter is a hash lookup,
    not a variable read. `screenSaverSeconds()` ran once per loop iteration and
    `gameVisible()` up to ~180 times per launcher repaint. **Anything read more
    than once per screen change gets a write-through RAM mirror in `Board`**:
@@ -247,7 +247,7 @@ call site:
    way now. Add to that list rather than reaching for `prefs_` in a hot path.
 2. **Blocking `delay()` inside a getter.** Battery sensing slept 10ms per call
    and `Ui::drawTopBar()` calls two battery getters, so every top bar cost
-   ~20ms â€” a whole frame â€” before anything was drawn. **No `delay()` in
+   ~20ms — a whole frame — before anything was drawn. **No `delay()` in
    anything a render path can reach.** Sample on a cadence and cache.
 3. **Rebuilding content that did not change.** System Info reassembled every
    row on every frame while scrolling. Scrolling changes an offset, not
@@ -338,11 +338,11 @@ of its own instead, apart from the viewport, because it reads the d-pad's
 controls off the viewport the *screen* set -- intersecting the two there left
 the selector, after a notice went, with only the controls inside the strip.
 
-## Memory rule â€” there is no garbage collector
+## Memory rule — there is no garbage collector
 
 C++ gives you no GC, and FreeRTOS gives you a heap that can never be compacted.
 So the thing that kills this device is not the leak you are picturing. There is
-not one `new`, `delete`, `malloc` or `free` in this firmware â€” every screen is a
+not one `new`, `delete`, `malloc` or `free` in this firmware — every screen is a
 `static` instance and everything else is stack or a fixed member. **Keep it that
 way**, and the classic leak is impossible by construction.
 
@@ -363,13 +363,13 @@ Rules, in the order they bite:
    comment and give it an owner with a destructor.
 2. **No `String` in anything that runs per frame.** Build text with `snprintf`
    into a stack buffer, or store it in a fixed `char[]`. `RowList` (`src/ui/`)
-   is the worked example: it was 48 rows Ã— 2 `String`s rebuilt every frame â€”
-   about 96 long-lived allocations churning at frame rate â€” and is now flat
+   is the worked example: it was 48 rows × 2 `String`s rebuilt every frame —
+   about 96 long-lived allocations churning at frame rate — and is now flat
    char buffers that allocate nothing, ever.
 3. **Don't rebuild content on every frame.** Rebuild when the data changed and
    keep a `stale` flag. Scrolling changes an offset, not the content.
 4. **A `String` member on a screen is a smell.** A few exist for genuinely
-   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) â€” that is
+   user-entered text (`ProfileApp::draft_`, `WifiApp::password_`) — that is
    the bar. Anything derived from state belongs in a fixed buffer.
 5. **Give back what you borrowed, in `end()`.** Every screen transition goes
    through `BrainoApp::leaveActiveGame()`, which compares free heap
@@ -379,7 +379,7 @@ Rules, in the order they bite:
 6. **Prefer fixed-size members over growth.** A statically sized array that is
    occasionally half empty is cheaper and safer here than anything that grows.
    Trading a few hundred bytes of static RAM for zero heap traffic is nearly
-   always the right call on this device â€” `RowList` cost 864 bytes of RAM and
+   always the right call on this device — `RowList` cost 864 bytes of RAM and
    *saved* 5.5 KB of flash.
 7. **Check the numbers before you claim it is fine.** `pio run` reports RAM and
    flash; System Info's Memory tab reports free heap, minimum free heap,
@@ -387,7 +387,7 @@ Rules, in the order they bite:
 
 ---
 
-ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 40 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240Ã—320 resistive-touch board): ILI9341 320Ã—240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only â€” no accounts, no telemetry, no SD card required.
+ESP32 firmware (Arduino / PlatformIO, C++17) for a handheld educational console for young players. 40 games, all baked into flash. Target hardware is the E32R28T-1 / ESP32-32E (2.8-inch 240×320 resistive-touch board): ILI9341 320×240 TFT + XPT2046 resistive touch + onboard single-cell Li-ion/LiPo charging circuitry. Wi-Fi is used for NTP only — no accounts, no telemetry, no SD card required.
 
 ## Build
 
@@ -666,9 +666,9 @@ overdraw and partial-repaint mistakes.
 
 - **BLE pulls in NimBLE, not Bluedroid.** `h2zero/NimBLE-Arduino` costs ~192 KB of flash for host plus controller; the core's Bluedroid stack costs several times that and this partition cannot absorb it.
 - **NimBLE's log level is set on its own, to warnings.** Left unset, NimBLE-Arduino copies `CORE_DEBUG_LEVEL` (`NimBLELog.h`), so the core's INFO made it print `New advertiser: <MAC>` for every device a Nearby scan heard -- 3.6 KB/s on the bench, 99.9% of all serial output, strangers' Bluetooth addresses in logs that get pasted into issues, and lines interleaved into the middle of `[boot]` and `[ident]` replies. `CONFIG_NIMBLE_CPP_LOG_LEVEL=2` in `[common]` fixes it without touching the core's own level. It did not change the frame rate -- NimBLE prints from its own task -- so do not expect it to explain a slow `worst=`.
-- `lib_ldf_mode = deep+` is required on `env:app` â€” transitive library headers do not resolve without it.
-- **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` â€” editing one would do nothing.
-- **One board = one `[board_*]` section plus one profile header.** `platformio.ini` splits into `[common]` (true of every board), `[esp32_common]` (the MCU), and a `[board_*]` section per board holding only the TFT_eSPI macros, `BOARD_NAME` and `GUME_BOARD_HEADER`. An environment composes `${common.build_flags}` with exactly one `${board_*.build_flags}`. Put a board-specific `-D` in `[common]` and it becomes a claim about every board â€” `check_boards.py` fails on that. The panel is described twice, to TFT_eSPI and to us, and `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against the profile so the two cannot disagree past the compiler.
+- `lib_ldf_mode = deep+` is required on `env:app` — transitive library headers do not resolve without it.
+- **TFT_eSPI is configured entirely through `-D` flags in `platformio.ini`** (`USER_SETUP_LOADED=1`, pins, `USE_HSPI_PORT`, fonts, SPI speeds). There is no `User_Setup.h` — editing one would do nothing.
+- **One board = one `[board_*]` section plus one profile header.** `platformio.ini` splits into `[common]` (true of every board), `[esp32_common]` (the MCU), and a `[board_*]` section per board holding only the TFT_eSPI macros, `BOARD_NAME` and `GUME_BOARD_HEADER`. An environment composes `${common.build_flags}` with exactly one `${board_*.build_flags}`. Put a board-specific `-D` in `[common]` and it becomes a claim about every board — `check_boards.py` fails on that. The panel is described twice, to TFT_eSPI and to us, and `BoardConfig.h` static_asserts `TFT_WIDTH`, `TFT_HEIGHT` and `TFT_BL` against the profile so the two cannot disagree past the compiler.
 - Partition is `huge_app.csv` (3 MB app). Flash is the scarce resource; artwork and data tables dominate.
 - `CYD_SCREEN_ROTATION=3` is landscape with the USB edge at the bottom. `Board::pollTouch()` compensates for every rotation, so don't hand-correct coordinates in game code.
 
@@ -676,9 +676,9 @@ overdraw and partial-repaint mistakes.
 
 Assume you are **not** the only one editing this tree. Several agents (Claude or otherwise) and the author may be working concurrently, and files can change underneath you mid-task.
 
-**Start by reading `git status`.** Uncommitted work that isn't yours is normal here. If a file you need is already modified, someone is probably mid-change in it â€” re-read it immediately before editing, and don't assume your earlier read is still accurate.
+**Start by reading `git status`.** Uncommitted work that isn't yours is normal here. If a file you need is already modified, someone is probably mid-change in it — re-read it immediately before editing, and don't assume your earlier read is still accurate.
 
-### Branch per requirement â€” in your own worktree
+### Branch per requirement — in your own worktree
 
 When a new requirement arrives, don't start editing the shared tree. Take an isolated copy:
 
@@ -688,7 +688,7 @@ git worktree add ../GUme-<slug> -b feat/<slug> dev
 
 Then work entirely in `../GUme-<slug>`. Branch names: `feat/<game-id>` for a new game, `fix/<area>` for a repair, `docs/<topic>` otherwise.
 
-**Use a worktree, not a bare `git switch`.** Switching branches inside a tree that holds another agent's uncommitted changes either drags their work onto your branch or refuses outright â€” and if it succeeds, it silently strands their edits somewhere they don't expect. Right now this tree has substantial uncommitted work in it from at least one other agent, so treat the main checkout as occupied. (In Claude Code, worktree isolation can also be requested when spawning the work.)
+**Use a worktree, not a bare `git switch`.** Switching branches inside a tree that holds another agent's uncommitted changes either drags their work onto your branch or refuses outright — and if it succeeds, it silently strands their edits somewhere they don't expect. Right now this tree has substantial uncommitted work in it from at least one other agent, so treat the main checkout as occupied. (In Claude Code, worktree isolation can also be requested when spawning the work.)
 
 A separate worktree also gives you your own `.pio/` build directory, which removes the concurrent-build race described below.
 
@@ -722,9 +722,9 @@ data. So:
   from that means replaying your own commits with `--onto`, and knowing you had
   to is not something the rebase tells you.
 
-Keep branches short-lived and rebase onto `dev` often -- Keep branches short-lived and rebase onto `dev` often â€” a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
+Keep branches short-lived and rebase onto `dev` often -- Keep branches short-lived and rebase onto `dev` often — a branch that sits for days turns into exactly the merge this is meant to avoid. Build before you merge, and don't merge or push unless the user asks. `main` and `dev` are protected on GitHub: no force-push, no deletion, and every merge arrives through a pull request with the `verify` CI job green, so a direct `git push origin main` is rejected by the server rather than by convention. Releases go `dev` -> `main` after hardware testing. The full rules are in CONTRIBUTING.md.
 
-**Branching moves the risk rather than removing it.** More parallel branches means more merges, and the failure below is a merge-time failure â€” so it gets *more* important, not less.
+**Branching moves the risk rather than removing it.** More parallel branches means more merges, and the failure below is a merge-time failure — so it gets *more* important, not less.
 
 ### The one that bites silently
 
@@ -734,8 +734,8 @@ After any merge, rebase, or conflict resolution touching `AppRegistry.cpp` or a 
 
 ### Serialise on the spine, parallelise on the leaves
 
-- **Leaves â€” safe in parallel:** a game's own `src/games/*.{h,cpp}` pair. One agent per game is fine.
-- **Spine â€” expect collisions:** `src/main.cpp`, `src/engine/AppRegistry.*`, `src/hal/Board.*`, `src/ui/Ui.*`. Adding a single game still touches the registry and `PLAYABLE_APP_COUNT`, even though title/icon/index/visibility metadata now lives with the game. Make spine edits tight and land them quickly rather than holding them open across a long task.
+- **Leaves — safe in parallel:** a game's own `src/games/*.{h,cpp}` pair. One agent per game is fine.
+- **Spine — expect collisions:** `src/main.cpp`, `src/engine/AppRegistry.*`, `src/hal/Board.*`, `src/ui/Ui.*`. Adding a single game still touches the registry and `PLAYABLE_APP_COUNT`, even though title/icon/index/visibility metadata now lives with the game. Make spine edits tight and land them quickly rather than holding them open across a long task.
 
 ### The board is a singleton
 
@@ -743,11 +743,11 @@ There is one physical device and one serial port, and both are exclusive:
 
 - `pio device monitor` holds the COM port; an `upload` from another agent will fail while it's open. Release it when you're not actively reading.
 - **Flashing destroys shared physical state.** NVS holds touch calibration, profiles and scores that another agent may be mid-test against, and `factoryReset()` wipes all of it. Never flash or factory-reset on a shared board without saying so first.
-- One `.pio/` build directory per working tree. Two concurrent `pio run` invocations in the same tree race on it â€” use a separate git worktree if you need to build in parallel.
+- One `.pio/` build directory per working tree. Two concurrent `pio run` invocations in the same tree race on it — use a separate git worktree if you need to build in parallel.
 
 ### Take the lock before you build or flash
 
-Worktrees isolate source and `.pio/`, but **not** the board, the serial port, or the toolchain's shared package cache. Those need an explicit lock, and it has to live somewhere every worktree can see â€” so it goes in the shared git common directory, not in `.pio/`:
+Worktrees isolate source and `.pio/`, but **not** the board, the serial port, or the toolchain's shared package cache. Those need an explicit lock, and it has to live somewhere every worktree can see — so it goes in the shared git common directory, not in `.pio/`:
 
 ```powershell
 $lock = Join-Path (git rev-parse --git-common-dir) "gume-board.lock"
@@ -755,7 +755,7 @@ $lock = Join-Path (git rev-parse --git-common-dir) "gume-board.lock"
 
 That path resolves to the same file from every worktree, and is never committed.
 
-**Acquire** before any `pio run`, `pio run -t upload`, or `pio device monitor` â€” write your PID, the action, the worktree and a timestamp, so the next agent can tell whether you're alive:
+**Acquire** before any `pio run`, `pio run -t upload`, or `pio device monitor` — write your PID, the action, the worktree and a timestamp, so the next agent can tell whether you're alive:
 
 ```powershell
 "$PID|flash|$(Get-Location)|$(Get-Date -Format o)" | Set-Content $lock -Encoding utf8
@@ -776,7 +776,7 @@ and 97 s side by side, because each rebuild is mostly single-core dependency
 scanning and linking. Do not hand-roll a second parallel flasher; extend that
 one.
 
-**Release it in all cases** when the build, flash or monitor session ends â€” including on failure. `Remove-Item $lock`.
+**Release it in all cases** when the build, flash or monitor session ends — including on failure. `Remove-Item $lock`.
 
 ### If the lock is already held
 
@@ -792,11 +792,11 @@ Do not just delete it, and do not build anyway. Work out whether it is live or s
    Get-Process | Where-Object { $_.Name -match 'platformio|pio|esptool|python' }
    ```
 
-**If a matching process is running, wait** â€” poll every ~10 s rather than busy-looping, and say what you're waiting on. Builds take a couple of minutes; a flash plus verify is under a minute. Keep waiting while the process lives.
+**If a matching process is running, wait** — poll every ~10 s rather than busy-looping, and say what you're waiting on. Builds take a couple of minutes; a flash plus verify is under a minute. Keep waiting while the process lives.
 
-**If no such process exists, the lock is stale â€” delete it and continue.** Stale locks are normal here: an agent that was interrupted, crashed, or had its command cancelled mid-build never got to release it. A leftover file must not be allowed to block every future agent, so clearing it is the correct action, not a workaround.
+**If no such process exists, the lock is stale — delete it and continue.** Stale locks are normal here: an agent that was interrupted, crashed, or had its command cancelled mid-build never got to release it. A leftover file must not be allowed to block every future agent, so clearing it is the correct action, not a workaround.
 
-Say so plainly when you remove one â€” note the PID and timestamp you found â€” so it's visible if a build really was killed halfway and left `.pio/` in a bad state. A lock older than ~15 minutes with no live process is stale beyond doubt.
+Say so plainly when you remove one — note the PID and timestamp you found — so it's visible if a build really was killed halfway and left `.pio/` in a bad state. A lock older than ~15 minutes with no live process is stale beyond doubt.
 
 The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformio` after an interrupted dependency install: confirm nothing is running, then clear it.
 
@@ -811,18 +811,18 @@ trade every time. Two agents can each add artwork that fits locally and together
 
 ### Modularity rule
 
-If a file is becoming large (as a rule of thumb, `src/main.cpp` > ~400 lines of active logic in a single function, or any `.cpp` > ~600 lines total), **refactor it into a more modular form first** before making the requested change. Split into helper files, break large functions into smaller ones, or extract a new class â€” whatever fits the existing architecture. The refactor must not break existing functionality (build must still succeed and behaviour must be unchanged), and it must land as its own commit before the feature change that prompted it.
+If a file is becoming large (as a rule of thumb, `src/main.cpp` > ~400 lines of active logic in a single function, or any `.cpp` > ~600 lines total), **refactor it into a more modular form first** before making the requested change. Split into helper files, break large functions into smaller ones, or extract a new class — whatever fits the existing architecture. The refactor must not break existing functionality (build must still succeed and behaviour must be unchanged), and it must land as its own commit before the feature change that prompted it.
 
 This keeps diffs reviewable, conflicts locatable, and prevents any single file from becoming a merge hazard.
 
 ## Git hygiene
 
 - Stage explicit paths. `git add -A` will sweep up another agent's half-finished work.
-- Commit narrowly â€” one game or one concern per commit â€” so conflicts stay resolvable.
+- Commit narrowly — one game or one concern per commit — so conflicts stay resolvable.
 - Don't rebase or force-push shared branches, and don't revert changes you can't attribute; an unfamiliar edit is more likely someone's in-flight work than a mistake.
 - Don't reformat, re-order includes, or opportunistically refactor files you aren't otherwise changing. Cosmetic churn in a spine file turns someone else's small diff into a merge conflict.
 - `main` and `dev` are protected branches. Open a pull request against `dev`; never try to force-push or delete either, and do not use an admin bypass to skip a failing check.
-- `src/games/CountryDataTable.cpp` is generated. Regenerating it rewrites the whole file â€” announce it rather than folding it into an unrelated change.
+- `src/games/CountryDataTable.cpp` is generated. Regenerating it rewrites the whole file — announce it rather than folding it into an unrelated change.
 
 ## Architecture
 
@@ -833,7 +833,7 @@ Runtime views are now only **Game** (including Launcher, Profiles, Settings and 
 The idle path is driven by `Board::idleAction()`: `SaverThenSleep` runs the
 saver and then blanks after `sleepSeconds()`, `SleepOnly` blanks straight away
 at `screenSaverSeconds()`, `SaverOnly` never blanks. **`View::Asleep` polls at
-`SLEEP_POLL_MS` (100ms) rather than the 20ms frame budget** â€” there is nothing
+`SLEEP_POLL_MS` (100ms) rather than the 20ms frame budget** — there is nothing
 to draw, and holding 50Hz behind a dark screen defeats the point. It is panel
 sleep, not `esp_deep_sleep`: the CPU must stay up to poll touch, since no wake
 source is wired. `Board::displayWake()` blocks ~120ms for the panel, so its
@@ -1220,7 +1220,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   - **Up is announced and down is not.** A step up plays `Sound::LevelUp` with a green `pulseRgb()` in place of `beepOk()` -- a tick armed first is cut off by the flourish -- and the new level's name stands over its first question. A step down says nothing at all; the questions get easier, and that is the whole of it.
 - **Never sample the battery ADC more than once per frame.** `Board::readBatteryTelemetry()` caches for 2s and everything else reads through it. Each accessor used to run its own blocking 10ms conversion, and a top bar calls two of them. See `src/hal/CLAUDE.md`.
 - **Ordinary games should not receive the full board anymore.** Use `AppGame` + `AppContext` for catalog games; that surface is limited to `Ui::Renderer` drawing, content, scoped persistence, feedback and basic navigation. The only screens still on `GameHost&` are Launcher, Settings, Wi-Fi, Profiles, Scores, About and System Info, and system screens must guard privileged actions with `requireCapability()`.
-- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** â€” that is what makes it a guest rather than a sixth player. The one exception is the state of a game being played against another console, which is the console's and not a player's (`saveConsoleBlob()`, see below).
+- **Profile scoping is automatic and invisible to games.** `Board::scopedKey()` is **private**; it prefixes `p{N}_` and translates plain game keys into compact app-scoped leaves inside `getScore` / `setScore` / `saveBestScore` / `worstScore` / `loadBlob` / `saveBlob`. `BoardStorage.cpp` owns the schema-versioned migrator from the older key format; `BoardStorageMaintenance.cpp` owns NVS usage telemetry and profile deletion: removing a player clears that slot's `pN_` keys, shifts later slots down with their own persisted data, and clears the old last slot. Just call the storage API with a plain key and per-profile behaviour comes for free. Guest (`GUEST_INDEX == 5`) silently **drops all writes** — that is what makes it a guest rather than a sixth player. The one exception is the state of a game being played against another console, which is the console's and not a player's (`saveConsoleBlob()`, see below).
 - **Device settings are global, not per-profile**: theme, layout, screen flip, brightness,
   sound on/off, volume, Wi-Fi credentials, NTP, NTP resync interval, timezone,
   deep sleep.
@@ -1565,7 +1565,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   the responsiveness rule already prescribes for the battery gauge and the
   watchdog: **work whose deadline is not the frame's does not belong on the
   frame.**
-- **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose â€” a calibration wizard, a network round trip â€” must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
+- **The loop is watchdogged.** `Watchdog::feed()` is the first statement in `BrainoApp::loop()` and a frame over `TIMEOUT_SECONDS = 12` reboots the device. Anything that blocks the loop task for longer on purpose — a calibration wizard, a network round trip — must sit inside a `Watchdog::Pause` guard, or it will look exactly like a hang. See `src/hal/CLAUDE.md`.
 
 ## A theme is not done until every screen has been seen in it
 
@@ -1602,7 +1602,7 @@ palette. Read them for three things:
 A palette that passes the checker and fails the sheets is normal. The checker
 is a floor; the sheets are the design.
 
-## Adding a game or an app â€” the whole checklist
+## Adding a game or an app — the whole checklist
 
 The old version of this list had five items, all of them code. Everything that
 has since been shipped broken or stale was *outside* those five: the README game
@@ -1612,9 +1612,9 @@ not finished.
 
 Work through all four groups. Nothing here is optional for a screen that ships.
 
-### 1. Code â€” miss one and it fails silently or won't link
+### 1. Code — miss one and it fails silently or won't link
 
-1. `src/games/NewGame.{h,cpp}` â€” subclass `AppGame` unless it is a privileged system screen.
+1. `src/games/NewGame.{h,cpp}` — subclass `AppGame` unless it is a privileged system screen.
 2. In the game's `.cpp`, declare one `AppMetadata` block. Blurbs render at font 1
    across ~292 px, so keep them under ~46 chars. Put the launcher icon,
    launcher index and default visibility in that metadata block, not in the registry.
@@ -1624,16 +1624,16 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 4. `src/engine/AppRegistry.cpp` — add a `metadataCatalogApp(...AppMetadata(), instance)` entry at the intended playable position.
 5. `src/engine/AppRegistry.h` — update `PLAYABLE_APP_COUNT`.
 
-### 2. Docs â€” the part that actually gets forgotten
+### 2. Docs — the part that actually gets forgotten
 
-6. `README.md` â€” a row in the right game table (what it is and what it
+6. `README.md` — a row in the right game table (what it is and what it
    builds), or a bullet under the system screens if it is an app.
-7. `README.md` â€” an `<img>` in the matching screenshot gallery.
-8. `CHANGELOG.md` â€” an entry under the unreleased heading.
+7. `README.md` — an `<img>` in the matching screenshot gallery.
+8. `CHANGELOG.md` — an entry under the unreleased heading.
 
 ### 3. Screens
 
-9. `tools/gen_screens.py` â€” a render function plus an entry in `SCREENS` or
+9. `tools/gen_screens.py` — a render function plus an entry in `SCREENS` or
     `EXTRA_SCREENS`. Take the geometry from the game's own `Rect` helpers so
     the mock-up matches the device rather than approximating it.
 10. Run `python tools/gen_screens.py` and **look at the PNG**. It is a
@@ -1664,9 +1664,9 @@ Work through all four groups. Nothing here is optional for a screen that ships.
 
 ### 4. Verify
 
-12. `pio run` â€” and put the new flash/RAM figures in `README.md` **and**
+12. `pio run` — and put the new flash/RAM figures in `README.md` **and**
     `CLAUDE.md`. They are the two places that disagree.
-13. `python tools/check_docs.py` â€” must be clean.
+13. `python tools/check_docs.py` — must be clean.
 14. Build the host version and look at the new screen there --
     `BRAINO_TAPS` walks to it, `BRAINO_SHOTS` photographs the firmware's own
     frame. No board, no lock. A build failure means the game reached for a
@@ -1681,9 +1681,9 @@ These derive from `AppRegistry` and update themselves. Editing them by hand is
 how About fell six games behind in the first place:
 
 - the **About** app's game list, count and blurbs
-- the **Settings â†’ Games** visibility list
+- the **Settings → Games** visibility list
 - the **launcher** tiles and paging
-- the **GitHub Pages site** â€” `tools/gen_site.py` reads the version from
+- the **GitHub Pages site** — `tools/gen_site.py` reads the version from
   `AppVersion.h`, the game list and blurbs from `AppRegistry`, the build
   figures from `README.md` and the board name from `platformio.ini`. Edit
   `site/index.template.html` for wording and layout only; `check_docs.py`
@@ -1700,7 +1700,7 @@ Everything above still applies, plus:
   currently violate this and are the reason the rule is stated so bluntly.
 - If it touches a radio, stores data, or changes what leaves the device, the
   **About radios page** and the **README privacy section** are part of the same
-  change â€” and About must *read* the state, not restate it.
+  change — and About must *read* the state, not restate it.
 
 ## Rendering model
 
@@ -1708,11 +1708,11 @@ App-facing rendering uses `Ui::Renderer`: a driver-free RGB565 primitive
 interface implemented on hardware by `Ui::TftRenderer` over `TFT_eSPI`. HAL
 bring-up, calibration and BMP blitting may still use the raw panel driver, but
 games and shared UI helpers should not. There is still no framebuffer. A full
-320Ã—240 wipe pushes ~150 KB over SPI â€” roughly 30 ms of visible blanking â€”
+320×240 wipe pushes ~150 KB over SPI — roughly 30 ms of visible blanking —
 which is why `Game` carries two levels of invalidation:
 
-- `markDirty()` â€” content changed; repaint moving parts only.
-- `markFullDirty()` â€” layout changed; repaint background/chrome too.
+- `markDirty()` — content changed; repaint moving parts only.
+- `markFullDirty()` — layout changed; repaint background/chrome too.
 
 **A FULL REDRAW IS THE EXCEPTION, IN EVERY GAME. Earn it.**
 
@@ -1763,11 +1763,11 @@ So: write the geometry once, at file scope, and derive every clear rectangle fro
 
 **And note that `tools/gen_screens.py` cannot catch any of this.** A mock-up draws elements in isolation, in the order the generator happens to use, with no clear rectangles at all -- so an ordering bug or an erase-over is invisible in it by construction. The Time mock-up also omitted the question label entirely, which is how a dial printed over that sentence survived every screenshot review. When a screen looks right in `docs/screens/` and wrong on the panel, this is the first thing to suspect.
 
-**Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough â€” the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
+**Clip scrolling content with `tft.setViewport(x, y, w, h, false)`** and reset it after. Skipping rows that fall entirely outside the viewport is not enough — the row straddling the edge still draws in full and smears into the chrome above it, which is what System Info did into its own tab strip. `vpDatum=false` keeps drawing coordinates absolute, so nothing else in the draw loop changes.
 
-Most games still repaint wholesale. Cinnamon is the reference for partial redraw â€” it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
+Most games still repaint wholesale. Cinnamon is the reference for partial redraw — it was also a photosensitivity concern at full-flash rates, so prefer partial redraw for anything that updates rapidly.
 
-Playable games are authored against a fixed 320Ã—240 landscape canvas, which `ScaledRenderer` fits to the panel `PanelSize` reports -- a whole scale centred from twice the canvas up, the fractional fill below it. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
+Playable games are authored against a fixed 320×240 landscape canvas, which `ScaledRenderer` fits to the panel `PanelSize` reports -- a whole scale centred from twice the canvas up, the fractional fill below it. Launcher and system/UI apps support portrait (`LayoutMode::Vertical`; the launcher uses 4 tiles/page vs 6 in landscape, and 9 -- a 3x3 grid -- in portrait on a panel whose short side is at least 320px, i.e. the 4-inch board. `LauncherLayout::grid()` is the one answer to "how many columns and rows", read by the tile rects, the page size and the tile colouring alike; in the 3x3 grid a subtitle too wide for its 88px goes onto two lines rather than being chopped).
 
 **System/UI apps** (Settings, Wi-Fi, SystemInfo, Profiles, Scores, About, and any future app-style screens beyond the playable game catalog) must support **both landscape and portrait orientations**. They must read `tft.width()` / `tft.height()` at render time rather than the compile-time constants `SCREEN_WIDTH` / `SCREEN_HEIGHT`, and lay themselves out responsively. Use `Ui::drawTab()` + `Ui::drawTabBaseline()` for multi-section content; the tab strip width adapts by dividing `tft.width()` at render time.
 
@@ -1921,10 +1921,10 @@ tools/                    gen_screens.py, gen_site.py, check_docs.py,
                           (which board is on which port, keyed by the
                           firmware's own Board::deviceId(); the real registry
                           is gitignored because it names one person's boards)
-site/                     index.template.html â€” the GitHub Pages landing page;
-                          assets/ â€” its photos, hero video and poster PDF,
+site/                     index.template.html — the GitHub Pages landing page;
+                          assets/ — its photos, hero video and poster PDF,
                           the only part of the page not derived from firmware
-                          featured.template.html + featured.json + featured/ â€” the
+                          featured.template.html + featured.json + featured/ — the
                           Featured page: every piece of coverage with the
                           date it ran, a dated screenshot, its SHA-256 and
                           a Wayback Machine copy
@@ -2077,7 +2077,7 @@ flashed from `dev` cannot be mistaken for the release it is ahead of.
 Web Serial. `.github/workflows/pages.yml` builds all four PlatformIO
 environments on every push to `main`, runs `tools/gen_site.py`, and drops the
 resulting `.bin` files beside the manifest that points at them. Nobody
-regenerates it by hand, so it cannot go stale on its own â€” but three things
+regenerates it by hand, so it cannot go stale on its own — but three things
 break it, and all three fail in someone else's browser rather than here:
 
 1. **Adding or renaming a PlatformIO environment.** The page offers one
@@ -2133,7 +2133,7 @@ break it, and all three fail in someone else's browser rather than here:
    the project go in; a page the project posted itself is not coverage.
 
 `python tools/gen_site.py` writes `site/_build/` locally so you can look at the
-page. The flash button will 404 there â€” the binaries only exist in CI.
+page. The flash button will 404 there — the binaries only exist in CI.
 
 ### The page offers older releases, and must keep doing so
 
@@ -2342,7 +2342,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   thresholds. **A gauge
   that does not answer is no reading** -- -1, no badge, no warning -- never an
   empty cell, because the module unclips. See `src/hal/CLAUDE.md`.
-- Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` â€” at lower duty the panel is unreadable and a player could not see the slider to undo it.
+- Backlight brightness floors at `Board::BRIGHTNESS_MIN = 25` — at lower duty the panel is unreadable and a player could not see the slider to undo it.
 - `audio.speakerPin = 26` on the E32R28T-1, the ESP32-2432S028 inverted-panel
   variant, E32R32P and E32R40T
   reaches the JST speaker connector via the ESP32 built-in DAC (DAC channel 2
@@ -2368,7 +2368,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
   matrix, logging `[audio] GPIO25 released: ...`, and `Board::begin()`
   re-applies the touch pins after it; `BoardConfig.h` allows a touch pin on
   the non-speaker DAC pad and nothing else.
-- Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup â€” routers don't advertise one in practice.
+- Wi-Fi/NTP is a non-blocking state machine driven by `tickTimeSync()` each frame, with a raw-UDP `ntpUdpProbe()` fallback for when lwIP's SNTP never answers. The success-path automatic resync interval is a cached global setting, 1–24 hours with a 6-hour default; boot sync, manual sync and failure retries are separate. Timezone comes from a named POSIX zone or public-IP lookup — routers don't advertise one in practice.
 
 ## Conventions
 
@@ -2376,7 +2376,7 @@ ESP32-2432S028R. `docs/PORTING.md` is the checklist for adding a board.
 - Board facts come from `BOARD` (`include/BoardProfile.h`), never from a literal. A peripheral a board does not wire is `PIN_NONE`, and the caller guards with `BOARD.hasSdSlot()`, `hasRgbLed()`, `hasSpeaker()`, `hasBatterySense()` or `hasBacklightControl()`.
 - Feedback: `board.beepOk()` / `board.beepError()`.
 - Draw through `Ui::` helpers so every theme is respected; avoid hardcoded colours outside icon art. There are nine, and `Ui::setTheme()` fills the live palette from one table -- so a screen that reaches past the accessors is a screen that looks wrong in eight of them. Bar text, the three launcher tile fills and the button corner radius are palette entries too, for exactly that reason: each was a constant, and each made a theme impossible until it moved.
-- `src/games/CountryDataTable.cpp` is generated â€” edit `tools/gen_country_facts.py` and regenerate.
+- `src/games/CountryDataTable.cpp` is generated — edit `tools/gen_country_facts.py` and regenerate.
 - `swallowTouch_` in `main.cpp` suppresses the first press after a rotation change or screen-saver dismissal, preventing a phantom tap on freshly drawn UI.
 
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
