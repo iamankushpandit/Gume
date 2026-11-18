@@ -159,6 +159,7 @@ jobs:
           python -m py_compile tools/check_licenses.py
           python -m py_compile tools/gen_site.py
           python -m py_compile tools/gen_board_docs.py
+          for c in tools/check_*.py; do python -m py_compile "$c"; done
 
       # Pillow for gen_board_docs.py --check, which opens any board photo in
       # docs/boards/img/ to refuse one still carrying EXIF (a GPS position, a
@@ -192,6 +193,16 @@ jobs:
           # calls the OS; card-image.yml's trigger paths and Buildroot version
           # are held to it here, where a docs-only change still runs.
           python tools/check_card_inputs.py
+
+          # Every checker in tools/ runs, found by name rather than listed: the
+          # list above had already missed check_contrast.py and
+          # check_platforms.py, and a new checker CI never calls enforces
+          # nothing. The ones above run again here; that costs seconds.
+          for c in tools/check_*.py; do
+            echo "::group::$c"
+            python "$c"
+            echo "::endgroup::"
+          done
 
       # main is the released state, and only a check can keep it that way.
       #
