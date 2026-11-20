@@ -34,7 +34,8 @@ private:
         uint32_t tx = 0;
     };
 
-    static constexpr uint8_t TAB_COUNT = 5;
+    static constexpr uint8_t TAB_COUNT = 6;
+    static constexpr uint8_t TAB_BATTERY = 4;
     static constexpr uint32_t REFRESH_MS = 1000;
     static const char* const TAB_LABELS[TAB_COUNT];
 
@@ -50,10 +51,18 @@ private:
     void drawTabStrip(Ui::Renderer& tft, int16_t screenW);
     void drawContent(GameHost& host);
     void buildBoardRows(GameHost& host);
+    /* The Board tab's Module section, read from the module table
+     * (SystemInfoModules.cpp). Nothing on a board without one. */
+#if GUME_HAS_ATTAKY_MODULES
+    void addModuleRows();
+#else
+    void addModuleRows() {}
+#endif
     void buildMemoryRows(GameHost& host);
     void buildNetworkRows(GameHost& host);
     void buildBleRows(GameHost& host);
     void buildAppStateRows(GameHost& host);
+    void buildPowerRows(GameHost& host);   // SystemInfoPower.cpp
 
     uint8_t tab_ = 0;
     uint32_t lastRefreshMs_ = 0;
@@ -66,7 +75,7 @@ private:
     bool trafficBytes_ = false;
     RowList rows_;
     bool rowsStale_ = true;
-    int16_t scrollOffset_[TAB_COUNT] = {0, 0, 0, 0, 0};
+    int16_t scrollOffset_[TAB_COUNT] = {0, 0, 0, 0, 0, 0};
     bool bleAdvanced_ = false;   // Advanced BLE diagnostics expanded
     bool scrolling_ = false;
     int16_t scrollAnchorY_ = 0;

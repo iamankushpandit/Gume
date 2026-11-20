@@ -112,6 +112,13 @@ int16_t height(int16_t screenW, int16_t screenH);
  * rather than assuming there is room. */
 int16_t topY(int16_t screenW, int16_t screenH, int16_t bottomReserve);
 
+/* A character from a physical keyboard, as the key on this keypad it
+ * presses: a letter becomes its capital, a digit or a space itself, Delete
+ * BACKSPACE and Enter ACCEPT. Anything this keypad has no key for -- the
+ * punctuation on the keyboard -- is 0, so a field fed through this accepts
+ * exactly what it accepts from a finger. */
+char fromTyped(char typed);
+
 /** Draw the whole keyboard. DEL and OK are coloured and labelled as actions. */
 void draw(Renderer& tft, int16_t screenW, int16_t screenH,
           int16_t bottomReserve);

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 class ProfileApp : public Game {
@@ -23,14 +24,28 @@ public:
     void renderStatic(GameHost& host) override;
     void renderDynamic(GameHost& host) override;
 
-    /* This screen draws no top bar -- it carries its own wordmark header, and
-     * nothing on it tracks the clock or the battery, so the badge ticks that
-     * make renderChrome() worth having have nothing to update here. The one
-     * chrome event that can reach it is a notification landing on the header,
-     * which is rare enough that a full repaint is the honest answer. Returning
-     * false asks the runtime for exactly that, and keeps the base class from
-     * painting a top bar this screen does not own. */
+    /* This screen draws no top bar -- it carries its own wordmark header --
+     * but the picker shows the battery, between Add Player and Done, and the
+     * speaker, so three chrome events reach it: the percentage changing, mute
+     * being toggled, and a notification coming or going over the header. Each
+     * repaints exactly its own piece -- the badge, the speaker, or the 30px
+     * header strip -- and never the screen: a full repaint for a battery tick
+     * is the flash the invalidation rule exists to stop. The other phases
+     * show none of those and return false, as the picker used to. */
     bool renderChrome(GameHost& host) override;
+    /* No clock on this screen, so the minute has nothing to change. Without
+     * this the default would draw a top bar's clock it does not have. */
+    bool renderClock(GameHost& host) override {
+        (void)host;
+        return true;
+    }
+
+    /* The picker carries its own padlock and speaker (LauncherLayout's
+     * pickerLockRect/pickerSpeakerRect), and only while picking: the menu,
+     * rename, games list and PIN pad have their own layouts, and the runtime
+     * takes nothing on them. */
+    bool headerControls(int16_t screenW, int16_t screenH, Rect& lock,
+                        Rect& speaker) const override;
 
 private:
     enum class Phase : uint8_t { Pick, Menu, Rename, Games, PinEntry };
@@ -48,8 +63,15 @@ private:
     Rect pinConfirmRect(int16_t screenW, int16_t screenH) const;
     Rect pinCancelRect(int16_t screenW, int16_t screenH) const;
     Rect renameCancelRect(int16_t screenW, int16_t screenH) const;
-    Rect addRect(int16_t screenW, int16_t screenH) const;
-    Rect doneRect(int16_t screenW, int16_t screenH) const;
+    /* The gap between Add Player and Done, which holds the battery badge: its
+     * measured width plus air either side, or 0 on a board with no battery
+     * sense, whose buttons keep their old width. Hit tests and drawing both
+     * ask, so the badge and the buttons cannot come to overlap. */
+    static int16_t batterySlot(Ui::Renderer& tft);
+    Rect addRect(int16_t screenW, int16_t screenH, int16_t slot) const;
+    Rect doneRect(int16_t screenW, int16_t screenH, int16_t slot) const;
+    void drawHeaderStrip(Ui::Renderer& tft, int16_t W, int16_t H);
+    void drawBatterySlot(Ui::Renderer& tft, int16_t W, int16_t H, int8_t percent);
     Rect keyRect(uint8_t row, uint8_t col, int16_t screenW, int16_t screenH) const;
     Rect menuActionRect(uint8_t i, int16_t screenW, int16_t screenH) const;
     Rect gameCheckRect(uint8_t row, int16_t screenW) const;
@@ -68,10 +90,21 @@ private:
      * thing a keypress touches. See the note in ProfileApp.cpp. */
     void renderPinPadChrome(GameHost& host);
     void renderPinDots(GameHost& host);
+    void updatePinEntry(GameHost& host, const TouchPoint& touch);
+    /* A physical keyboard's character, for the PIN pad and the name
+     * field; both reach the same functions a touch does. */
+    void typePinChar(GameHost& host, char typed);
+    void confirmPin(GameHost& host);
+    void typeRenameChar(GameHost& host, char typed);
+    void applyRenameKey(GameHost& host, char ch);
     void updateRename(GameHost& host, const TouchPoint& touch);
     void renderRename(GameHost& host);
 
     Phase phase_ = Phase::Pick;
+    /* What the picker last drew in its chrome, so renderChrome() repaints
+     * only what changed. */
+    int8_t shownPct_ = -2;
+    bool shownMuted_ = false;
     uint8_t editing_ = 0;
     uint8_t menuFor_ = 0;
     uint8_t gameScroll_ = 0;
@@ -80,4 +113,7 @@ private:
     uint8_t profileToSwitchTo_ = 0;
     PinPurpose pinPurpose_ = PinPurpose::Switch;
     String draft_;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
 };

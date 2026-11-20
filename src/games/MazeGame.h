@@ -18,6 +18,10 @@ const AppMetadata& mazeAppMetadata();
 
 class MazeGame : public AppGame {
 public:
+#if GUME_HAS_NAV_KEYS
+    /* Puts back what the d-pad selector's ring covered (Game.h). */
+    bool repaintUnderRing(AppContext& host, const Rect& box) override;
+#endif
     const char* title() const override;
     void begin(AppContext& host) override;
     void update(AppContext& host, const TouchPoint& touch) override;
@@ -25,6 +29,7 @@ public:
      * the dot moved between. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
 
 private:
     void chooseMaze();

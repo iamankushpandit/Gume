@@ -129,8 +129,10 @@ Rect ElementsGame::optionRect(int16_t w, uint8_t index, uint8_t count) {
      * state question does not shuffle the buttons under a player's finger
      * relative to every other question. */
     (void)count;
-    return Rect{10, static_cast<int16_t>(90 + index * 36),
-                static_cast<int16_t>(w - 20), 32};
+    /* Four at a 34px pitch end at y=222, clear of the score line at 228;
+     * at 36 the fourth reached 229 and the score's clear took its bottom. */
+    return Rect{10, static_cast<int16_t>(90 + index * 34),
+                static_cast<int16_t>(w - 20), 30};
 }
 
 Rect ElementsGame::levelRect(int16_t w, uint8_t index) {
@@ -161,36 +163,21 @@ uint8_t ElementsGame::cellHit(int16_t x, int16_t y) {
 
 // ---- level -----------------------------------------------------------------
 
-uint8_t ElementsGame::tierMastery(uint8_t tier) const {
-    uint16_t total = 0;
-    uint16_t known = 0;
-    for (uint16_t i = 0; i < ELEMENT_COUNT; ++i) {
-        if (ELEMENTS[i].tier > tier) continue;
-        ++total;
-        if (progress_.score(i) > 0) ++known;
-    }
-    return total == 0 ? 0 : static_cast<uint8_t>((known * 100UL) / total);
+uint8_t ElementsGame::quizLevel() const {
+    if (tierPin_ >= 1 && tierPin_ <= 3) return static_cast<uint8_t>(tierPin_ * 3);
+    return ladder_.level();
 }
 
 uint8_t ElementsGame::activeTier() const {
-    if (tierPin_ >= 1 && tierPin_ <= 3) return tierPin_;
-    /* Auto. Deliberately measured over the tier being practised rather than
-     * Progress::masteryPercent(), which counts only items already seen and so
-     * would read 100% after two lucky answers. */
-    if (tierMastery(1) < 80) return 1;
-    if (tierMastery(2) < 70) return 2;
-    return 3;
-}
-
-bool ElementsGame::inPool(uint16_t index, void* ctx) {
-    const ElementsGame* self = static_cast<const ElementsGame*>(ctx);
-    return index < ELEMENT_COUNT && ELEMENTS[index].tier <= self->activeTier();
+    return ElementsCourse::tierFor(quizLevel());
 }
 
 // ---- lifecycle -------------------------------------------------------------
 
 void ElementsGame::begin(AppContext& host) {
-    progress_.begin(host, "elemProg", ELEMENT_COUNT);
+    ladder_.start(ElementsCourse::LEVEL_COUNT, host.courseLevel());
+    deckTier_ = 0;
+    announce_ = false;
     const uint32_t pin = host.getScore(TIER_KEY, 0);
     tierPin_ = pin <= 3 ? static_cast<uint8_t>(pin) : 0;
 
@@ -206,9 +193,19 @@ void ElementsGame::begin(AppContext& host) {
     markFullDirty();
 }
 
-void ElementsGame::end(AppContext& host) {
+/* Points scored are a quiz under way. Without them it is a place -- a tab, a
+ * square picked, a card being read -- and the tabs and Back leave any of it.
+ * The bare chart with nothing picked is where begin() starts anyway. */
+Game::Keep ElementsGame::keepsGame() const {
+    if (score_ > 0) return Keep::Ask;
+    if (tab_ != Tab::Explore || cardOpen_ || selected_ < ELEMENT_COUNT) return Keep::Quietly;
+    return Keep::No;
+}
+
+/* An answer being shown keeps the rest of its moment, after the repaint. */
+void ElementsGame::resume(AppContext& host, uint32_t awayMs) {
     (void)host;
-    progress_.flush();
+    movedOn(revealUntilMs_, awayMs);
 }
 
 // ---- text wrapping ---------------------------------------------------------
@@ -342,6 +339,11 @@ void ElementsGame::drawCell(Ui::Renderer& tft, uint8_t index, CellStyle style) {
         const uint16_t edge = (style == CellStyle::Pending) ? Ui::warning() : Ui::text();
         tft.drawRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2, edge);
         tft.drawRect(r.x, r.y, r.w, r.h, edge);
+    } else {
+        /* An outline in the cell's own colour, so nothing on the panel
+         * changes: a fill and an outline of one rectangle is what the d-pad's
+         * selector stops at, and every square on the chart is pressed. */
+        tft.drawRect(r.x, r.y, r.w, r.h, fill);
     }
 
     tft.setTextDatum(MC_DATUM);
@@ -425,6 +427,10 @@ void ElementsGame::renderCard(AppContext& host) {
 
     if (!needsFullRender()) return;   // the card has no moving parts
 
+    /* The top bar too: a card is not only ever opened over the chart, which
+     * had painted it. Coming back to one -- from the launcher, the saver or
+     * the lock screen -- finds something else in those 30 rows. */
+    host.drawTopBar(title());
     // Covers the tab strip too: the card is a place, not an overlay panel.
     tft.fillRect(0, 30, w, static_cast<int16_t>(tft.height() - 30), Ui::bg());
 
@@ -500,13 +506,37 @@ void ElementsGame::render(AppContext& host) {
         case Tab::Level:   renderLevel(host);   break;
     }
 
-    if (tab_ == Tab::Quiz) {
+    /* Not under "Find it": the line below the chart is that question's
+     * confirm hint, and the score used to be printed over it. */
+    if (tab_ == Tab::Quiz && !questionUsesTable()) {
         char buf[32];
-        tft.setTextColor(Ui::muted(), Ui::bg());
+        tft.setTextColor(announce_ ? Ui::success() : Ui::muted(), Ui::bg());
         tft.setTextDatum(TL_DATUM);
-        snprintf(buf, sizeof(buf), "%u pts  x%u", static_cast<unsigned>(score_),
-                 static_cast<unsigned>(streak_));
-        tft.fillRect(8, SCORE_Y, 150, 12, Ui::bg());
+        if (announce_) {
+            ElementsCourse::levelLine(quizLevel(), buf, sizeof(buf));   // a step up
+        } else {
+            snprintf(buf, sizeof(buf), "%u pts  x%u", static_cast<unsigned>(score_),
+                     static_cast<unsigned>(streak_));
+        }
+        tft.fillRect(8, SCORE_Y, 190, 12, Ui::bg());
         tft.drawString(buf, 8, SCORE_Y, 1);
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring crosses the symbol on a 16x14 square, so the square is drawn again. */
+bool ElementsGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (tab_ != Tab::Explore) return false;
+    for (uint8_t i = 0; i < ELEMENT_COUNT; ++i) {
+        const Rect r = cellRect(ELEMENTS[i].col, ELEMENTS[i].row);
+        if (r.x != box.x || r.y != box.y) continue;
+        if (i == selected_) {
+            drawCell(host.display(), i, CellStyle::Selected);
+        } else {
+            drawCellResting(host.display(), i);
+        }
+        return true;
+    }
+    return false;
+}
+#endif

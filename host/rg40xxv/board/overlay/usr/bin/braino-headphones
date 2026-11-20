@@ -1,0 +1,53 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# Sound to the 3.5 mm jack or to the speaker, never both.
+#
+#   braino-headphones in    headphones went in: the speaker goes quiet
+#   braino-headphones out   they came out: the speaker is back
+#   braino-headphones sync  set it from the jack as it is now (at boot)
+#
+# The kernel already knows the plug: the device tree gives the codec its
+# detect line (hp-det-gpios, PI3), sun4i-codec makes it a "Headphone Jack"
+# control and an input switch (SW_HEADPHONE_INSERT), and the jack's own
+# "Headphone" pin follows it. What the kernel does not do is take the
+# speaker away: both are fed from the codec's one line output, and its
+# "Speaker" pin stays on. Turning that pin off is what powers the speaker's
+# amplifier down (its enable line, PI5, and its supply), so with headphones
+# in the speaker is silent rather than merely quieter.
+#
+# Volume and mute are the same on both, by construction: Braino sets its own
+# level in software before the samples reach the codec, the volume keys move
+# the line output that feeds both, and this script touches nothing but the
+# speaker's on/off. busybox's acpid runs it on every plug and unplug
+# (/etc/acpi.map, /etc/acpid.conf); S40keys runs "sync" once at boot.
+
+# The codec's card, by name rather than by number.
+card=$(sed -n 's/^ *\([0-9][0-9]*\) \[.*H616.*/\1/p' /proc/asound/cards 2>/dev/null | head -n 1)
+[ -n "$card" ] || card=0
+
+speaker() { amixer -q -c "$card" sset Speaker "$1" 2>/dev/null; }
+
+case "$1" in
+in) speaker off ;;
+out) speaker on ;;
+sync)
+    if amixer -c "$card" cget iface=CARD,name='Headphone Jack' 2>/dev/null | grep -q 'values=on'; then
+        speaker off
+    else
+        speaker on
+    fi
+    ;;
+*)
+    echo "usage: $0 in|out|sync" >&2
+    exit 2
+    ;;
+esac
+exit 0

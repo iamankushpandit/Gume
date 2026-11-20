@@ -76,6 +76,10 @@ struct Sighting {
     uint8_t turnFrom = 0;
     uint8_t turnTo = 0;
     uint8_t turnAck = 0;
+    /* When a move was last on this device's advertisement. The move itself is
+     * kept once heard; this says whether it is still being SAID, which is
+     * the difference between a console in a game and one that has left it. */
+    uint32_t lastTurnMs = 0;
 };
 
 /** Start or stop observing. Idempotent; a no-op when the stack is down. */

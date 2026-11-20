@@ -13,6 +13,7 @@
 #if GUME_TOUCH_CAPACITIVE
 #include <Wire.h>
 #endif
+#include "PanelSize.h"
 #include "Watchdog.h"
 #include "ui/Ui.h"
 
@@ -356,11 +357,11 @@ bool Board::mapTouch(const RawTouch& raw, int16_t& x, int16_t& y) const {
 #if GUME_TOUCH_CAPACITIVE
     {
         const int16_t lx = raw.y;
-        const int16_t ly = static_cast<int16_t>(BOARD.panel.nativeWidth - 1 - raw.x);
+        const int16_t ly = static_cast<int16_t>(PanelSize::nativeWidth() - 1 - raw.x);
         x = constrain(lx, static_cast<int16_t>(0),
-                      static_cast<int16_t>(SCREEN_WIDTH - 1));
+                      static_cast<int16_t>(PanelSize::landscapeWidth() - 1));
         y = constrain(ly, static_cast<int16_t>(0),
-                      static_cast<int16_t>(SCREEN_HEIGHT - 1));
+                      static_cast<int16_t>(PanelSize::landscapeHeight() - 1));
         return true;
     }
 #else
@@ -382,19 +383,23 @@ TouchPoint Board::pollTouch() {
     int16_t lx = 0;
     int16_t ly = 0;
     next.down = mapTouch(raw, lx, ly);
+    /* The panel as found, not as compiled: on a board the two are one, and on
+     * the host the panel is only known at start-up (hal/PanelSize.h). */
+    const int16_t panelW = PanelSize::landscapeWidth();
+    const int16_t panelH = PanelSize::landscapeHeight();
     if (next.down) {
         switch (displayRotation_) {
             case 2:
                 next.x = ly;
-                next.y = static_cast<int16_t>(SCREEN_WIDTH - 1 - lx);
+                next.y = static_cast<int16_t>(panelW - 1 - lx);
                 break;
             case 0:
-                next.x = static_cast<int16_t>(SCREEN_HEIGHT - 1 - ly);
+                next.x = static_cast<int16_t>(panelH - 1 - ly);
                 next.y = lx;
                 break;
             case 3:
-                next.x = static_cast<int16_t>(SCREEN_WIDTH - 1 - lx);
-                next.y = static_cast<int16_t>(SCREEN_HEIGHT - 1 - ly);
+                next.x = static_cast<int16_t>(panelW - 1 - lx);
+                next.y = static_cast<int16_t>(panelH - 1 - ly);
                 break;
             default:
                 next.x = lx;

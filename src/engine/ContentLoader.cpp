@@ -112,22 +112,3 @@ bool ContentLoader::loadMemoryConfig(MemoryConfig& config) const {
     return true;
 }
 
-bool ContentLoader::loadCountingConfig(CountingConfig& config) const {
-    config = CountingConfig{};
-    if (!sdReady() || !SD.exists("/games/counting/default.json")) {
-        return false;
-    }
-    File file = SD.open("/games/counting/default.json", FILE_READ);
-    if (!file) {
-        return false;
-    }
-    JsonDocument doc;
-    const DeserializationError error = deserializeJson(doc, file);
-    file.close();
-    if (error) {
-        return false;
-    }
-    config.minCount = constrain(static_cast<int>(doc["min"] | 1), 1, 20);
-    config.maxCount = constrain(static_cast<int>(doc["max"] | 10), config.minCount, 20);
-    return true;
-}

@@ -10,7 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
-#include "engine/RecentQuestions.h"
+#include "engine/Course.h"
+#include "SpaceCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -38,6 +39,11 @@ public:
      * must not cost a 320x240 wipe. See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    /* A score, or a fact still on show, is worth coming back to. Nothing here
+     * is timed, so there is no resume(): the fact waits for the next press. */
+    Keep keepsGame() const override {
+        return (score_ > 0 || answered_) ? Keep::Ask : Keep::No;
+    }
 
 private:
     Rect answerRect(uint8_t index) const;
@@ -48,9 +54,12 @@ private:
     void drawQuestion(Ui::Renderer& tft);
     void drawNote(Ui::Renderer& tft);
 
-    RecentQuestions recent_;
+    Course::Ladder ladder_;
+    Course::QuestionDeck deck_;
+    SpaceCourse::Question q_ = {};   // options[0] is the answer
+    uint16_t item_ = 0;
+    bool announce_ = false;          // the strip names the new level
 
-    uint16_t question_ = 0;
     /* Which table option each button shows. The correct answer is always
      * options[0] in the table, so this is what stops it being the same button
      * every time. */

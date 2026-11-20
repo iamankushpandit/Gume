@@ -25,18 +25,12 @@ struct MemoryConfig {
     String symbols[MAX_MEMORY_PAIRS] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"};
 };
 
-struct CountingConfig {
-    uint8_t minCount = 1;
-    uint8_t maxCount = 10;
-};
-
 class ContentLoader {
 public:
     bool begin(Board& board);
     void scan();
 
     bool loadMemoryConfig(MemoryConfig& config) const;
-    bool loadCountingConfig(CountingConfig& config) const;
 
     bool sdReady() const;
 

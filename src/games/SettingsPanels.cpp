@@ -11,6 +11,7 @@
 
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
+#include "hal/SystemSuspend.h"
 
 /* The tab bodies -- Device, Power and Sound -- and the geometry of their rows.
  *
@@ -178,11 +179,21 @@ Rect SettingsApp::findAlertRect() const {
  * setting actually does rather than abbreviating to fit half a screen.
  *
  * Wake lock sits with them because it is the last thing in the idle sequence:
- * saver, sleep, then what it takes to get back. */
+ * saver, sleep, then what it takes to get back.
+ *
+ * Deep sleep shares its row where the device can suspend at all, which is the
+ * one step further down that sequence. Where it cannot -- every ESP32 board --
+ * the control is not drawn rather than greyed: nothing about the board will
+ * ever make it work, so there is nothing for it to tell an owner. */
 Rect SettingsApp::idleActionRect() const { return gridWide(0); }
 Rect SettingsApp::idleAfterRect()  const { return gridWide(1); }
 Rect SettingsApp::sleepAfterRect() const { return gridWide(2); }
-Rect SettingsApp::wakeLockRect()   const { return gridWide(3); }
+Rect SettingsApp::wakeLockRect() const {
+    return SystemSuspend::supported() ? gridCell(3, 0) : gridWide(3);
+}
+Rect SettingsApp::deepSleepRect() const {
+    return SystemSuspend::supported() ? gridCell(3, 1) : Rect{0, 0, 0, 0};
+}
 
 bool SettingsApp::sleepRowActive(Board& board) const {
     return board.idleAction() == Board::IdleAction::SaverThenSleep;
@@ -342,6 +353,14 @@ void SettingsApp::renderPowerTab(GameHost& host) {
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(),
                    admin ? Ui::text() : Ui::muted(), false, 2);
 
+    const bool canSuspend = SystemSuspend::supported();
+    if (canSuspend) {
+        snprintf(buf, sizeof(buf), "Deep sleep: %s", board.deepSleepEnabled() ? "On" : "Off");
+        Ui::drawButton(tft, deepSleepRect(), buf,
+                       admin ? Ui::panel() : Ui::surface(), Ui::outline(),
+                       admin ? Ui::text() : Ui::muted(), false, 2);
+    }
+
     /* Say the resulting behaviour in plain words, composed from the live
      * values -- three settings that interact are hard to hold in your head. */
     char explain[64];
@@ -373,6 +392,20 @@ void SettingsApp::renderPowerTab(GameHost& host) {
                            ? "A touch lights the screen; hold to go back."
                            : "Any touch goes straight back to what you were doing.",
                        8, static_cast<int16_t>(powerFootY + 16), 1);
+        /* What Deep sleep buys and what it costs, in the one line there is:
+         * the battery, and that a touch no longer wakes it. */
+        if (canSuspend) {
+            const unsigned minutes =
+                static_cast<unsigned>(SystemSuspend::AFTER_ASLEEP_MS / 60000UL);
+            if (board.deepSleepEnabled()) {
+                snprintf(explain, sizeof(explain), "Saves battery. After %um asleep, %s wakes it.",
+                         minutes, SystemSuspend::wakeHint());
+            } else {
+                snprintf(explain, sizeof(explain), "Deep sleep saves battery when left asleep %um.",
+                         minutes);
+            }
+            tft.drawString(explain, 8, static_cast<int16_t>(powerFootY + 32), 1);
+        }
     }
 }
 

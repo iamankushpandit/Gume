@@ -157,6 +157,10 @@ void BackgammonGame::drawPoint(Ui::Renderer& tft, uint8_t i) const {
     const bool top = i >= 12;
     const int16_t cx = static_cast<int16_t>(r.x + r.w / 2);
     tft.fillRect(r.x, r.y, r.w, r.h, felt());
+    /* An outline in the fill's own colour, before anything is drawn on it, so
+     * nothing on the panel changes: a fill and an outline of one rectangle is
+     * what the d-pad's selector stops at, and A presses this place. */
+    tft.drawRect(r.x, r.y, r.w, r.h, felt());
     const uint16_t tri = (i & 1) ? triDark() : triLight();
     if (top) {
         tft.fillTriangle(r.x, r.y, r.x + r.w - 1, r.y, cx, r.y + TRI_H, tri);
@@ -203,6 +207,7 @@ void BackgammonGame::drawPoint(Ui::Renderer& tft, uint8_t i) const {
 
 void BackgammonGame::drawBar(Ui::Renderer& tft) const {
     tft.fillRect(BAR_X, BY, BAR_W, BOARD_H, wood());
+    tft.drawRect(BAR_X, BY, BAR_W, BOARD_H, wood());   // a stop, as a point is
     const int16_t cx = static_cast<int16_t>(BAR_X + BAR_W / 2);
     const int16_t mid = static_cast<int16_t>(BY + BOARD_H / 2);
     /* White waits above the middle, Black below: each nearer the side of the
@@ -234,6 +239,7 @@ void BackgammonGame::drawBar(Ui::Renderer& tft) const {
 
 void BackgammonGame::drawTray(Ui::Renderer& tft) const {
     tft.fillRect(TRAY_X, BY, TRAY_W, BOARD_H, trayWood());
+    tft.drawRect(TRAY_X, BY, TRAY_W, BOARD_H, trayWood());   // a stop, as a point is
     /* Borne-off checkers as edge-on slabs: Black's at the top, beside its
      * home; White's at the bottom, beside its. Fifteen fit either half. */
     for (uint8_t n = 0; n < pos_.off[Bg::BLACK]; ++n) {
@@ -293,8 +299,11 @@ void BackgammonGame::drawDice(Ui::Renderer& tft) const {
             for (uint8_t i = 0; i < dice_.count; ++i) live = live || dice_.value[i] == face;
         }
         const int16_t x = static_cast<int16_t>(DICE_RECT.x + 2 + k * (DIE + 8));
-        tft.fillRoundRect(x, DICE_Y, DIE, DIE, 5, live ? dieFace() : dieUsed());
-        tft.drawRoundRect(x, DICE_Y, DIE, DIE, 5, ink());
+        /* The edge is a fill under the face, not an outline over it: a fill
+         * and an outline of one rectangle is what the d-pad's selector stops
+         * at, and a die is never pressed. */
+        tft.fillRoundRect(x, DICE_Y, DIE, DIE, 5, ink());
+        tft.fillRoundRect(x + 1, DICE_Y + 1, DIE - 2, DIE - 2, 4, live ? dieFace() : dieUsed());
         const int16_t cx = static_cast<int16_t>(x + DIE / 2);
         const int16_t cy = static_cast<int16_t>(DICE_Y + DIE / 2);
         constexpr int16_t D = 8;
@@ -346,7 +355,10 @@ void BackgammonGame::drawButtons(Ui::Renderer& tft, bool sure) const {
         Ui::drawPagerButton(tft, ROLL_RECT, "Roll", roll == 1);
     }
     Ui::drawPagerButton(tft, UNDO_RECT, "Undo", undoEnabled());
-    if (phase_ == Phase::Over) {
+    if (mode_ == Mode::Waiting) {
+        /* Takes the invitation back, at one press: nothing is lost by it. */
+        Ui::drawButton(tft, ACTION_RECT, "Cancel", Ui::panel(), Ui::outline(), Ui::text());
+    } else if (phase_ == Phase::Over) {
         Ui::drawButton(tft, ACTION_RECT, "New game", Ui::success(), Ui::outline(), TFT_BLACK);
     } else if (sure) {
         Ui::drawButton(tft, ACTION_RECT, "Sure?", Ui::warning(), Ui::outline(), TFT_BLACK);
@@ -381,7 +393,8 @@ void BackgammonGame::drawPanel(Ui::Renderer& tft) {
     }
     const bool sure = phase_ != Phase::Over && millis() < confirmUntilMs_;
     const uint16_t buttons = static_cast<uint16_t>(rollButtonState() | (undoEnabled() ? 4 : 0) |
-                                                   (sure ? 8 : 0) | (phase_ == Phase::Over ? 16 : 0));
+                                                   (sure ? 8 : 0) | (phase_ == Phase::Over ? 16 : 0) |
+                                                   (mode_ == Mode::Waiting ? 32 : 0));
     if (buttons != drawnButtons_) {
         drawButtons(tft, sure);
         drawnButtons_ = buttons;
@@ -391,22 +404,62 @@ void BackgammonGame::drawPanel(Ui::Renderer& tft) {
 
 // ---- the lobby -----------------------------------------------------------------------
 
+/* One console in the room: who it is and what it is doing, which is also
+ * whether the row is a button. See RowKind. */
+void BackgammonGame::drawSeatRow(Ui::Renderer& tft, const Rect& r, const NearbySeat& seat) {
+    const RowKind kind = rowKind(seat);
+    char label[40] = {0};
+    auto phrase = [&](const char* who, const char* partner) {
+        switch (kind) {
+            case RowKind::Invites: snprintf(label, sizeof(label), "%s invites you", who); break;
+            case RowKind::Asking:
+                snprintf(label, sizeof(label), "%s is asking %s", who, partner);
+                break;
+            case RowKind::Playing:
+                snprintf(label, sizeof(label), "%s is playing %s", who, partner);
+                break;
+            case RowKind::PlayBusy:
+                snprintf(label, sizeof(label), "Play %s (in a game)", who);
+                break;
+            case RowKind::Play: snprintf(label, sizeof(label), "Play %s", who); break;
+        }
+    };
+    /* The owner's names for the two consoles when they fit the row, and the
+     * tags they advertise -- four characters, which always fit -- when not. */
+    phrase(seat.name[0] != 0 ? seat.name : seat.deviceId,
+         seat.partnerName[0] != 0 ? seat.partnerName : seat.partner);
+    if (tft.textWidth(label, 2) > r.w - 12) {
+        phrase(seat.deviceId, seat.partner);
+    }
+    if (!rowPressable(kind)) {
+        /* Busy with somebody else, and so not a button: a flat fill with no
+         * outline and no shadow. A fill and an outline of one rectangle is
+         * what the d-pad's selector stops at, and this must not be a stop. */
+        tft.fillRoundRect(r.x, r.y, r.w, r.h, Ui::cornerRadius(), Ui::surface());
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(Ui::muted(), Ui::surface());
+        tft.drawString(label, r.x + r.w / 2, r.y + r.h / 2, 2);
+        tft.setTextDatum(TL_DATUM);
+        return;
+    }
+    const bool invites = kind == RowKind::Invites;
+    Ui::drawButton(tft, r, label, invites ? Ui::success() : Ui::surface(), Ui::outline(),
+                   invites ? static_cast<uint16_t>(TFT_BLACK) : Ui::text());
+}
+
 void BackgammonGame::renderLobby(AppContext& host) {
     Ui::Renderer& tft = host.display();
     tft.fillRect(0, TOP_BAR_HEIGHT, GAME_CANVAS_WIDTH, GAME_CANVAS_HEIGHT - TOP_BAR_HEIGHT, Ui::bg());
-    Ui::drawButton(tft, lobbyRowRect(0), "Two players", Ui::panel(), Ui::outline(), Ui::text());
-    Ui::drawButton(tft, lobbyRowRect(1), "Play the computer", Ui::panel(), Ui::outline(), Ui::text());
-    char label[32];
-    for (uint8_t i = 0; i < seatCount_ && i < 3; ++i) {
-        const char* who = seats_[i].name[0] != 0 ? seats_[i].name : seats_[i].deviceId;
-        if (seats_[i].inviting) {
-            snprintf(label, sizeof(label), "%s invites you", who);
-        } else {
-            snprintf(label, sizeof(label), "Play %s nearby", who);
-        }
-        Ui::drawButton(tft, lobbyRowRect(static_cast<uint8_t>(i + 2)), label,
-                       seats_[i].inviting ? Ui::success() : Ui::surface(), Ui::outline(),
-                       seats_[i].inviting ? static_cast<uint16_t>(TFT_BLACK) : Ui::text());
+    /* A game of the player's own that this lobby came up in front of is
+     * carried on from its row, and the row says so. */
+    Ui::drawButton(tft, lobbyRowRect(0),
+                   savedBehind_ == Mode::Local ? "Carry on: two players" : "Two players",
+                   Ui::panel(), Ui::outline(), Ui::text());
+    Ui::drawButton(tft, lobbyRowRect(1),
+                   savedBehind_ == Mode::Computer ? "Carry on: the computer" : "Play the computer",
+                   Ui::panel(), Ui::outline(), Ui::text());
+    for (uint8_t i = 0; i < seatCount_ && i < SEAT_ROWS; ++i) {
+        drawSeatRow(tft, lobbyRowRect(static_cast<uint8_t>(i + 2)), seats_[i]);
     }
     /* Why a game just vanished, else what nearby play is and who can switch
      * it on -- an administrator, since the radio is admin-only; playing is not. */
@@ -470,7 +523,33 @@ void BackgammonGame::renderDynamic(AppContext& host) {
     drawPause(tft);
 }
 
+Rect BackgammonGame::stopsRect() {
+    return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),
+                static_cast<int16_t>(TRAY_X + TRAY_W - BX + 2), static_cast<int16_t>(BOARD_H + 4)};
+}
+static_assert(TRAY_X + TRAY_W <= PANEL_X, "the board's stops would take in the panel's buttons");
+
 Rect BackgammonGame::boardArea() {
     return Rect{static_cast<int16_t>(BX - 2), static_cast<int16_t>(BY - 2),
                 static_cast<int16_t>(BOARD_R - BX + 4), static_cast<int16_t>(BOARD_H + 4)};
 }
+
+#if GUME_HAS_NAV_KEYS
+/* A point's stop is under its triangle and checkers, and the bar's and the
+ * tray's under theirs, so each is drawn again whole. */
+bool BackgammonGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (mode_ == Mode::Lobby) return false;
+    const uint8_t place = placeAt(static_cast<int16_t>(box.x + box.w / 2),
+                                  static_cast<int16_t>(box.y + box.h / 2));
+    if (place == Bg::NO_POINT) return false;
+    Ui::Renderer& tft = host.display();
+    if (place == Bg::BAR) {
+        drawBar(tft);
+    } else if (place == Bg::OFF) {
+        drawTray(tft);
+    } else {
+        drawPoint(tft, place);
+    }
+    return true;
+}
+#endif

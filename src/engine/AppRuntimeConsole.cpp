@@ -11,6 +11,7 @@
 
 #include "engine/AppCapabilities.h"
 #include "engine/ConsoleText.h"
+#include "hal/PowerMonitor.h"
 
 using namespace ConsoleText;
 
@@ -43,7 +44,8 @@ using namespace ConsoleText;
  *   wifi      wifi "name" "pw" / wifi clear     create/update, delete;
  *                                               read is get's wifi flag
  *   profiles  profiles / profile-add / profile-rename / profile-remove
- *   games     games <slot> / game <slot|all> <id> on|off   (per player)
+ *   games     games [slot] / game <slot|all> <id> on|off   (per player)
+ *   levels    level <id>[:<track>] [<level>]    read, update (active player)
  *   session   unlock <PIN> / lock / help [command]
  *
  * Aliases kept because tools on dev already send them: `identify?`,
@@ -54,7 +56,8 @@ using namespace ConsoleText;
  *   - READS OF THE DEVICE ARE OPEN; WRITES, AND READS OF PLAYER DATA, NEED
  *     THE ADMIN PIN. The gate is one function, needsUnlock(), keyed on the
  *     row's capability, so a new row cannot forget it. `profiles` lists
- *     names, so it carries APP_CAP_PROFILES and is gated like a write.
+ *     names, and `level` reads how far a player has got, so both carry
+ *     APP_CAP_PROFILES and are gated like a write.
  *     CLAUDE.md: any route to admin powers needs the PIN. PIN_TRIES wrong
  *     guesses lock the console out for PIN_LOCKOUT_MS.
  *   - THE SAME DOORS AS THE SCREENS. Each change is the Board setter the
@@ -120,6 +123,8 @@ const BrainoApp::ConsoleCommand* BrainoApp::consoleTable(size_t& count) {
     static const ConsoleCommand TABLE[] = {
         {"identify", "identify", "which board and firmware this is",
          APP_CAP_DEVICE_STATUS, 0, 0, &BrainoApp::cmdIdentify},
+        {"power", "power", "where the battery went: draw now, and cost per state",
+         APP_CAP_DEVICE_STATUS, 0, 0, &BrainoApp::cmdPower},
         {"get", "get [key]", "device settings; with a key, its value and choices",
          APP_CAP_DEVICE_STATUS, 0, 1, &BrainoApp::cmdGet},
         {"set", "set <key> <value>", "change a device setting (keys: get)",
@@ -134,10 +139,17 @@ const BrainoApp::ConsoleCommand* BrainoApp::consoleTable(size_t& count) {
          APP_CAP_PROFILES, 2, 2, &BrainoApp::cmdProfileRename},
         {"profile-remove", "profile-remove <slot>", "delete a player and their data",
          APP_CAP_PROFILES, 1, 1, &BrainoApp::cmdProfileRemove},
-        {"games", "games <slot>", "the games one player has switched off",
-         APP_CAP_PROFILES, 1, 1, &BrainoApp::cmdGames},
+        {"games", "games [slot]", "every game id; with a slot, the ones that player has off",
+         APP_CAP_PROFILES, 0, 1, &BrainoApp::cmdGames},
         {"game", "game <slot|all> <game-id> on|off", "show or hide a game for a player",
          APP_CAP_PROFILES, 3, 3, &BrainoApp::cmdGame},
+        {"level", "level <game-id>[:<track>] [<level>]",
+         "the active player's level in a game; with a level, set it",
+         APP_CAP_PROFILES, 1, 2, &BrainoApp::cmdLevel},
+        {"notice", "notice \"<words>\"", "show the words as a notice, to look at the strip",
+         APP_CAP_DEVICE_SETTINGS, 1, 1, &BrainoApp::cmdNotice},
+        {"lights", "lights [<step>|off]", "blink every light the firmware drives, one at a time",
+         APP_CAP_DEVICE_SETTINGS, 0, 1, &BrainoApp::cmdLights},
         {"unlock", "unlock <admin PIN>", "allow changes for two minutes",
          APP_CAP_NONE, 1, 1, &BrainoApp::cmdUnlock},
         {"lock", "lock", "stop allowing changes",
@@ -210,6 +222,8 @@ void BrainoApp::runConsoleLine(char* line, Print& out) {
 }
 
 void BrainoApp::cmdIdentify(int, char**, Print& out) { replyIdentify(out); }
+
+void BrainoApp::cmdPower(int, char**, Print& out) { PowerMonitor::printReply(out); }
 
 /* Derived from the table, never hand-written: a command cannot exist without
  * appearing here, or appear here without existing. */

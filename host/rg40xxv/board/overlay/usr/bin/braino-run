@@ -1,0 +1,37 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+# Runs Braino once; init starts this again whenever it ends, so to the player
+# Braino is the whole console. The splash belongs to the boot, not to a
+# restart, and a Braino that keeps failing to start is slowed down rather
+# than restarted fifty times a second.
+DATA=/data/braino
+mkdir -p "$DATA"
+
+export BRAINO_DATA_DIR="$DATA"
+export BRAINO_FULLSCREEN=1
+export HOME=/data
+export SDL_AUDIODRIVER=alsa
+export SDL_GAMECONTROLLERCONFIG="$(cat /etc/braino/gamecontroller.txt 2>/dev/null)"
+
+if [ ! -e /run/braino-started ]; then
+    : >/run/braino-started
+    export BRAINO_BOOT_SPLASH=1
+else
+    # A restart inside ten seconds of the last one means Braino is failing to
+    # start, not that a player left it.
+    LAST=$(cat /run/braino-last 2>/dev/null || echo 0)
+    NOW=$(cut -d. -f1 /proc/uptime)
+    [ $((NOW - LAST)) -lt 10 ] && sleep 5
+fi
+cut -d. -f1 /proc/uptime >/run/braino-last
+
+[ -f "$DATA/braino.log" ] && mv -f "$DATA/braino.log" "$DATA/braino.prev.log"
+exec /usr/bin/braino >"$DATA/braino.log" 2>&1

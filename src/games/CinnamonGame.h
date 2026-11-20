@@ -10,6 +10,8 @@
 #pragma once
 
 #include "engine/Game.h"
+#include "engine/Course.h"
+#include "CinnamonCourse.h"
 #include "ui/Ui.h"
 
 struct AppMetadata;
@@ -27,6 +29,8 @@ public:
      * its own theme save/force/restore; see the .cpp. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     enum class Phase : uint8_t {
@@ -44,8 +48,13 @@ private:
      * a real risk for anyone photosensitive. We now redraw only the pads whose
      * state actually changed, plus the one-line status strip. */
     bool litDrawn_[4] = {false, false, false, false};
-    String statusDrawn_;
+    char statusDrawn_[CinnamonCourse::STATUS_MAX] = {};
+    uint16_t scoreDrawn_ = 0xFFFF;
+    uint16_t bestDrawn_ = 0xFFFF;
+    void newRun();
+    void nextRound();
     void appendStep();
+    uint8_t expected() const;
     void startShowing();
     int8_t touchedPad(int16_t x, int16_t y) const;
     uint16_t padColor(uint8_t index, bool lit) const;
@@ -59,5 +68,11 @@ private:
     uint32_t nextAt_ = 0;
     uint16_t score_ = 0;
     uint16_t bestScore_ = 0;
+    Course::Ladder ladder_;
+    /* The level the run on screen is playing; the ladder may have moved on
+     * since, and the next run takes it up. */
+    uint8_t runLevel_ = 1;
+    bool climbed_ = false;
+    bool won_ = false;
 };
 

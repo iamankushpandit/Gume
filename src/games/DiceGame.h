@@ -31,6 +31,8 @@ public:
      * See docs/RENDER_AUDIT.md. */
     void renderStatic(AppContext& host) override;
     void renderDynamic(AppContext& host) override;
+    Keep keepsGame() const override;
+    void resume(AppContext& host, uint32_t awayMs) override;
 
 private:
     static constexpr uint8_t MAX_DICE = 3;

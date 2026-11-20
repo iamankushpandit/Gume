@@ -1,0 +1,1 @@
+1900f6a24b480000df14000000010000,H700 Gamepad,platform:Linux,x:b3,a:b1,b:b0,y:b2,back:b8,guide:b10,start:b9,dpleft:b15,dpdown:b14,dpright:b16,dpup:b13,leftshoulder:b4,lefttrigger:b6,rightshoulder:b5,righttrigger:b7,leftstick:b11,rightstick:b12,leftx:a0,lefty:a1,rightx:a2,righty:a3,

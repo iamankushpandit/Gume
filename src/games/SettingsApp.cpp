@@ -73,6 +73,21 @@ void SettingsApp::syncPanel(GameHost& host) {
 
 void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
     syncPanel(host);
+    /* The keyboard came off with the PIN pad up and its keys left off: put
+     * them back, or the PIN could not be finished. */
+    if (pinTask_ != PinTask::None && keypad_.lost()) {
+        markFullDirty();
+    }
+    /* A keyboard types into the PIN pad and nowhere else on this screen, and
+     * never runs the touch tests below. The pad is only up for an admin, as
+     * it is for a touch. */
+    const char typed = hostTypedChar(host);
+    if (typed != 0) {
+        if (pinTask_ != PinTask::None) {
+            typePinChar(host, typed);
+        }
+        return;
+    }
     if (!touch.justPressed) return;
 
     Board& board = host.board();
@@ -124,6 +139,7 @@ void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
     if (tab_ == Tab::Admin) {
         if (changePinRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             pinTask_ = PinTask::SetNew;
+            keypad_.begin();
             enteredPin_ = 0;
             enteredPinDigits_ = 0;
             pendingPin_ = 0;
@@ -228,6 +244,12 @@ void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
         if (wakeLockRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             board.setWakeLockEnabled(!board.wakeLockEnabled());
             markControl(wakeLockRect()); return;
+        }
+        /* The footnote restates it, so the whole body repaints. Empty rect
+         * where the device cannot suspend, which contains nothing. */
+        if (deepSleepRect().w > 0 && deepSleepRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            board.setDeepSleepEnabled(!board.deepSleepEnabled());
+            markDirty(); return;
         }
         return;
     }

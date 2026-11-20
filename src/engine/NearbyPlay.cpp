@@ -58,6 +58,13 @@ uint32_t lastScanGeneration_ = 0;
 uint32_t peerGeneration_ = 0;
 
 char events_[MAX_EVENTS][BANNER_MAX];
+/* Who a queued "wants to play" is from, beside its text; empty for every
+ * other notice. An invitation can be answered, or taken back, while its
+ * notice is still waiting its turn behind another, and a notice saying
+ * somebody wants a game the player has already started with them is wrong
+ * by the time it shows. So it is asked again when it reaches the front. */
+char eventInviter_[MAX_EVENTS][5];
+char bannerInviter_[5] = {0};   // the same, for the notice on screen
 uint8_t eventHead_ = 0;
 uint8_t eventCount_ = 0;
 
@@ -65,6 +72,10 @@ char banner_[BANNER_MAX] = {0};
 bool bannerActive_ = false;
 uint32_t bannerAtMs_ = 0;
 uint32_t bannerGeneration_ = 0;
+/* After a banner was pressed away: how long the next one waits its turn. */
+constexpr uint32_t BANNER_HOLD_MS = 2500;
+bool bannerHeld_ = false;
+uint32_t bannerHeldAtMs_ = 0;
 
 /* The find alert. `alertWasMuted_` is the whole of the mute contract: the
  * switch is genuinely flipped when an alert starts, and put back by
@@ -99,7 +110,7 @@ bool better(uint32_t candidate, uint32_t incumbent, bool lowerIsBetter) {
     return lowerIsBetter ? candidate < incumbent : candidate > incumbent;
 }
 
-void pushEvent(const char* text) {
+void pushEvent(const char* text, const char* inviter = nullptr) {
     if (eventCount_ == MAX_EVENTS) {
         /* A burst is more interesting at its newest end: drop the oldest
          * rather than refusing the arrival. */
@@ -108,6 +119,8 @@ void pushEvent(const char* text) {
     }
     const uint8_t slot = static_cast<uint8_t>((eventHead_ + eventCount_) % MAX_EVENTS);
     snprintf(events_[slot], BANNER_MAX, "%s", text);
+    snprintf(eventInviter_[slot], sizeof(eventInviter_[slot]), "%s",
+             inviter != nullptr ? inviter : "");
     ++eventCount_;
 }
 
@@ -131,6 +144,12 @@ void evaluateScore(Board& board, Known& entry, const BleScan::Sighting& seen) {
     char text[BANNER_MAX];
 
     if (!seen.sharesActivity || seen.gameIndex == BleBeacon::GAME_NONE) {
+        return;
+    }
+    /* A peer with a move or a poke on the air is sending no score: the
+     * number held is not one for this game, and nought would "beat" every
+     * lower-is-better record. */
+    if (!seen.haveScore) {
         return;
     }
     const AppScoreInfo* score = gameScore(seen.gameIndex);
@@ -178,6 +197,11 @@ void recordSession(Known& entry, const BleScan::Sighting& seen) {
         strncpy(entry.inviteTarget, seen.inviteTarget, sizeof(entry.inviteTarget) - 1);
         entry.inviteTarget[sizeof(entry.inviteTarget) - 1] = 0;
         entry.inviteSession = seen.inviteSession;
+        /* See BleScan's record(): an old game's move under the number now
+         * being offered must not be read as the new game's. */
+        if (entry.hasTurn && entry.turnSession == (seen.inviteSession & 0x3F)) {
+            entry.hasTurn = false;
+        }
     }
     if (seen.hasTurn) {
         entry.hasTurn = true;
@@ -186,6 +210,7 @@ void recordSession(Known& entry, const BleScan::Sighting& seen) {
         entry.turnFrom = seen.turnFrom;
         entry.turnTo = seen.turnTo;
         entry.turnAck = seen.turnAck;
+        entry.lastTurnMs = seen.lastTurnMs;
     }
 }
 
@@ -203,12 +228,20 @@ void recordSession(Known& entry, const BleScan::Sighting& seen) {
  * with nothing added here. */
 void evaluateInvite(Board& board, Known& entry, const BleScan::Sighting& seen) {
     if (!seen.inviting) {
+        /* The invitation is over, so the next one is new whatever its byte:
+         * a later one that happened to repeat it used to arrive silently. */
+        entry.sawInvite = false;
         return;
     }
     const char* mine = BleBeacon::configured().deviceId;
     if (mine[0] == '\0' ||
         strncmp(seen.inviteTarget, mine, sizeof(seen.inviteTarget)) != 0) {
-        return;   // aimed at somebody else; a broadcast is heard by everyone
+        /* Aimed at somebody else; a broadcast is heard by everyone. If it was
+         * aimed at us a moment ago, ours is over -- withdrawn and put to
+         * another console, as a Ludo host does seat by seat -- and a notice
+         * still saying it is waiting must go with it. */
+        entry.sawInvite = false;
+        return;
     }
     if (entry.sawInvite && entry.lastInviteByte == seen.inviteSession) {
         return;   // the same invitation, still on air
@@ -225,7 +258,7 @@ void evaluateInvite(Board& board, Known& entry, const BleScan::Sighting& seen) {
         snprintf(text, sizeof(text), "%s wants to play",
                  displayName(board, seen.deviceId));
     }
-    pushEvent(text);
+    pushEvent(text, seen.deviceId);
     board.playSound(Sound::Pop);
 }
 
@@ -303,7 +336,14 @@ void reconcile(Board& board) {
             entry->lastGame = seen.gameIndex;
             entry->lastScore = seen.bestScore;
 
-            if (gameChanged) {
+            /* Not about the console this one is playing a game with: its
+             * player is across the table, and a console that only went Home
+             * and back to the game would otherwise put a notice over the
+             * board -- over End game, in Sea Battle and Ludo. */
+            const BleBeacon::Advertisement& ours = BleBeacon::configured();
+            const bool partner = ours.hasTurn && entry->hasTurn &&
+                                 entry->turnSession == ours.turnSession;
+            if (gameChanged && !partner) {
                 const char* title = gameTitle(seen.gameIndex);
                 if (seen.sharesActivity && title != nullptr) {
                     snprintf(text, sizeof(text), "%s is playing %s",
@@ -383,6 +423,7 @@ void resetPeers() {
     eventHead_ = 0;
     eventCount_ = 0;
     bannerActive_ = false;
+    bannerHeld_ = false;
     banner_[0] = '\0';
     ++bannerGeneration_;
     ++peerGeneration_;
@@ -409,6 +450,7 @@ void setEnabled(Board& board, bool on) {
     if (!enabled_) {
         BleScan::clear();
         resetPeers();
+        dropTurnsForOff();
     }
     publish(board);
 }
@@ -521,6 +563,7 @@ void tick(Board& board) {
         BleScan::setEnabled(enabled_);
         if (!enabled_) {
             resetPeers();
+            dropTurnsForOff();
         }
         publish(board);
     }
@@ -532,6 +575,8 @@ void tick(Board& board) {
     /* Takes our own poke off air once it has had its few seconds. Idempotent
      * and free when there is no poke live. */
     BleBeacon::clearExpiredPoke();
+    /* And a finished game's last word, once it has had its minute. */
+    tickSessions();
 
     const uint32_t generation = BleScan::generation();
     if (generation != lastScanGeneration_) {
@@ -564,8 +609,31 @@ void tick(Board& board) {
         banner_[0] = '\0';
         ++bannerGeneration_;
     }
-    if (!bannerActive_ && eventCount_ > 0) {
+    if (bannerHeld_ && now - bannerHeldAtMs_ >= BANNER_HOLD_MS) {
+        bannerHeld_ = false;
+    }
+    /* An invitation whose notice has waited its turn is shown only if it is
+     * still on the air: accepted, or withdrawn, it is dropped unseen -- and
+     * one already showing goes as soon as it stops being true. */
+    if (bannerActive_ && bannerInviter_[0] != '\0') {
+        const Known* from = findKnown(bannerInviter_);
+        if (from == nullptr || !from->sawInvite) {
+            bannerActive_ = false;
+            banner_[0] = '\0';
+            bannerInviter_[0] = '\0';
+            ++bannerGeneration_;
+        }
+    }
+    while (!bannerActive_ && !bannerHeld_ && eventCount_ > 0 &&
+           eventInviter_[eventHead_][0] != '\0') {
+        const Known* from = findKnown(eventInviter_[eventHead_]);
+        if (from != nullptr && from->sawInvite) break;
+        eventHead_ = static_cast<uint8_t>((eventHead_ + 1) % MAX_EVENTS);
+        --eventCount_;
+    }
+    if (!bannerActive_ && !bannerHeld_ && eventCount_ > 0) {
         snprintf(banner_, sizeof(banner_), "%s", events_[eventHead_]);
+        snprintf(bannerInviter_, sizeof(bannerInviter_), "%s", eventInviter_[eventHead_]);
         eventHead_ = static_cast<uint8_t>((eventHead_ + 1) % MAX_EVENTS);
         --eventCount_;
         bannerActive_ = true;
@@ -576,6 +644,15 @@ void tick(Board& board) {
 
 const char* banner() {
     return bannerActive_ ? banner_ : nullptr;
+}
+
+void dismissBanner(uint32_t nowMs) {
+    if (!bannerActive_) return;
+    bannerActive_ = false;
+    banner_[0] = '\0';
+    ++bannerGeneration_;
+    bannerHeld_ = true;
+    bannerHeldAtMs_ = nowMs;
 }
 
 uint32_t bannerGeneration() { return bannerGeneration_; }
@@ -594,6 +671,7 @@ PeerView peerAt(Board& board, uint8_t index) {
     view.sharing = seen.sharesActivity;
     view.rssi = seen.rssi;
     view.theirScore = seen.bestScore;
+    view.haveTheirScore = seen.haveScore;
     view.gameTitle = seen.sharesActivity ? gameTitle(seen.gameIndex) : nullptr;
 
     const AppScoreInfo* score = seen.sharesActivity ? gameScore(seen.gameIndex) : nullptr;
@@ -604,7 +682,8 @@ PeerView peerAt(Board& board, uint8_t index) {
     view.haveOwnScore = board.hasScore(score->bestKey);
     if (view.haveOwnScore) {
         view.yourScore = board.getScore(score->bestKey);
-        view.beatsYou = better(seen.bestScore, view.yourScore, score->lowerIsBetter);
+        view.beatsYou = seen.haveScore &&
+                        better(seen.bestScore, view.yourScore, score->lowerIsBetter);
     }
     return view;
 }

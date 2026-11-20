@@ -9,14 +9,18 @@
 
 #include "AppRuntime.h"
 
+#include <WiFi.h>
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <math.h>
 #include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
 #include "hal/Clock.h"
+#include "hal/PowerMonitor.h"
+#include "hal/PanelSize.h"
 #include "hal/Watchdog.h"
 #include "ui/LauncherLayout.h"
+#include "ui/Stops.h"
 
 // Home, Lock and the gear all come from LauncherLayout, so a hit target and
 // the glyph Ui paints into it cannot drift apart.
@@ -66,92 +70,26 @@ Ui::Renderer& BrainoApp::display() {
     return renderer_;
 }
 
-Board& BrainoApp::board() {
-    return board_;
-}
-
-bool BrainoApp::hasCapability(uint32_t capability) const {
-    return activeApp_ != nullptr && activeApp_->hasCapability(capability);
-}
-
-bool BrainoApp::requireCapability(uint32_t capability, const char* action) {
-    if (hasCapability(capability)) {
-        return true;
-    }
-    Serial.printf("[auth] denied '%s' for app '%s' (need 0x%08lx, has 0x%08lx)\n",
-                  action != nullptr ? action : "?",
-                  activeApp_ != nullptr ? activeApp_->id() : "none",
-                  static_cast<unsigned long>(capability),
-                  static_cast<unsigned long>(activeApp_ != nullptr ? activeApp_->capabilities : 0));
-    board_.beepError();
-    return false;
-}
-
-ContentLoader& BrainoApp::content() {
-    return content_;
-}
-
-uint32_t BrainoApp::getScore(const char* key, uint32_t fallback) {
-    return board_.getScore(key, fallback);
-}
-
-void BrainoApp::setScore(const char* key, uint32_t value) {
-    board_.setScore(key, value);
-}
-
-bool BrainoApp::saveBestScore(const char* key, uint32_t value, bool lowerIsBetter) {
-    const bool improved = board_.saveBestScore(key, value, lowerIsBetter);
-    if (improved) {
-        /* Peers should see the number that is true now, not the one that was
-         * current when the screen opened. */
-        NearbyPlay::refreshScore(board_);
-    }
-    return improved;
-}
-
-void BrainoApp::loadBlob(const char* key, void* dst, size_t len) {
-    board_.loadBlob(key, dst, len);
-}
-
-void BrainoApp::saveBlob(const char* key, const void* src, size_t len) {
-    board_.saveBlob(key, src, len);
-}
-
-void BrainoApp::beepOk() {
-    board_.beepOk();
-}
-
-void BrainoApp::beepError() {
-    board_.beepError();
-}
-
-void BrainoApp::playSound(Sound cue) {
-    board_.playSound(cue);
-}
-
-bool BrainoApp::batteryLow() {
-    /* isBatteryLow() reads the snapshot the sampling task publishes -- no
-     * conversion on this path. A board with no battery sense is never low. */
-    return BOARD.hasBatterySense() && board_.isBatteryLow();
-}
-
-void BrainoApp::pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) {
-    board_.pulseRgb(r, g, b, ms);
-}
-
-void BrainoApp::drawTopBar(const char* title) {
-    Ui::drawTopBar(board_, title);
-}
-
 void BrainoApp::begin() {
     board_.begin();
+    /* Before anything asks which games a player sees: the old per-index
+     * visibility keys are read against the game at each index today. Board
+     * cannot know the catalogue, so the runtime hands it over. */
+    {
+        uint16_t keyAtIndex[PLAYABLE_APP_COUNT];
+        for (uint8_t i = 0; i < PLAYABLE_APP_COUNT; ++i) {
+            keyAtIndex[i] = playableAppAt(i).visibilityKey().value;   // index i is tile i (check_catalog.py)
+        }
+        board_.migrateGameVisibility(keyAtIndex, PLAYABLE_APP_COUNT);
+    }
     /* Games always render landscape, so the panel's landscape extent is the
-     * physical size their fixed canvas has to fill. SCREEN_WIDTH/HEIGHT are
-     * exactly that -- BoardConfig.h derives them from the profile's panel size
-     * and landscape rotation -- so on a board that is already canvas-sized
+     * physical size their fixed canvas has to fill. PanelSize answers it on
+     * every platform -- from the profile on a board, from the display found
+     * at start-up on the host -- so on a panel that is already canvas-sized
      * this configures a scale of 1.0 and the wrapper becomes a passthrough. */
-    scaledRenderer_.configure(SCREEN_WIDTH, SCREEN_HEIGHT);
+    scaledRenderer_.configure(PanelSize::landscapeWidth(), PanelSize::landscapeHeight());
     Watchdog::begin();
+    PowerMonitor::begin(board_);
     if (!board_.hasTouchCalibration()) {
         board_.runTouchCalibration();
     }
@@ -216,6 +154,11 @@ void BrainoApp::loop() {
     Watchdog::feed();
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
+    const FrameKeys keys = pollKeys();
+    /* For the idle, saver and sleep paths below a key is a key: any of them
+     * does exactly what BOOT does there. Which key it was matters only to the
+     * active screen. */
+    const bool keyPress = boot.justPressed || keys.any();
     const uint32_t nowMs = millis();
 
     TouchPoint touch = rawTouch;
@@ -234,20 +177,20 @@ void BrainoApp::loop() {
     NearbyPlay::tick(board_);
     tickBatteryWarning(nowMs);
     tickUpdateNotice(nowMs);
+    tickBenchNotice(nowMs);
+    tickLightTest(nowMs);
+    tickPowerMonitor(nowMs);
     tickSerialQuery();
 
-    /* A notification appearing or expiring changes the header, and the header
-     * belongs to the screen underneath -- so the chrome has to repaint before
-     * the strip is painted over it. Doing this here, ahead of the render
-     * below, keeps both in the same frame.
-     *
-     * The strip is all that changes, so only the strip is repainted. This used
-     * to call requestRender() and wipe the whole panel to put a banner in the
-     * top 30 pixels. */
+    /* A Nearby notice appearing, changing its words or expiring. The strip is
+     * all that changes and settleNotice(), below, is all that answers it: the
+     * notice lies along the bottom of the panel, over none of the header, so
+     * nothing of the screen's has to repaint for one to arrive. This used to
+     * ask for the chrome as well, when the strip was painted over the top
+     * bar, and before that for the whole panel. */
     if (NearbyPlay::bannerGeneration() != lastBannerGeneration_) {
         lastBannerGeneration_ = NearbyPlay::bannerGeneration();
         bannerNeedsPaint_ = true;
-        requestChromeRender();
     }
 
     /* A console being looked for lights its panel, and any press stops it.
@@ -264,7 +207,7 @@ void BrainoApp::loop() {
      * ending an alert -- a touch, the BOOT key, or its own timeout in
      * NearbyPlay::tick() -- runs the same restore of the mute switch. */
     if (NearbyPlay::alertActive() &&
-        (rawTouch.justPressed || rawTouch.down || boot.justPressed)) {
+        (rawTouch.justPressed || rawTouch.down || keyPress)) {
         NearbyPlay::dismissAlert(board_);
     }
     if (NearbyPlay::alertActive() && view_ == View::Asleep) {
@@ -276,7 +219,7 @@ void BrainoApp::loop() {
      * because as far as the idle timer was concerned nobody had touched the
      * device since before the press. */
     if (rawTouch.down || rawTouch.justPressed || rawTouch.justReleased ||
-        boot.down || boot.justPressed || boot.justReleased) {
+        boot.down || boot.justPressed || boot.justReleased || keyPress) {
         lastActivityMs_ = nowMs;
     }
 
@@ -307,7 +250,18 @@ void BrainoApp::loop() {
     const uint32_t minuteNow = Clock::minuteKey();
     if (minuteNow != lastClockMinute_) {
         lastClockMinute_ = minuteNow;
-        requestChromeRender();
+        /* The digits alone, where the screen can: a few characters drawn over
+         * the old ones, not the header wiped and redrawn once a minute. Not
+         * outside a live screen -- requestChromeRender() is what knows that,
+         * and it is the fallback. A notice used to own those pixels while it
+         * was up; it is along the bottom now and the clock does not wait for
+         * it. */
+        const bool inPlace = view_ == View::Game && activeGame_ != nullptr &&
+                             !chromeNeedsPaint_ &&
+                             (beginScreenPaint(), activeGame_->renderClock(*this));
+        if (!inPlace) {
+            requestChromeRender();
+        }
     }
 
     /* Keep the battery badge live rather than only correct at a screen change.
@@ -324,8 +278,11 @@ void BrainoApp::loop() {
     }
 
     if (view_ == View::Asleep) {
-        if (rawTouch.justPressed || rawTouch.down || boot.justPressed) {
+        if (rawTouch.justPressed || rawTouch.down || keyPress) {
             wakeFromSleep();
+        } else {
+            tickStationRest(nowMs);
+            tickDeepSleep(nowMs);
         }
     } else if (view_ == View::Locked) {
         /* The swallowed touch, not the raw one: the press that lit the panel
@@ -338,7 +295,7 @@ void BrainoApp::loop() {
          * stays the deliberate hold on the panel. */
         updateLock(touch, nowMs);
     } else if (view_ == View::ScreenSaver) {
-        if (touch.justPressed || boot.justPressed) {
+        if (touch.justPressed || keyPress) {
             exitScreenSaver();
         } else if (nowMs - ssav_lastFrameMs_ >= 40) {
             ssav_lastFrameMs_ = nowMs;
@@ -369,9 +326,62 @@ void BrainoApp::loop() {
          * that a future hold gesture cannot be layered on top without moving
          * this to the release edge first; hal/BoardButton.cpp says the same
          * thing from the other end. */
-        const bool bootHome = boot.justPressed && activeGame_ != &launcher_;
-        if (bootHome) {
+        /* On a board with keys, the d-pad's selector runs here, above the
+         * routing, and does everything through it: a press is a touch at the
+         * selected control (it replaces the frame's `touch`), and Home, Lock
+         * and Mute come back as bits for the same branches BOOT, the power
+         * key and the speaker's tap already take (AppRuntimeSelector.cpp).
+         *
+         * A power key's short press is the Lock button, consumed up here for
+         * the reason Lock's tap is, and on the launcher too, which has a Lock
+         * badge of its own. Like BOOT it is a shortcut and nothing more: it
+         * wakes a sleeping panel and dismisses the saver exactly as any key
+         * does (above), and it does nothing on the lock screen, which takes no
+         * key at all. */
+#if GUME_HAS_NAV_KEYS
+        const uint8_t selectorJobs = selectorFrame(touch, keys);
+#else
+        const uint8_t selectorJobs = 0;
+#endif
+        const bool powerLock = keys.power() || (selectorJobs & SELECTOR_LOCK) != 0;
+        const bool homeKey = !powerLock &&
+                             (boot.justPressed || (selectorJobs & SELECTOR_HOME) != 0);
+        /* With a notice up, Home's key puts the notice away and does not go
+         * Home. A console with no touch panel has nothing to press the
+         * notice with, and what it covers -- the bottom row of answers, the
+         * launcher's Prev and Next -- is out of reach until it goes. The key
+         * that means "back" is the one a hand goes to, and one more press is
+         * Home as ever. On the launcher too, where the key otherwise does
+         * nothing at all. */
+        const bool noticeAway = homeKey && noticeOnPanel_;
+        const bool bootHome = homeKey && !noticeAway && activeGame_ != &launcher_;
+        const bool keyMute = !powerLock && !homeKey && (selectorJobs & SELECTOR_MUTE) != 0;
+        offerKeys(keys, bootHome || powerLock || keyMute || noticeAway);
+        if (powerLock) {
+            lockAndSleepNow();
+        } else if (noticeAway) {
+            dismissNotice(nowMs);
+        } else if (bootHome) {
             goHome();
+        } else if (keyMute) {
+            toggleMute();
+        } else if (touch.justPressed && noticeOnPanel_ &&
+                   Ui::notificationRect(renderer_.width(), renderer_.height())
+                       .contains(touch.x, touch.y)) {
+            /* A press on a notice puts it away, and does nothing else. It is
+             * taken up here, above the screen, for the reason Home and Lock
+             * are: the notice lies over the bottom of the screen, and a press
+             * that also reached the screen would press whatever is under it,
+             * which the player cannot see. The rest of the press is swallowed
+             * as well, so the button under the strip is not handed the
+             * release of a press it never saw begin -- and that goes for a
+             * press the d-pad's selector was making, which is let go here.
+             *
+             * No slop. A strip that took presses from just above itself would
+             * be taking them from the controls it lies beside. */
+            dismissNotice(nowMs);
+            swallowTouch_ = true;
+            selectorLetGo();
         } else if (activeGame_ != &launcher_ &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             openSettings();
@@ -383,13 +393,15 @@ void BrainoApp::loop() {
          * find it done when they unlocked. Home is tested first: their touch
          * slop overlaps even though the glyphs do not, and the older target
          * keeps the ambiguous pixels. */
-        } else if (touch.justPressed &&
+        /* An empty rect is a screen showing no padlock (Game::headerControls),
+         * and with the slop it would still catch the corner. */
+        } else if (touch.justPressed && lockButton.w > 0 &&
                    lockButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             lockAndSleepNow();
         /* Mute is consumed up here for the same reason Home, the gear and
          * Lock are: a tap that also reached the screen would press whatever
          * sat under the speaker, and the player would find it done. */
-        } else if (touch.justPressed && Board::hasSound() &&
+        } else if (touch.justPressed && Board::hasSound() && speakerButton.w > 0 &&
                    speakerButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
             toggleMute();
         } else if (activeAppIsPlayable() && !activeApp_->followsLayout) {
@@ -407,14 +419,25 @@ void BrainoApp::loop() {
              * canvas coordinates to hit-test with, which is the bug this
              * comment describes, arrived at from the opposite direction. */
             TouchPoint gameTouch = touch;
-            gameTouch.x = static_cast<int16_t>(lroundf(
-                touch.x * static_cast<float>(GAME_CANVAS_WIDTH) / SCREEN_WIDTH));
-            gameTouch.y = static_cast<int16_t>(lroundf(
-                touch.y * static_cast<float>(GAME_CANVAS_HEIGHT) / SCREEN_HEIGHT));
+            gameTouch.x = scaledRenderer_.toCanvasX(touch.x);
+            gameTouch.y = scaledRenderer_.toCanvasY(touch.y);
+            if (gameTouch.justPressed) {
+                pressedInGame_ = true;      // there is now something to keep
+            }
             activeGame_->update(*this, gameTouch);
         } else {
+            if (touch.justPressed) {
+                pressedInGame_ = true;
+            }
             activeGame_->update(*this, touch);
         }
+        withdrawKeys();
+        /* The runtime asks Carry on / New game on its own screen, drawn as
+         * the game it stands in front of; this is where it reads the answer.
+         * A no-op on every other screen, and after a press the chrome took. */
+        settleCarryOn();
+        /* Whether the screen, or its chrome, painted this frame: the
+         * selector's ring was painted over if so, and goes back on after. */
         bool repainted = false;
         if (activeGame_ != nullptr && activeGame_->needsRender()) {
             beginScreenPaint();
@@ -428,9 +451,6 @@ void BrainoApp::loop() {
             beginScreenPaint();
             if (activeGame_->renderChrome(*this)) {
                 chromeNeedsPaint_ = false;
-                /* The banner paints over the same strip, so a chrome repaint
-                 * erases it exactly as a full one does. Both have to tell
-                 * drawHeaderBanner() to put it back. */
                 repainted = true;
             } else {
                 /* The screen cannot do it in isolation. Fall back rather than
@@ -439,9 +459,25 @@ void BrainoApp::loop() {
                 activeGame_->requestRender();
             }
         }
-        drawHeaderBanner(repainted);
+        /* After the screen, never before: the notice is painted over what the
+         * screen has just drawn, and from then on the screen cannot draw
+         * there. Neither branch above has to tell it anything -- a repaint of
+         * the screen or of its chrome no longer lands on the notice. It says
+         * when the strip changed hands, which the selector has to hear: the
+         * control it was on may be under a notice now, or have come back. */
+        if (settleNotice()) {
+            repainted = true;
+        }
+#if GUME_HAS_NAV_KEYS
+        paintSelector(repainted);
+#endif
     }
 
+#if GUME_HAS_NAV_KEYS
+    /* In every view, so a key that woke the panel or dismissed the saver is
+     * not taken as a fresh press on the frame after. */
+    sel_.prev = keys.held;
+#endif
     const uint32_t workMs = millis() - nowMs;
     Watchdog::recordFrameWork(workMs);
     const uint32_t budgetMs = (view_ == View::Asleep) ? SLEEP_POLL_MS
@@ -451,6 +487,23 @@ void BrainoApp::loop() {
     } else {
         delay(1);
     }
+}
+
+/* What the battery diagnostic cannot find out for itself. Once a second, from
+ * RAM: the task that books the time reads the last one published, so nothing
+ * here is on its schedule and nothing there touches the runtime. */
+void BrainoApp::tickPowerMonitor(uint32_t nowMs) {
+    if (nowMs - lastPowerPublishMs_ < 1000) return;
+    lastPowerPublishMs_ = nowMs;
+    PowerMonitor::Activity a;
+    a.activity = view_ == View::Asleep        ? PowerLedger::Activity::Asleep
+                 : view_ == View::ScreenSaver ? PowerLedger::Activity::Saver
+                 : view_ == View::Locked      ? PowerLedger::Activity::Locked
+                                              : PowerLedger::Activity::Awake;
+    a.lampPercent = board_.lampPercent();
+    a.wifi = WiFi.status() == WL_CONNECTED;
+    a.bluetooth = BleBeacon::active() || NearbyPlay::active();
+    PowerMonitor::publish(a);
 }
 
 void BrainoApp::requestChromeRender() {
@@ -466,6 +519,10 @@ void BrainoApp::requestChromeRender() {
 
 void BrainoApp::applyRotation(uint8_t rotation) {
     if (board_.displayRotation() != rotation) {
+        /* The bottom of the panel is about to be somewhere else, and the
+         * driver drops its viewport when it turns. A notice that is up is
+         * painted again where the bottom now is, after the screen. */
+        noticeOffPanel();
         board_.setDisplayRotation(rotation);
     }
     swallowTouch_ = true;
@@ -529,9 +586,13 @@ void BrainoApp::leaveActiveGame() {
         return;
     }
     const char* leaving = Watchdog::context();
+    noteGameLeft();     // before end(): the question is about the game as it stood
     activeGame_->end(*this);
     activeGame_ = nullptr;
     activeApp_ = nullptr;
+    /* What the screen said about its board goes with the screen. */
+    Ui::clearBoardStops();
+    Ui::clearOverlayStops();
     Watchdog::noteScreenLeft(leaving, heapAtLaunch_);
 }
 
@@ -567,6 +628,7 @@ void BrainoApp::goHome() {
 void BrainoApp::relaunchActiveGame() {
     if (activeGame_ != nullptr) {
         activeGame_->begin(*this);
+        pressedInGame_ = false;     // begun again: nothing in it yet
         /* Same reasoning as launch() and goHome(): starting a screen over is a
          * whole-screen repaint, and this one does not even render here -- it
          * leaves that to the next loop iteration, which would otherwise use

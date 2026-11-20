@@ -11,6 +11,8 @@
 
 #include <esp_adc_cal.h>
 
+#include "modules/Modules.h"
+
 namespace {
 esp_adc_cal_characteristics_t s_adcChars;
 bool s_adcCharacterised = false;
@@ -100,6 +102,13 @@ void Board::sampleBattery() {
         return;
     }
 
+#if GUME_HAS_ATTAKY_MODULES
+    if (BOARD.hasFuelGauge()) {
+        sampleModuleBattery();
+        return;
+    }
+#endif
+
     if (!s_adcCharacterised) {
         analogSetPinAttenuation(BOARD.battery.adcPin, ADC_11db);
         esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12,
@@ -127,18 +136,22 @@ void Board::sampleBattery() {
     if (vBat < V_IMPLAUSIBLE || vBat > V_SENSOR_MAX) {
         displayPct_ = -1;   // a fault is reported at once, never held back
     } else {
-        const int8_t raw = curvePercent(vBat);
-        const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
-                                                                   : displayPct_ - raw);
-        if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
-            displayPct_ = raw;
-        }
+        settleDisplayPercent(curvePercent(vBat));
     }
 
     portENTER_CRITICAL(&batteryMux_);
     batteryPublished_.sample = sample;
     batteryPublished_.pct = displayPct_;
     portEXIT_CRITICAL(&batteryMux_);
+}
+
+/* Both endpoints are exempt; getBatteryPercent() says why. */
+void Board::settleDisplayPercent(int8_t raw) {
+    const int8_t drift = static_cast<int8_t>(raw > displayPct_ ? raw - displayPct_
+                                                               : displayPct_ - raw);
+    if (displayPct_ < 0 || raw >= 100 || raw <= 0 || drift >= PERCENT_DEADBAND) {
+        displayPct_ = raw;
+    }
 }
 
 Board::BatteryPublic Board::batterySnapshot() {
@@ -169,8 +182,10 @@ void Board::beginBatteryMonitor() {
     if (!BOARD.hasBatterySense()) {
         return;   // nothing to poll; the zeroed snapshot above is the answer
     }
-    xTaskCreatePinnedToCore(batteryTask, "battery", 2560, this, 1,
-                            &batteryTaskHandle_, 0);
+    /* The gauge path prints when the module comes or goes, and a printf wants
+     * more stack than eight analogRead()s. */
+    xTaskCreatePinnedToCore(batteryTask, "battery", BOARD.hasFuelGauge() ? 3584 : 2560,
+                            this, 1, &batteryTaskHandle_, 0);
 }
 
 Board::BatteryTelemetry Board::readBatteryTelemetry() {
@@ -210,6 +225,26 @@ int8_t Board::curvePercent(float vBat) const {
         }
     }
     return 0;
+}
+
+/* A module whose cell reads full below the curve's 4.20 V: only the top of
+ * the curve moves. From its 70% point (3.93 V) upward it runs straight to
+ * `fullVolts`; below it nothing changes, so the low and critical warnings
+ * fire exactly where they always did. */
+int8_t Board::curvePercentTo(float vBat, float fullVolts) const {
+    constexpr float KNEE_VOLTS = 3.93f;
+    constexpr int8_t KNEE_PCT = 70;
+    if (fullVolts <= KNEE_VOLTS || fullVolts >= LIPO_CURVE[0].volts) {
+        return curvePercent(vBat);
+    }
+    if (vBat >= fullVolts) {
+        return 100;
+    }
+    if (vBat <= KNEE_VOLTS) {
+        return curvePercent(vBat);
+    }
+    const float frac = (vBat - KNEE_VOLTS) / (fullVolts - KNEE_VOLTS);
+    return static_cast<int8_t>(KNEE_PCT + frac * (100 - KNEE_PCT) + 0.5f);
 }
 
 /* The displayed charge, with a deadband, because one percent is smaller than
@@ -276,12 +311,13 @@ void Board::setBrightness(uint8_t percent) {
 
 void Board::applyBrightness() {
     if (!BOARD.hasBacklightControl()) return;
+    lampLevel_ = brightness();
     if (!blReady) {
         ledcSetup(BL_CHANNEL, BL_PWM_HZ, BL_PWM_BITS);
         ledcAttachPin(BOARD.panel.backlightPin, BL_CHANNEL);
         blReady = true;
     }
-    ledcWrite(BL_CHANNEL, backlightDuty(brightness()));
+    ledcWrite(BL_CHANNEL, backlightDuty(lampLevel_));
 }
 
 void Board::displaySleep() {
@@ -289,6 +325,14 @@ void Board::displaySleep() {
     if (BOARD.hasBacklightControl()) ledcWrite(BL_CHANNEL, backlightDuty(0));
     tft_.writecommand(0x10);
     displayAsleep_ = true;
+    /* The firmware's other lights go out with the panel. Both calls are
+     * nothing on a board whose LED is on GPIOs and which takes no modules:
+     * the first re-reads an expander LED's state from the part instead of
+     * trusting what was last asked of it, and tickRgb() keeps asking for as
+     * long as the panel sleeps; the second tells each module that is clipped
+     * on, so one with a light of its own puts it out until displayWake(). */
+    keepExpanderRgbDark(true);
+    Modules::panelSleep(true);
     displaySleepTelemetry_.sleepCount++;
     displaySleepTelemetry_.lastSleepMs = millis();
     Serial.printf("[display] sleep #%lu at %lums\n",
@@ -331,6 +375,7 @@ void Board::displayWake() {
     tft_.writecommand(0x29);
     applyBrightness();
     displayAsleep_ = false;
+    Modules::panelSleep(false);     // a module's own light, back as it was
     const uint32_t wakeEndMs = millis();
     displaySleepTelemetry_.wakeCount++;
     displaySleepTelemetry_.lastWakeMs = wakeEndMs;

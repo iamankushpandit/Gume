@@ -72,6 +72,16 @@ def pair_ok(game_id, kind):
     return a == b or a.startswith(b) or b.startswith(a)
 
 
+def course_key(game_id):
+    """The key a game's level is stored under: courseKey() in
+    src/engine/AppRuntimeKeep.cpp, track 0. Keep the two in step."""
+    h = 2166136261
+    for byte in game_id.encode("utf-8"):
+        h ^= byte
+        h = (h * 16777619) & 0xFFFFFFFF
+    return (((h >> 16) ^ (h & 0xFFFF)) & 0x3FFF) or 1
+
+
 def check(problems):
     registry = read("src", "engine", "AppRegistry.cpp")
     registry_h = read("src", "engine", "AppRegistry.h")
@@ -109,6 +119,21 @@ def check(problems):
             if item in seen:
                 problems.append("%s '%s' appears twice (index %d)" % (label, item, i))
             seen.add(item)
+
+    # 2b. Course keys. A player's level in each game is stored under a 14-bit
+    # hash of the game's id (AppContext::courseLevel). Two ids with one key
+    # would share a level, silently: a player promoted in one game would find
+    # the other one harder. Forty ids collide about one time in twenty, so a
+    # new id can; rename it when this fires.
+    keys = {}
+    for app in apps:
+        keys.setdefault(course_key(app.id), []).append(app.id)
+    for key, ids in sorted(keys.items()):
+        if len(ids) > 1:
+            problems.append(
+                "game ids %s share course key %d: their players' levels would "
+                "be one number. Rename the newer id."
+                % (" and ".join("'%s'" % i for i in ids), key))
     seen = set()
     for i, item in enumerate(system_ids):
         if item in seen:

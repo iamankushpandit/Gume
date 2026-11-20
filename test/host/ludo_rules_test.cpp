@@ -12,7 +12,7 @@
 // is a rule (see src/games/CLAUDE.md) and this file is what proves it still
 // holds, since it will not compile otherwise.
 //
-// It is not run by CI and not picked up by pio test (the folder name does
+// It is run by CI (tools/run_host_tests.py), not by pio test (the folder name does
 // not start with test_). Build and run it with any host C++17 compiler:
 //
 //   g++ -std=c++17 -O2 -Wall -Wextra -I src/games test/host/ludo_rules_test.cpp src/games/LudoRules.cpp -o ludo_rules_test && ./ludo_rules_test

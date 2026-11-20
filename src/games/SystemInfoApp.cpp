@@ -9,12 +9,14 @@
 
 #include "SystemInfoApp.h"
 #include "AppVersion.h"
+#include "FirmwareVersion.h"
 #include "BuildStamp.h"
 #include "engine/AppRegistry.h"
 #include "engine/NearbyPlay.h"
 #include "hal/BleBeacon.h"
 #include "hal/Board.h"
 #include "hal/Clock.h"
+#include "hal/PowerMonitor.h"
 #include "hal/Watchdog.h"
 
 #include <WiFi.h>
@@ -96,7 +98,7 @@ String wifiPhyText() {
 }
 
 const char* const SystemInfoApp::TAB_LABELS[TAB_COUNT] = {
-    "Board", "Memory", "Network", "BLE", "App"
+    "Board", "Memory", "Network", "BLE", "Batt", "App"
 };
 
 const char* SystemInfoApp::title() const {
@@ -231,7 +233,11 @@ void SystemInfoApp::update(GameHost& host, const TouchPoint& touch) {
          * the frame the user was looking at when they touched it. */
         if (rows_.actionRect().w > 0 &&
             rows_.actionRect().contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
-            bleAdvanced_ = !bleAdvanced_;
+            if (tab_ == TAB_BATTERY) {
+                PowerMonitor::reset();
+            } else {
+                bleAdvanced_ = !bleAdvanced_;
+            }
             rowsStale_ = true;
             host.board().beepOk();
             markDirty();
@@ -270,7 +276,7 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
     rows_.addRow("Chip", String(ESP.getChipModel()) + " r" + ESP.getChipRevision());
     rows_.addRow("CPU", String(ESP.getChipCores()) + "x " + ESP.getCpuFreqMHz() + " MHz");
     rows_.addRow("SDK", ESP.getSdkVersion());
-    rows_.addRow("Firmware", BRAINO_VERSION);
+    rows_.addRow("Firmware", FIRMWARE_VERSION);
     /* Which build, not just which release: BRAINO_VERSION is identical
      * across every flash of 5.0.0.
      *
@@ -294,6 +300,23 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
      * volts that reads as a flat pack or a sensor fault. */
     if (!BOARD.hasBatterySense()) {
         rows_.addRow("Battery", "None - use USB power");
+    } else if (BOARD.hasFuelGauge()) {
+        /* A gauge reports charge itself, so there is no ADC to show; and one
+         * that does not answer is most likely a power module that is not
+         * clipped on, not a faulty sensor. */
+        if (pct < 0) {
+            rows_.addRow("Battery", "No reading");
+            rows_.addRow("Fuel gauge", "Not answering");
+        } else {
+            char text[24];
+            snprintf(text, sizeof(text), "%.2f V (%d%%)",
+                     static_cast<double>(battery.batteryVoltage), static_cast<int>(pct));
+            rows_.addRow("Battery", text);
+            rows_.addRow("Charge level", board.isBatteryCritical() ? "Critical - charge now"
+                                        : board.isBatteryLow() ? "Low - charge soon"
+                                        : "OK");
+            rows_.addRow("Fuel gauge", "MAX17048");
+        }
     } else {
         /* A negative percentage means the ADC read outside a plausible range, not
          * that the pack is missing: this board cannot tell whether one is fitted
@@ -307,6 +330,8 @@ void SystemInfoApp::buildBoardRows(GameHost& host) {
         rows_.addRow("BAT ADC", String(battery.rawAdc) + " raw");
         rows_.addRow("ADC pin", String(battery.adcVoltage, 2) + " V");
     }
+
+    addModuleRows();
 
     rows_.addSection("Flash");
     rows_.addRow("Chip size", formatBytes(ESP.getFlashChipSize()));
@@ -644,7 +669,8 @@ void SystemInfoApp::rebuildRows(GameHost& host) {
         case 1: buildMemoryRows(host); break;
         case 2: buildNetworkRows(host); break;
         case 3: buildBleRows(host); break;
-        case 4: buildAppStateRows(host); break;
+        case TAB_BATTERY: buildPowerRows(host); break;
+        case 5: buildAppStateRows(host); break;
     }
     rowsStale_ = false;
 }

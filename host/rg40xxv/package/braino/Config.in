@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+config BR2_PACKAGE_BRAINO
+	bool "braino"
+	depends on BR2_INSTALL_LIBSTDCPP
+	select BR2_PACKAGE_SDL2
+	select BR2_PACKAGE_LIBCURL
+	select BR2_PACKAGE_BRAINO_TFT_ESPI
+	select BR2_PACKAGE_BRAINO_ARDUINOJSON
+	select BR2_PACKAGE_BRAINO_MAP_N_FLAG
+	help
+	  Braino!, the firmware under src/ built for Linux by host/,
+	  drawing straight to the panel through DRM (no GPU, no window
+	  system).
+
+	  https://github.com/iamankushpandit/Gume

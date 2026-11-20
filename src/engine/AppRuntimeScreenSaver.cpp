@@ -11,6 +11,8 @@
 
 #include <math.h>
 #include "AppVersion.h"
+#include "hal/SleepPower.h"
+#include "hal/SystemSuspend.h"
 #include "hal/Watchdog.h"
 
 /* See the comment on the declaration: idle ends an admin session, for the
@@ -24,6 +26,7 @@ void BrainoApp::endAdminSessionForIdle() {
 }
 
 void BrainoApp::enterScreenSaver() {
+    noticeOffPanel();
     endAdminSessionForIdle();
     board_.setRgbColor(0, 140, 255);
     /* Only a live screen is worth remembering. Coming back here from the lock
@@ -31,6 +34,7 @@ void BrainoApp::enterScreenSaver() {
      * overwrite what we were doing with View::Locked. */
     if (view_ == View::Game) {
         ssavPrevView_ = view_;
+        idleSinceMs_ = millis();
     }
     applyRotation(effectiveRotation(board_.layoutMode() != Board::LayoutMode::Vertical));
     Watchdog::setContext("ScreenSaver");
@@ -40,14 +44,60 @@ void BrainoApp::enterScreenSaver() {
 }
 
 void BrainoApp::enterSleep() {
+    noticeOffPanel();
     endAdminSessionForIdle();
     if (view_ == View::Game) {
         ssavPrevView_ = view_;
+        idleSinceMs_ = millis();
     }
     board_.setRgbColor(0, 0, 0);
     board_.displaySleep();
+    /* After the panel, so the last thing drawn went over SPI at full speed.
+     * Nothing is drawn at the lower clock: wakeFromSleep() puts it back
+     * before the panel wakes. */
+    SleepPower::lowerClock();
     Watchdog::setContext("Asleep");
     view_ = View::Asleep;
+    deepSleepDueMs_ = millis() + SystemSuspend::AFTER_ASLEEP_MS;
+    stationRestDueMs_ = millis() + SleepPower::STATION_REST_AFTER_MS;
+}
+
+/* Asleep for a while: the Wi-Fi station goes off until the next wake. Not at
+ * once, so a console put down for a moment comes back still on the network;
+ * a wake before the deadline never stopped anything. Asked again every poll
+ * rather than once, and Board answers nothing when it is already resting or
+ * there is no station to stop -- no Wi-Fi configured, or the platform
+ * (the Linux host) handles its own radio. */
+void BrainoApp::tickStationRest(uint32_t nowMs) {
+    if (board_.wifiResting()) return;
+    if (static_cast<int32_t>(nowMs - stationRestDueMs_) < 0) return;
+    board_.restWifiForSleep();
+    /* A station that would not stop is not retried every 100 ms. */
+    stationRestDueMs_ = nowMs + SleepPower::STATION_REST_AFTER_MS;
+}
+
+/* The panel has been dark for a while and nobody has touched it: stop the
+ * whole device rather than keep a processor polling for a touch that is not
+ * coming. Only the platform knows how, and whether it can at all
+ * (SystemSuspend.h); the ESP32 boards say no, so this never fires there.
+ *
+ * A wake from suspend is a wake: the panel comes back through the ordinary
+ * wakeFromSleep(), so the lock screen and everything resumeUnderlyingScreen()
+ * decides apply exactly as after a touch. The admin session already ended on
+ * the way into sleep. */
+void BrainoApp::tickDeepSleep(uint32_t nowMs) {
+    if (!SystemSuspend::supported() || !board_.deepSleepEnabled()) return;
+    if (static_cast<int32_t>(nowMs - deepSleepDueMs_) < 0) return;
+    bool suspended = false;
+    {
+        Watchdog::Pause guard;   // it sleeps for as long as nobody presses power
+        suspended = SystemSuspend::enter();
+    }
+    if (!suspended) {
+        deepSleepDueMs_ = millis() + DEEP_SLEEP_RETRY_MS;
+        return;
+    }
+    wakeFromSleep();
 }
 
 /* Both wake paths keep the panel wake inside the Watchdog::Pause guard:
@@ -60,6 +110,12 @@ void BrainoApp::wakeFromSleep() {
     const bool lock = board_.wakeLockEnabled() || lockOnWake_;
     {
         Watchdog::Pause guard;
+        /* Full clock before anything is drawn, and the station started
+         * before the screen comes back, so the join is under way while the
+         * owner unlocks. The join itself is the state machine's and does not
+         * block. */
+        SleepPower::restoreClock();
+        board_.wakeWifiFromSleep();
         board_.displayWake();
         /* The lock screen's first paint goes inside the guard as well. The
          * panel has to be painted in the same frame it lights -- otherwise it
@@ -114,6 +170,9 @@ void BrainoApp::resumeUnderlyingScreen() {
         if (restart) {
             relaunchActiveGame();   // requests its own full repaint
         } else {
+            /* The screen stayed up but nothing updated it: tell it for how
+             * long, so a countdown does not run out behind a dark panel. */
+            activeGame_->resume(*this, millis() - idleSinceMs_);
             activeGame_->requestRender();
         }
     } else {

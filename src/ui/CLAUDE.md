@@ -16,7 +16,7 @@ erase. Ask `logoWidth()`/`logoHeight()` for the variant you are drawing rather
 than assuming a size.
 
 Six marks are generated, not one: `BADGE` (the whole artwork, 118px, the screen
-saver) and `BADGE_MID` (two thirds of it, the lock screen); `WORD` /
+saver) and `BADGE_MID` (about half of it, 64px high, the lock screen); `WORD` /
 `WORD_SMALL` (the wordmark alone, at the heights the product name used to be
 drawn as text in a font-4 header and a font-2 row); and `ICON` / `ICON_BIG`
 (the brain on its own, for a row that has no room for the name). `Ui::Logo`
@@ -69,6 +69,27 @@ cycles by slot on such a grid is drawing something the firmware does not.
 
 `Ui` is a stateless namespace of themed drawing helpers plus the palette. Game code should draw through these rather than hardcoding colours, so that all nine themes work.
 
+## FocusRecorder + FocusMath -- what the d-pad's selector can land on
+
+On a board with keys, `TftRenderer` reports every fill and outline to
+`Focus::` (`FocusRecorder.cpp`), which keeps the controls on the panel by the
+Linux host's rule: a fill and an outline of one rectangle is a control, a
+button if a shadow was drawn just before it, and shadowless cards count only
+where there are no buttons or four or more of them. `drawTab()`,
+`drawPagerButton()` and `RowList::drawScrollBar()` say what drawing cannot:
+a tab, a Prev or Next, a list that scrolls. A fill over a control's middle
+takes it away unless the fill sits inside it. A screen's own word comes
+first: `Ui::stopRuleAt()` (`Stops.h`) makes a quiet board or an overlay's
+background no stop at all, and every square of a live board a stop, the
+same rule `host/src/HostTftFocus.cpp` applies. Fixed tables, no allocation,
+and on every other board every call is an empty inline. `FocusMath.h` is the
+pure step-and-nearest arithmetic, shared with `host/` -- change it for both.
+`step()` keeps to a cone so a press does not slide sideways; up and down
+then fall back to `stepBeyond()`, the nearest control wholly above or below,
+once a list that scrolls that way has had its turn. Without it a lone
+control at one end of a wide row -- Wi-Fi's Show box, beside its field --
+was reachable only from the keys under it. `test/host/focus_math_test.cpp`.
+
 ## Renderer
 
 `Renderer.h` is the app-facing drawing interface. It declares the small RGB565 primitive set used by games and UI helpers without including `TFT_eSPI.h`, so host renderers can implement the same surface later. `TftRenderer.h` is the firmware adapter around the real panel driver and is owned by `BrainoApp`; ordinary games get only `Ui::Renderer&` from `AppContext::display()`.
@@ -97,7 +118,7 @@ Tabs have an ordering contract: draw all `drawTab()` calls **first**, then `draw
 
 Shapes and icons: `drawTriangleShape()`, `drawStarShape()`, `drawGearIcon()`, `drawHomeIcon()`.
 
-Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI), `drawBatteryBadge()` (the percentage as numerals **inside** the shell, iOS/Android status-bar style, over a bordered two-pixel level gauge along the inside bottom; red shell *and* digits at or below `Board::BATTERY_LOW_PERCENT`, since 11 pixels of fill is not a signal a player reads across a room and a number is. There is no charging bolt and no charging state -- the board has no charge-status line, and 5.10.0 stopped showing a guess. **It is variable width** -- it grows with its digits, widest at `100` -- so callers lay out from `Ui::batteryBadgeWidth()` and never assume a size -- which is also how a board with **no battery sense** gets no badge at all: the width is 0 and the draw is a no-op; `cx` is the centre of the whole badge, terminal nub included), `drawBleBadge()` (the Bluetooth rune).
+Badges: `drawSyncBadge()` (NTP state), `drawWifiBadge()` (bars derived from RSSI), `drawBatteryBadge()` (the percentage as numerals **inside** the shell, iOS/Android status-bar style, over a bordered two-pixel level gauge along the inside bottom; red shell *and* digits at or below `Board::BATTERY_LOW_PERCENT`, since 11 pixels of fill is not a signal a player reads across a room and a number is. There is no charging bolt and no charging state -- the board has no charge-status line, and 5.10.0 stopped showing a guess. **It is one width at every level** -- the width `100` needs, digits centred -- because it used to grow with its digits and so shrank from 10% to 9% at the same moment it turned red, which read as a glitch. Callers still lay out from `Ui::batteryBadgeWidth()` and never assume a size, because that is how a board with **no battery sense** gets no badge at all: the width is 0 and the draw is a no-op; `cx` is the centre of the whole badge, terminal nub included), `drawBleBadge()` (the Bluetooth rune).
 
 **Two sizes, and everything in a header is one of them.** `Ui::BADGE_H` (13)
 is a status glyph -- the sync dot, the Wi-Fi fan, the Bluetooth rune.
@@ -127,9 +148,11 @@ characters at font 2 on a 320px panel, so a long screen title -- "Cinnamon
 Says", "Finger Counting" -- is cut, without an ellipsis. **Anything else that
 wants space up here has to say what it is taking it from.**
 
-`drawTopBar()` carries Home, Lock, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's 18px came out of the title (Home narrowed to 32px, the title moved from x=48 to x=62). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
+`drawTopBarClock()` redraws only the top bar's time, at the minute, over the old one with its background filled, and refuses (false) when the time changed width; `drawTopBar()` records where it put the clock for it. `Ui::bar()` is the bar's fill, for anything that must stand out on it. `drawTopBar()` carries Home, Lock, Mute, the title and the status cluster, and the bar is full: the cluster is laid out from measured widths off the right edge, so Lock's and Mute's pixels came out of the title (Home narrowed to 32px; the title moved from x=48 to x=62 for Lock, then on to just past the speaker for Mute, `LauncherLayout::topBarTitleLeft()`). `LauncherLayout::topBarHomeRect()` / `topBarLockRect()` / `topBarSpeakerRect()` / `topBarSettingsRect()` are read by both the drawing here and the runtime's hit testing, so a glyph can never end up somewhere its target is not. `drawLockIcon()` takes its proportions from the rect because the same padlock is drawn at 18px in the bar, 24px on the launcher header and 34px on the lock screen.
 
-`drawNotification()` paints a transient strip over the top of whatever header is already there, full width at `TOP_BAR_HEIGHT`, so it works over the top bar and over the launcher's taller header alike. It is painted by the runtime **after** the screen has drawn itself, and the screen's header is repainted when the notification goes away (`Game::renderChrome()`) — that repaint is what actually removes it. A screen that cannot repaint its chrome alone falls back to a full repaint. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
+`drawNotification()` paints a transient strip along the bottom edge of the panel, full width and `NOTIFICATION_HEIGHT` tall. `notificationRect()` is where it is drawn, where a press puts it away, and what the runtime keeps every other painter out of while it is up. It is painted by the runtime **after** the screen has drawn itself, and painted once: while it is up `TftRenderer`'s paint clip leaves its strip out, so nothing a screen draws lands on it, and when it goes the screen is rendered again with the clip turned round, so that the strip is the only thing repainted (`BrainoApp::settleNotice()`). It used to be painted over the header, which hid the header. Nothing accumulates: there is no notification list, because a list nobody clears is furniture.
+
+`TftRenderer::setPaintClip()` is that clip, and it is laid over whatever viewport a screen sets for itself rather than replacing it. The panel driver has one viewport, so the two are resolved into one by `PaintClip::resolve()` -- pure arithmetic in `PaintClip.h`, checked on a desk by `test/host/paint_clip_test.cpp` because the PC build's panel keeps a paint clip of its own and never runs that half. Every viewport here is set with `vpDatum` false, a clip and nothing more, and that is the kind this can cut on any side. Image rows go through a raw window that no viewport clips; `pushPixels()` cuts them to the clip one row at a time, which is how every blit in `Ui.cpp` sends them.
 
 ## Keypad
 
@@ -160,6 +183,29 @@ caller: 26px on a 320px landscape panel, 42px on the 4-inch, and **20px in
 240px portrait**, which is the narrowest target in the firmware and is only
 usable because `TOUCH_HIT_SLOP` widens it. Do not add an eleventh column.
 
+## TypingPanel -- the keypad's absence
+
+On a board with `GUME_HAS_KEYBOARD`, with the clip-on keyboard found at boot,
+the five text fields (a player's name, a Nearby peer's, both admin PIN pads,
+the Wi-Fi password) leave `Ui::Keypad` -- or Wi-Fi's own grid -- off.
+`TypingPanel.h` holds what they share: `KeypadChoice`, decided by `begin()`
+as the field opens and kept for that visit; `Typing::fieldRect()`, the larger
+field centred in the space the keypad left; the hint line; and the bottom
+row -- the keyboard button at the left, OK at the right, Cancel staying
+centred where it was. **The keyboard button is not optional**: it is what
+keeps every field reachable by touch with the module off. **Nor is the
+keyboard's layout the field's**: the keyboard types only `,` `.` `#` of the
+punctuation, so a field that takes more keeps those keys on screen -- the
+Wi-Fi password keeps its symbol page's three rows (`WifiPassword.cpp`). `KeypadChoice::lost()` turns the keypad
+back on, once, when `Modules::keyboardAnswering()` goes false, and the screen
+repaints fully -- the layout changed, so this is a scene change. The button
+is a `drawButton()` with a glyph drawn inside it, so the d-pad's selector
+finds it like any other control. Without the keyboard macro `KeypadChoice` is
+an empty class whose `hidden()` is a constant false and the helpers are
+inline no-ops, so the screens need no `#if` and the image carries nothing.
+`tools/gen_screens.py` draws three of these screens (`profiles-rename-typing`
+and `profiles-pin-typing` in landscape, `wifi-password-typing` in both).
+
 ## RowList
 
 `RowList` is the scrolling label/value widget System Info is built from — sections, text rows, meters and a tappable action chip, with scrollbar and clamping.
@@ -172,7 +218,7 @@ Callers keep their own scroll offset and pass it in, so one list can serve sever
 
 `draw()` wipes the rect and paints every row; `drawChanged()` repaints only the rows whose content changed since the last paint. It keeps a 32-bit hash per row (192 bytes) plus the layout, rect and offset they were drawn at, and falls back to a full paint when any of those differ. Changed text rows are overdrawn, not cleared -- the glyphs carry their background and only the tail of an old, longer string is erased -- so a value changing does not blink its row. **After the screen under the list has been cleared, call `draw()`**: the hashes describe pixels that are gone. Nearby is the caller; it rebuilds from live beacon data, where nearly every rebuild is identical to the last.
 
-`Rect` is defined here — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
+`RowList` uses `Ui::Rect`, defined in `Ui.h` — `{x, y, w, h}` with `contains(px, py, pad)`. Pass `TOUCH_HIT_SLOP` as the pad for touch targets.
 
 ## Country and state artwork
 

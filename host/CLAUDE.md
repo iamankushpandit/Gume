@@ -1,0 +1,1114 @@
+# host/
+
+Braino! as a desktop program. The firmware under `src/` is compiled
+**unchanged** against small stand-ins for the ESP32 libraries, and an SDL
+window plays the part of the panel, the touch controller, the BOOT key and
+the speaker. The first use is seeing and playing the real screens on a PC;
+the other is the Anbernic RG40XX V (Linux, 640x480, gamepad), where it is the
+whole device (`rg40xxv/`, below).
+
+```bash
+# In Linux or WSL, with build-essential, cmake, pkg-config, libsdl2-dev
+# and libcurl4-openssl-dev:
+cmake -S host -B build/host -DCMAKE_BUILD_TYPE=Release
+cmake --build build/host -j
+./build/host/braino
+```
+
+CI does the same on every pull request that touches source (`ci.yml`'s
+`host` job, with `verify` waiting on it), and runs every test in
+`test/host/` beside it on every pull request through
+`tools/run_host_tests.py` -- the same command, from Linux or WSL:
+
+```bash
+python3 tools/run_host_tests.py               # every test
+python3 tools/run_host_tests.py go_rules_test # one
+```
+
+The runner builds each test with the `g++` line written in its own header,
+so a new test states that line or fails. The card image is
+`.github/workflows/card-image.yml`: on changes under `host/`, `src/` or
+`include/`, on a `card-rg40xxv-*` tag, and in full every Monday.
+
+A mouse click is a finger on the glass. With a gamepad, the left stick moves a
+crosshair, the d-pad (the arrow keys) moves a selector from control to control,
+and A (Enter, Space) presses under whichever is showing; see "The d-pad's
+selector" below. Which control does which job is decided per console -- see
+"Which console, and which button does what" -- and what follows is a console
+with every control. B (Escape, Backspace) is the BOOT key, so it goes
+Home. L1 (PageUp) and R1 (PageDown) press the screen's own Prev and
+Next buttons, so they turn the launcher's pages and every other pager drawn with
+`Ui::drawPagerButton()`; the panel shim learns where those are from the labels
+it draws, and on a screen without one the keys do nothing rather than press
+whatever sits in that corner. Pushing the cursor against the left or right side
+of the screen does the same after a 250 ms dwell, and again every 700 ms while
+it is held there; the dwell is so that a cursor swept across to a tile by the
+edge does not turn the page under it. Pushing the cursor against the top or bottom of a
+list that has a scroll bar scrolls it: the cursor stays at the edge and the host
+drags the list's scroll track as a finger would, starting 20px inside the list
+because a grab within `TOUCH_HIT_SLOP` of a tab strip presses the tab. The
+panel shim recognises `RowList`'s scroll bar by how it is drawn, and its thumb
+says when there is nothing more to scroll, so the cursor then carries on past
+the edge. Not in portrait, where the list's up and down are the frame's left
+and right. M (SDL's Guide button; the M key) moves to the next tab on a screen
+with a tab strip, wrapping round -- the shim recognises `Ui::drawTab()` by its
+radius-6 fill and 7px square-off, and the selected tab by its extra height --
+and on a screen with none opens Settings. R2 (L) locks and L2
+(K) mutes, by tapping the header's own gear, padlock and speaker: the panel
+shim recognises each by the primitives `Ui` draws it with, inside the rect
+`LauncherLayout` gives it in the top bar or the launcher header, so on a screen
+that has not drawn one the button does nothing. A button SDL reports but
+nothing maps is logged once (`[host] button N is not mapped`), which is how to
+map a handheld whose M is not Guide. Holding Select + Start for three seconds quits -- long, so that nobody
+leaves by accident on a handheld where Braino is all there is. F10 or closing
+the window quits at once. `BRAINO_FULLSCREEN=1` fills
+the screen. Settings and scores go in `$BRAINO_DATA_DIR`, else
+`$XDG_DATA_HOME/braino`, else `~/.local/share/braino`.
+
+## Standing rules for the Linux platform
+
+*Moved here from the root `CLAUDE.md`, which keeps only the two rules that
+bind every change to `src/`. The sections after this one are the detail.*
+
+`host/` compiles `src/` unchanged into a desktop program with SDL2, in Linux
+or WSL (`cmake -S host -B build/host && cmake --build build/host -j`). It is
+what the Anbernic RG40XX V runs, and the quickest way to see a real screen
+without a board. These hold it together:
+
+- **Every platform draws at its own resolution, found at run time.** The
+  panel's size is `PanelSize` (`src/hal/PanelSize.h`), one implementation per
+  platform: a board answers from its profile (`hal/PanelSizeEsp32.cpp`), the
+  host from the display it found when it started -- 640x480 on the RG40XX V,
+  or `BRAINO_PANEL=WxH` -- divided by a whole-number UI scale, 2 there, so
+  text and controls keep the 2.8-inch board's proportions
+  (`host/src/HostPanelSize.cpp`). Every pixel is still drawn at the panel's
+  own resolution: nothing draws a 320x240 picture to be stretched by somebody
+  else, and on Linux text is GNU FreeSans, anti-aliased at that resolution,
+  measured with the advances that draw it, in the bitmap fonts' cells, and
+  narrowed where its widest word would outrun the bitmap font's
+  (`host/src/HostText.cpp`). Circles, rounded corners, slanted lines and
+  triangles are drawn at the real resolution with smooth edges too, and a
+  redraw stays a no-op (`host/src/HostTftShapes.cpp`). The product mark and
+  the few arcs plotted pixel by pixel are offered to the platform through
+  `PanelArt` (`src/ui/PanelArt.h`): a board's answer declines, and the
+  one-bit `LogoMask` and the plotted pixels stay the art, one pixel to one. Anything that means "the
+  panel in front of the player" -- the canvas fit, touch mapping, the boot
+  banner -- reads `PanelSize`, never `SCREEN_WIDTH` / `SCREEN_HEIGHT`, which
+  are the profile's compile-time panel and on the host only the floor the
+  static_asserts check. System screens read `tft.width()` / `tft.height()`,
+  which is the same size turned to their rotation. Games keep their 320x240
+  canvas and `ScaledRenderer` fits it: the largest whole scale, centred, with
+  text at that scale, on a panel at least twice the canvas both ways (640x480
+  is exactly 2x); the fractional fill below that (the 4-inch board's
+  480x320). **A new platform implements `PanelSize` and gets the rest.**
+- **`host/` adapts to `src/`, never the reverse.** There is no host `#ifdef`
+  under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
+  answered by `host/src/`. It is deliberately outside `include/boards/`,
+  because a header there is a claim of support. Only the hardware watchdog and
+  the codec/DAC backend are replaced, and `CMakeLists.txt` names them; the
+  radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
+  through `host/shim/NimBLEDevice.h` on a raw HCI socket).
+- **A new platform call in `src/` breaks the host build until `host/shim/`
+  answers it.** The shims hold only what `src/` calls. CI builds the host
+  on every pull request that touches source (`ci.yml`'s `host` job, which
+  `verify` waits for), so a missing shim is a red pull request; building it
+  yourself first is still quicker than waiting for CI to say so.
+- **The host's network is the firmware's, and nothing more.** Wi-Fi is the
+  computer's own radio, driven through NetworkManager or wpa_supplicant
+  (`host/src/HostWifiOs.cpp`), and UDP and HTTP are real sockets. But the
+  shims only answer: every packet that leaves is one the firmware's own code
+  chose to send, behind its own `WL_CONNECTED` checks, so the closed list of
+  outbound flows holds for this program unchanged. A shim must never add a
+  request, a header or a field. `esp_read_mac()` returns random bytes rather
+  than the PC's MAC, and `WiFi.macAddress()` answers `--`.
+- **On a handheld the settings file is on a card any laptop reads, so the
+  Wi-Fi name and password and the admin PIN are sealed in it**
+  (`host/src/HostSecret.h`), with a key derived from the processor serial and
+  never stored. With no processor-bound key, a handheld build keeps the
+  network in memory rather than write it readably. muOS's
+  `wpa_supplicant.conf` is never given a copy. A new secret setting in `src/`
+  belongs in `SECRET_KEYS` in `host/src/HostNvs.cpp` in the same commit.
+- **Sleep must switch the real lamp off.** The backlight PWM is only a
+  brightness multiplier on the window here, so `host/src/HostScreenPower.cpp`
+  follows the panel's Sleep In and Sleep Out and switches the handheld's own
+  backlight. While the panel sleeps, any button press becomes a BOOT press
+  that wakes it and reaches nothing else. Sleep also takes the Wi-Fi
+  interface and three of the four cores down and slows polled input such as
+  the joypad (`host/src/HostSleep.cpp`), and a run that ends asleep leaves
+  markers in `/run/braino` so the next start puts them back. **Never the
+  display output under muOS**: re-enabling its vendor driver's output woke the
+  RG40XXV mirrored with inverted colours, and muOS ships that toggle off. The
+  whole-device image's mainline DRM driver is a different driver, and there
+  sleep does switch the output off (`HostDrm::setPower()`).
+- **The RG40XX V has a whole-device image that is nothing but Braino**
+  (`host/rg40xxv/`, a Buildroot external tree; its README is the guide).
+  Mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A built from
+  source, the whole system in RAM, no GPU driver: `BRAINO_HOST_DRM` draws
+  through the kernel's DRM driver (`host/src/HostDrm.cpp`) and keeps SDL for
+  the gamepad and sound only. Four rules hold it together. **Nothing but
+  Braino draws on the panel** -- no text console, boot messages on the serial
+  port only -- so the screen is dark until the splash. **No service, login or
+  shell exists**: init runs the scripts in `board/overlay/etc/init.d` and
+  Braino, and the closed list of outbound flows covers the whole device.
+  **`host/rg40xxv/rocknix/` is ROCKNIX's, verbatim** (fetched by `fetch.sh`
+  from one pinned commit, recorded in `PROVENANCE.txt`), applied in ROCKNIX's
+  order with patch's default fuzz, and stops the build on any hunk that does
+  not apply. **The image is a release asset, never in git**, and it ships
+  with Buildroot's `legal-info` as its source offer.
+  **A television on HDMI takes the picture from the panel, and headphones
+  take the sound from the speaker** -- both RG40XX V only, so nothing else
+  changes. The TV shows the panel's frame at a whole scale and the layout
+  never moves to the TV's size; the panel's lamp follows the picture; sleep
+  turns off whichever output shows. The jack is the kernel's and the image's
+  init scripts' (`acpid` switching the codec's `Speaker` pin), so no line of
+  `src/` knows about it. There is no HDMI sound: the H700's audio hub has no
+  mainline driver. See `host/CLAUDE.md` and `host/rg40xxv/README.md`.
+
+`BRAINO_SHOTS` and `BRAINO_TAPS` photograph the firmware's own frame and
+replay taps. Unlike `tools/gen_screens.py`, those pictures do show clipping,
+overdraw and partial-repaint mistakes.
+
+## The d-pad's selector
+
+**Its arithmetic and its job table are shared with the firmware.**
+`src/ui/FocusMath.h` and `src/hal/ControlJobs.h` are the one copy; the
+`HostFocus.h` and `HostControls.h` here are forwarders that keep the old names
+(by relative path, so the controls test still builds with `-Ihost/src`
+alone). The Attaky Core's selector (`src/engine/AppRuntimeSelector.cpp`)
+moves and assigns jobs with them, so a change to either is a change to both
+consoles. `ControlJobs::maskOf()` was `bit()`, which Arduino defines as a
+macro.
+
+The firmware has no idea what a selected control is: every screen takes one
+touch point. So the selector is the host's, and pressing A is an ordinary touch
+at the middle of the selected control. No screen changed for it.
+
+`src/HostTftFocus.cpp` reads the controls off the panel as they are drawn: a
+round fill and an outline of the same rectangle, which is how `Ui::drawButton()`
+ends and so every button, launcher tile and keyboard key. `src/ui/FocusMath.h` (through
+`HostFocus.h`) is where the selector goes next, and is pure arithmetic. It is drawn over the
+window like the crosshair, never into the panel's frame.
+
+**It is drawn only inside the panel's paint clip** (`selectorField()`). While
+a notice is up the runtime keeps every painter out of the notice's strip
+through `Ui::TftRenderer::setPaintClip()`, and the selector is the one thing
+not painted through the panel, so it asks the shim (`paintClipFrame()`) and
+stops at the strip's edge. The shim keeps that clip apart from the viewport:
+controls are read off what a screen draws against the viewport the *screen*
+set, and a clip laid over it for a notice has to hide pixels and nothing else.
+A control whose middle the notice covers drops out of the list like any
+control painted over, and comes back when the strip is redrawn.
+
+- **A button has a shadow; a card does not, and that is the whole test for what
+  gets a stop.** A fill and outline with no shadow might be a control (Memory's
+  cards, Cinnamon's pads, Ludo's seats) or something to look at (a quiz's
+  question box, Color Mix's two colours). Beside buttons, one to three cards
+  were always the second kind, so they get no stop, and from the fourth they are
+  a grid of controls. That is measured off every screen by opening each with a
+  d-pad press and photographing it (`BRAINO_SHOTS` logs how many controls it
+  found), so a new screen needs the same look.
+- **Every board is drawn as stops.** A fill and an outline of one rectangle
+  is noted whether its corners are square or rounded -- `fillRect()` and
+  `drawRect()` as well as the rounded pair, as the firmware's own recorder
+  does -- and the shim's own primitives fill through `fillRectQuiet()` so a
+  rounded fill or a glyph's pixels are not a second fill. Each game draws its
+  squares that way, the outline in the fill's own colour or the pair under
+  what sits on it, so the panel is unchanged (`src/games/CLAUDE.md` has the
+  rule). The tracing games' stop is a square round the next dot, moved as the
+  dot is claimed. `MAX_FOCUS` is 160 because the Elements table is 118
+  squares. Go's 19x19 board, on a 480px panel only, has 10px points, under
+  `SMALLEST_CONTROL`, so it is the one board the selector cannot cross.
+- **A screen says when its board takes a press.** What is drawn stays drawn
+  while the other player thinks, so `focusTargets()` asks `Ui::stopRuleAt()`
+  (`src/ui/Stops.h`) about each mark's middle: *Quiet* drops it, *Live* keeps
+  a plain square as a control however few there are (the count that decides
+  whether cards are controls left a Ludo endgame with a die and two tokens
+  unplayable), and a card put up over the board makes everything outside it
+  Quiet. The header's controls are never asked about. The firmware says it;
+  the host only obeys, so there is nothing here to keep in step.
+- **Up and down reach a control off to one side.** Within a cone first, so
+  a press does not slide sideways; then, when nothing is there and no list
+  scrolls that way, the nearest control wholly above or below
+  (`stepBeyond()`). Left and right never fall back: nothing in the cone
+  there is the next page.
+- **The first press only brings it up**, on the control nearest the crosshair,
+  because nobody has seen where it is yet. Pushing the stick puts it away.
+- **Past the end of a row is the next page and past the end of a column is the
+  rest of the list**, through the same Prev and Next buttons and scroll drag the
+  crosshair uses. Holding down on a list with nothing to select, like System
+  Info's, scrolls it too.
+- **The header's Home, padlock, speaker and gear are stops as well**, found the
+  way M, R2 and L2 find them (`iconTarget()`, Home added for this). Up from the
+  top of a list with more above it scrolls the list before it reaches them, and
+  going past the end of the header's row turns no page.
+- **So is the launcher's player name**, which switches player. It is plain
+  text, not a control, so the shim takes any text starting inside
+  `LauncherLayout::profileRect()` while that layout's launcher gear is drawn.
+  The stop is the name as drawn, cut short of the padlock's `TOUCH_HIT_SLOP`:
+  in landscape `profileRect()` runs under the padlock, and the runtime takes a
+  tap there as Lock before the launcher sees it, so pressing the rect's middle
+  locked the console. A long name's tail is therefore outside the box.
+
+## Which console, and which button does what
+
+One card image serves a family of consoles, so nothing about the controls is
+compiled in. Two files decide it at start-up, and `HostPlatform.cpp` only
+carries out what they say.
+
+**`HostConsole` finds the console.** The kernel's device tree names the model
+(`/proc/device-tree/compatible`, most specific string first), and each console
+has a profile in `host/consoles/`, installed to `/etc/braino/consoles/`: a
+name, the `compatible` string it answers to, and the controls on its case.
+The console's own profile wins; failing that the family's
+(`allwinner-h700.conf`: the buttons the family shares and **no stick**, since
+an input with no stick wired to it reads whatever it likes); failing that the
+d-pad, A and B. With no device tree, or no profiles installed -- a PC, the
+muOS package -- every control is assumed. `BRAINO_CONSOLE_PROFILE=<file>`
+uses a profile outright, which is how to try a console nobody here owns.
+
+**`HostControls` gives each control one job**, from a list read top to
+bottom (`WANTS`): move the selector and press, then Home, the page pair, the
+next tab, Lock and Mute, the crosshair, the battery on the light ring, and the
+restart hold. A job whose usual control is missing takes the next one down its
+own lines; when those run out the job has no button. A control left over has
+no job -- X and Y on the RG40XX V. The log says both, once
+(`[console] jobs:` and `[console] no job:`).
+
+- **A button is a shortcut, never the only way to do something.** This is
+  what makes it safe to stop when the buttons run out: Home, the padlock, the
+  speaker, the gear, the tabs and both page buttons are selector stops, so a
+  d-pad and one button reach everything. It is the firmware's own rule for
+  the BOOT key. **Do not add a job that has no stop on the screen.**
+- **No job is given to two controls.** X and Y used to turn pages beside L1
+  and R1, and Start went Home beside B. A duplicate teaches a player nothing
+  and is missing on the next console.
+- **Pairs go together or not at all.** A page-back button with no page-forward
+  is half a control, and the restart hold needs both of its buttons free.
+- **The crosshair has no stand-in, and needs none.** Every board is drawn as
+  stops for the selector (see "The d-pad's selector"), so a console with no
+  stick plays every game. The maintainer once decided to leave those boards
+  stick-only, and reversed it on 2026-11-13: every game playable from keys.
+- **Adding a console is a profile, and a profile is a claim.** Write
+  `controls` from the console's device tree or from the console itself,
+  never from a product page, and say in the file which it was.
+  `test/host/host_controls_test.cpp` reads every shipped profile, and
+  `rg40xxv/board/post-build.sh` refuses to build an image holding a device
+  tree no profile answers to.
+
+## The one rule: host/ adapts to src/, never the reverse
+
+There is no `#ifdef` for the host anywhere under `src/`, and there must not
+be. Everything the firmware does on a board it does here, through the same
+code: storage goes through `Board` into Preferences, touch goes through
+`BoardTouch.cpp`'s capacitive path and `mapTouch()`, sound goes through the
+synthesiser and its `braino-audio` task. A host build that needed `src/` to
+bend would be testing a different program from the one on the device.
+
+What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
+filters: the hardware watchdog, the codec/DAC backend, and the per-platform
+interfaces, `PowerProbe`, `SystemSuspend`, `PanelSize`, `PanelArt` and `SleepPower` (which
+answers no to everything here: `HostSleep` already slows the cores and takes
+the Wi-Fi interface down). Their host versions are in `src/Host*.cpp`, and
+each says why. `tools/check_platforms.py` fails if an ESP32 implementation
+of an interface has no host version, or if the filters leave out anything
+else.
+
+## The panel is the console's own size, found when Braino starts
+
+Every pixel on the screen is drawn at the resolution of the display in front
+of the player -- 640x480 on the RG40XX V -- and nothing is stretched after
+the fact. Nothing about the size is compiled in; `HostPlatform::begin()`
+finds it before `setup()` runs and it is fixed for the run:
+
+1. `BRAINO_PANEL=WxH`, if set, on any build -- the way to see another
+   console's screen on a PC (`BRAINO_PANEL=320x240`, `800x480`, `1280x720`).
+2. Otherwise the display mode: the built-in panel's DRM mode on the
+   whole-device image -- the panel's even when a television on HDMI is
+   showing at start, so unplugging it never leaves a frame bigger than the
+   panel (`HostDrm::panelWidth()`) -- or the desktop's with
+   `BRAINO_FULLSCREEN=1`.
+3. Otherwise 640x480, the RG40XX V's, so a PC window shows what the handheld
+   will.
+
+It is taken as landscape (a size reported the other way up is turned), and
+clamped up to the 320x240 game canvas.
+
+**The firmware lays out on the panel over a UI scale.** The scale is the
+largest whole number that still leaves the 320x240 canvas -- 2 on 640x480, 3
+on 1280x720, 1 on 320x240 -- so the firmware sees a 320x240 panel on the
+RG40XX V and every logical pixel is a 2x2 block of real ones. That was not
+the first answer. 5.14.0's first cut laid the screens out at the full
+640x480, and the owner, on the device, found the top bar and the player
+picker's buttons too small to read and the tiles too big: the screens size
+their boxes in pixels for the 2.8-inch panel's text, so on a panel with
+twice the pixels the text cannot grow without leaving its box. The scale is
+what lets text be the right size for the panel. `BRAINO_UI_SCALE=n` asks for
+less, down to 1 (the full-resolution layout, as the 4-inch board has).
+`[host] panel 640x480 (display mode), ui scale 2: laid out on 320x240` in
+the log says what was found.
+
+**Text is not the ESP32's bitmaps here.** `src/HostText.cpp` draws GNU
+FreeSans (`fonts/`, compiled in by `cmake/EmbedFont.cmake`) with
+stb_truetype (`third_party/stb/`), anti-aliased at the real resolution: a
+capital as tall as the bitmap font's capital, times the text size, times the
+UI scale. Three rules hold it to the firmware's layout:
+
+- **The cell is the bitmap font's.** `fontHeight()`, the datums and the
+  baseline are TFT_eSPI's, and the TrueType capital sits on the bitmap
+  capital's baseline (`bitmapCapRows()` measures each font's 'H'), so text
+  lands in the boxes the screens laid out.
+- **Width is measured with the advances that draw.** `textWidth()` sums the
+  same whole-pixel glyph advances `ttDraw()` moves its pen by, so
+  `Ui::fitted()`, wrapping and centring measure exactly what appears.
+- **No word is wider than the bitmap font draws it.** At font 2's capital
+  height FreeSans matches it on average but runs a tenth wider on words with
+  m and w, so System Info's "Network" tab read "Netwo" where a board reads
+  "Networ". `ttWidthPermille()` narrows each face just enough that the widest
+  of the screens' own words fits (font 2 is drawn at 88.4% of its width,
+  fonts 1 and 4 unchanged; the log says so), keeping the capitals' height.
+  So a cut on the PC is a cut on a board, and the other way round.
+- **What TFT_eSPI would not draw, this does not draw.** Fonts 6, 7 and 8 are
+  not loaded and draw nothing; fonts 2 and 4 draw only 32..126; font 1 draws
+  up to 255, from its bitmap where FreeSans has no glyph.
+
+**Nor is the product mark.** `Ui::drawLogo()` offers the mark to the
+renderer first (`Renderer::drawLogoArt()` -> `PanelArt`, `src/ui/PanelArt.h`)
+and paints the one-bit `LogoMask` only when it declines. Here
+`src/HostLogoArt.cpp` rasterises the same SVG the mask was made from
+(`HostSplash::markPart()`, which is `gen_logo_mask.py`'s select, bounds and
+fill) at the real resolution, into the mask's own box, and sets the trade
+mark sign in FreeSans at the height of the mask's sign -- the small
+wordmarks carry none, as on a board. At a UI scale of 1 it declines, so a
+320x240 window shows exactly the board's mark.
+
+**Nor are the shapes** (`src/HostTftShapes.cpp`). Every icon in the header
+and on the launcher's tiles is drawn from primitives, and drawn as blocks of
+the scale they were the last 2x2 staircases on the panel once text and the
+mark were smooth. At a UI scale of 2 or more, a circle, a ring, a rounded
+corner, a slanted line and a triangle are drawn at the real resolution from
+their logical geometry times the scale, radius and thickness included, with
+anti-aliased edges; rectangles, straight lines and single pixels stay whole
+blocks, which is exactly their shape already. Three rules keep it the
+firmware's picture:
+
+- **A shape covers what TFT_eSPI's covers.** Logical pixels are filled to
+  their edges: a circle of radius r reaches r + 0.5 to its rim, a ring is one
+  logical pixel thick about r, a line one pixel thick with square ends, a
+  triangle half a pixel past its vertices' centres. So a fill and the outline
+  on it share a rim, and two wedges of one pie overlap rather than leave a
+  hairline.
+- **A redraw changes nothing** (`blendReal()` in `src/HostTft.cpp`). The
+  screens redraw the same shape over itself all the time, and a blend drawn
+  twice is darker. Each pixel left partly covered remembers what it was
+  blended over, in what colour, how much and by which shape (a hash of what
+  and where): the same shape again keeps the larger coverage, another shape
+  of the same colour adds to it (a thick ring drawn as rings one pixel apart
+  closes up), another colour covering as much is drawn over the same ground
+  (no halo of a fill outside its outline), and a solid write forgets it all.
+  Text and the mark go through the same door.
+- **At a UI scale of 1 none of it runs**, so a 320x240 window draws its
+  shapes exactly as a board does.
+
+Two glyphs plot their arcs pixel by pixel rather than as shapes -- the
+speaker's two waves and the Wi-Fi badge's fan -- and they are offered to
+the platform first, as the mark is: `Renderer::drawArcArt()` ->
+`PanelArt::drawArc()`. The ESP32 one declines and the same pixels are
+plotted; here `drawArcReal()` draws the arc. The gear's hub is rings of
+radius 4, 3 and 2 and a dot of 1, which are one solid disc; a board's
+midpoint circles leave pinholes between them, so on the panel it reads as
+texture and here as solid. That is the glyph's geometry, not a fault in the
+drawing.
+
+**What is still blocks, and why.** The flags and state maps are bitmaps
+(`map-n-flag`) at the size the 2.8-inch panel shows them, so at 2x they are
+their own pixels doubled; sharper ones need bigger artwork, which is flash
+on every board.
+
+Everything else reads that one answer:
+
+- **`src/` asks `PanelSize`** (`src/hal/PanelSize.h`), answered here by
+  `src/HostPanelSize.cpp` with the logical size (320x240 on the RG40XX V).
+  `boards/host.h` still states a 240x320 panel: that is the compile-time floor
+  the static_asserts check, not the panel.
+- **The panel shim's frame is the real size** (`TFT_eSPI::begin()`), and
+  `tft.width()` / `tft.height()` are the logical one. Shapes are drawn as
+  blocks of the UI scale, so a game at 2x looks as it does on the 2.8-inch
+  board, its text in FreeSans at 2x rather than doubled pixels.
+- **Touch, taps and the d-pad are in logical pixels.** The emulated FT6336U
+  reports in the logical native portrait (`PanelSize::nativeWidth()`), a
+  mouse click is divided by the scale, `BRAINO_TAPS` coordinates are logical
+  (so a script written for 320x240 replays unchanged at 640x480), and the
+  cursor and the selector's ring are drawn at the scale.
+- **The window opens at the panel's size**, or twice it for a 320x240 panel,
+  and letterboxes at whole multiples when resized. On the DRM image a
+  television plugged in later shows the frame at a whole scale, centred; an
+  output smaller than the panel stays dark rather than be written past.
+
+## How it fits together
+
+| File | Stands in for |
+|---|---|
+| `boards/host.h` | A board profile whose every pin is **virtual**. It is deliberately not in `include/boards/`, which would make it a claim of support that `check_boards.py` and the web installer would hold it to. |
+| `shim/` | Arduino, TFT_eSPI, Preferences, NVS, FreeRTOS, Wire, I2S, Wi-Fi, SD and the ESP-IDF calls `src/` makes -- **only** what `src/` calls. A new platform call in `src/` breaks this build until a shim answers it, which is the intended way to find out. |
+| `src/HostTft.cpp` | The panel: one RGB565 frame at the real resolution of the panel found at start-up, laid out in logical pixels over the UI scale, in rotation 1's orientation, the four rotation transforms `Board::pollTouch()` undoes, and TFT_eSPI's text rules (datums, cells, ASCII-only fonts 2 and 4, background cells, unloaded fonts drawing nothing). TFT_eSPI's own font tables, fetched at the pinned version and never copied into this tree, give the cells and font 1's fallback glyphs. |
+| `src/HostTftShapes.cpp`, `HostTftText.cpp` | The panel's shapes, and its text in the bitmap fonts' cells; split from `HostTft.cpp`. |
+| `src/HostLogoArt.cpp` | `PanelArt`: the product mark from its SVG, and the plotted arcs, at the real resolution. |
+| `src/HostText.cpp` | The text itself: GNU FreeSans (`fonts/`, GPL-3.0-or-later with the font exception), rasterised by stb_truetype (`third_party/`, public domain or MIT) and cached per size. |
+| `src/HostWire.cpp` | An emulated FT6336U answering BoardTouch's one transaction with the pointer, in the panel's native portrait frame. |
+| `src/HostPanelSize.cpp` | `PanelSize`: the panel `HostPlatform` found, for `src/`. |
+| `src/HostNvs.cpp` | One typed key-value store behind both `nvs_*` and Preferences, with IDF's type codes and its refusal of mismatched reads and 16-character keys. Saved whole to `nvs.txt` after every change. |
+| `src/HostAudio.cpp`, `HostI2s.cpp` | The codec backend: an SDL queue kept about as deep as the codec board's DMA, so the audio task is paced the way it is on hardware. |
+| `src/HostWifiOs.cpp`, `HostNet.cpp` | Wi-Fi through the OS's network manager; UDP sockets and libcurl for the firmware's own requests. |
+| `src/HostPlatform.cpp` | The window, input, cursor and test aids. |
+| `src/HostConsole.cpp`, `HostConsoleDetect.cpp` | Which handheld this is: reading a profile from `consoles/`, and finding this console's from the device tree. Nothing under `include/boards/` has a counterpart chosen at run time; this is it. |
+| `src/HostControls.h` | Which control does which job on that console: a forwarder to `src/hal/ControlJobs.h`, pure arithmetic, tested for every combination of controls. |
+
+**The version names the build's device.** `FIRMWARE_VERSION` is the
+release, a `+` and `GUME_VERSION_TAG` (`include/FirmwareVersion.h`), and here
+the tag comes from CMake's `BRAINO_VERSION_TAG`: `host` on a desktop, `h700`
+in the card image (`rg40xxv/package/braino/braino.mk`). A new handheld family
+passes its own, lower case `[0-9a-z-]`.
+
+## Wi-Fi is the computer's radio; the requests are still the firmware's
+
+`src/HostWifiOs.cpp` drives the real radio through whichever manager owns it:
+NetworkManager (`nmcli`) on desktop Linux, wpa_supplicant (`wpa_cli`) on muOS
+and most handheld images. A scan lists what the OS sees, `begin()` asks the
+OS to join, and `status()` reports what the OS has. Link state comes from the
+kernel and a once-a-second poller, so the per-frame `status()` never waits
+on a subprocess. With no wireless interface (WSL, a wired desktop) the radio
+is absent and the firmware sees `WL_NO_SHIELD`.
+
+Four things about it are load-bearing:
+
+- **The shims answer; they never originate.** `WiFiUDP` is a real socket and
+  `HTTPClient` is libcurl, but the only traffic is the firmware's own three
+  requests, behind its own `WL_CONNECTED` checks: NTP, the timezone lookup and
+  the update manifest. Nothing goes out until a network has been joined from
+  the firmware's Wi-Fi screen, because time sync needs saved credentials and
+  the update check needs time sync. **A shim must not add a request, a header
+  or a field.** libcurl sends no User-Agent unless told to, and it is told
+  nothing. That keeps `check_privacy.py`'s promise about the manifest request
+  true here.
+- **While the firmware has asked for a network, `status()` answers for that
+  network.** WifiApp saves the typed password once `status()` says
+  connected, so reporting whatever else the computer is on would save the
+  wrong password against the right name.
+- **Every subprocess gets an argument vector and no shell.** An SSID is text
+  a stranger chose. With wpa_supplicant, the SSID goes in as hex so a quote
+  cannot end it. With nmcli, the password is an argument, which another local
+  user could read from the process table for the moment nmcli runs: nobody,
+  on a handheld.
+- **The requests are IPv4, and DHCP introduces nobody.** A board's clients
+  open `AF_INET` sockets and nothing else (`WiFiClient.cpp`, `WiFiUdp.cpp` in
+  the pinned core), and the firmware never calls `enableIpV6()`, so a board
+  has no IPv6 address at all. A Linux kernel at its defaults gives the radio
+  one built from its MAC (EUI-64: `addr_gen_mode` 0, `use_tempaddr` 0), and
+  libcurl prefers IPv6 when it may choose, so the timezone lookup and the
+  update check would have carried the one identifier the project forbids to
+  the far end. `HTTPClient` therefore sets `CURLOPT_IPRESOLVE` to V4, NTP is
+  an `AF_INET` socket, and no shim may open an IPv6 one. `udhcpc` is started
+  with `-C` and `-V ""` and no `-F`: no client identifier (its default is the
+  MAC), no vendor string, no hostname. `check_privacy.py` holds all of it.
+  **Not covered:** under muOS the DHCP client is muOS's `dhcpcd` with muOS's
+  configuration, which sends what muOS tells it to, and the OS's interface
+  still has its IPv6 addresses even though Braino's requests do not use them.
+
+`mode(WIFI_OFF)` does not turn the computer's radio off: the OS owns its
+power. With NetworkManager, joining saves the network in the OS's own
+configuration, as its Wi-Fi menu would. With wpa_supplicant -- the RG40XXV --
+it does not: no `save_config`, and `scrubSavedNetworks()` zeroes and strips
+any `network={}` block an older build left in `/etc/wpa_supplicant.conf`.
+Braino joins from its own settings on every start instead.
+
+**The Wi-Fi name and password and the admin PIN are sealed in `nvs.txt`**
+(`HostSecret.h`, called from `HostNvs.cpp`'s `save()` and `load()`, so the
+firmware reads and writes them exactly as on a board). On a handheld that file
+is on a microSD card any laptop opens; a board's flash takes tools to read,
+and this is what keeps the two comparable. The key is HMAC-SHA256 over the
+processor serial (sunxi chip id, SID, device-tree serial or `/proc/cpuinfo`,
+whichever answers first), read every start and never stored or logged -- the
+log names only the source. Values are a random nonce, an HMAC keystream and an
+encrypt-then-MAC tag bound to the value's name, so a value altered or copied
+to another key fails to open and is forgotten. A file with readable values is
+rewritten sealed on load, the old copy zeroed in place first. Handheld builds
+(`BRAINO_HOST_STRICT_SECRETS`, on when cross-compiling) accept only a
+processor-bound key; with none, the Wi-Fi network stays in memory for the run
+and the PIN stays readable, because an unsaved PIN falls back to the public
+default. A desktop build may fall back to `/etc/machine-id` and says so. The
+limit, stated in the README: someone with the whole console and the source
+can derive the key.
+
+`esp_read_mac()` returns random bytes, made once and kept as
+`<data dir>/radio-id`, and never the computer's own MAC, and `WiFi.macAddress()`
+answers `--`: the identifier rule applies to the computer as much as to a
+board. Kept, so the beacon's device id is stable and peers' names for this
+console survive a reboot.
+
+## Bluetooth: the firmware's beacon and scanner, on a raw HCI socket
+
+`src/hal/BleBeacon.cpp` and `BleScanner.cpp` compile unchanged.
+`shim/NimBLEDevice.h` answers the dozen NimBLE calls they make, and
+`src/HostNimBLE.cpp` puts them on the controller through Linux's own
+Bluetooth socket API. There is no BlueZ library, and nothing asks bluetoothd
+for anything. Each call maps to one legacy LE command: random address,
+advertising parameters (`ADV_NONCONN_IND`), the firmware's 31-byte payload
+verbatim, advertise enable, and a passive scan whose reports go to the
+scanner's own callback. So Nearby, pokes, finds and two-console games
+interoperate with Braino boards byte for byte.
+
+**It advertises from a random static address** made from the kept radio id,
+never the controller's factory address, which a board does broadcast. It
+still needs root (true under muOS) and a controller the OS has powered.
+Without one, the beacon logs why and Nearby sees an empty room.
+
+**On the RG40XX V the controller can be missing at boot, and `S05hardware`
+rebinds its driver.** The Bluetooth half of the Wi-Fi chip sits on a UART and
+is powered through the Wi-Fi half, which the kernel switches on only once it
+finds the Wi-Fi on SDIO. The built-in `hci_uart_h5` driver probes before
+that, gets no answer, and no `hci0` appears, so Nearby stayed on "Radio
+starting". `S05hardware` unbinds and rebinds every `hci_uart_h5` device and
+waits up to three seconds for `hci0`, because Braino opens the radio once, at
+start. On the serial console `hci0` and its firmware appeared within a second
+of the rebind; card images with it have been built, but **it is not yet
+confirmed on the device that Nearby now works.**
+
+**The controller outlives the program.** It keeps advertising after a crash,
+and it refuses new advertising parameters (`HCI 0x2006 refused (status 0x0c)`)
+until told to stop, so `NimBLEDevice::init()` switches advertising and scanning
+off before anything else. Without that, Nearby sits on "Radio starting" after
+any restart that was not clean, with the old payload still on the air. Every
+exit goes through `hostExit()` (`src/HostMain.h`), which calls
+`NimBLEDevice::deinit()` to take the beacon off the air and join the reader
+thread. Quitting while the firmware sat in `delay()` -- most of the time --
+used to tear down on its own and skip that, and a `std::thread` still joinable
+when statics are destroyed aborts the program: the handheld's log ended in
+`terminate called without an active exception`. Do not add a second way out.
+
+### The loopback radio: two consoles on one PC
+
+`BRAINO_BLE_LOOPBACK=<folder>` opens no controller at all. Every `braino`
+process on the machine that names the same folder hears every other one: each
+writes the exact advertisement bytes `BleBeacon` built to
+`<folder>/<radio id>.adv` while it advertises, rewriting it every 150ms, and
+reads the others' files on the same tick into the same `onResult()` the HCI
+reader calls. So `BleBeacon::decode()`, the scanner, `NearbyPlay` and every
+nearby game run unchanged -- it is the firmware's radio code under test, not a
+second copy of it. **Give each process its own `BRAINO_DATA_DIR`**: that is
+where its device id and radio id come from, and two processes sharing one are
+one console twice.
+
+A file not rewritten for two seconds is not heard, so a process stopped with
+`kill -KILL` (or `-STOP`) goes quiet the way a console carried out of range
+does, and the other one's waiting card comes up on the same clocks a real pair
+would show. What it cannot show is the air itself: there are no missed scan
+windows, no collisions and no range, so a game that works through the loopback
+has proved its sessions, turns and acks, not its tolerance of a lossy medium.
+That still needs two real radios. It adds no outbound flow: the folder is
+local and only processes on this machine can read it.
+
+## The light ring
+
+The host board profile declares three virtual RGB pins, so the firmware's
+own LED code drives `src/HostLed.cpp` unchanged. On the RG40XXV that is the
+ring around each stick, behind an MCU on `/dev/ttyS5`; the protocol comes
+from muOS's `script/device/rgb.sh`. When the firmware has a colour lit, the
+ring shows it: green for right, red for wrong, the saver's rally colours.
+Otherwise it shows a rainbow, as the hardware does out of the box. It is
+dark when the player switches the LED off in Settings, and while the screen
+sleeps. `BRAINO_LED_RAINBOW="brightness,speed"` tunes the rainbow. The
+launcher sets muOS's LED mode to "external", so muOS keeps its hands off,
+low-battery red included. `BRAINO_WIFI_IFACE` names the interface
+outright, for a device with two radios.
+
+The ring is also a battery gauge (`src/HostRingGauge.h`), up for as long as
+the charger is in and for ten seconds after it comes out or a stick is pushed,
+screen off included. How far
+round it is lit is the percentage, in three bands like a battery icon's bars:
+two LEDs of red, three of orange, three of green, each at full strength. It was
+a gradient first, and the orange-to-green blend left the LEDs between at half
+of each, an olive that read as the ring having stopped; brightened, it gave
+yellow and lime, which still looked wrong on the ring.
+With the charger in, the ring breathes twice in the percentage's colour first.
+Then the charged part holds still and one light steps across the part yet to
+charge, an LED every 300ms in its own colour, from the charged edge to the end
+and round again. It used to flash that part as one block, which read as an
+alarm rather than as filling. Pulling the charger
+opens with a mood instead: red pulses below 50%, deliberately under three a
+second because it is saturated red, one slow orange breath from 50%, and a
+green light running round the ring at 100%. Pushing a stick
+needs more than half its travel, once per push, because a stick drifts. With
+the screen on only the right stick asks, since the left is the cursor; on a
+console with one stick, such as the RG40XX V, it asks only while the screen
+sleeps. Without
+the charger, a colour the firmware has lit comes before the gauge when the
+screen is on. With it the gauge comes first, the saver's colours and the green
+and red for answers included, because from here they all look the same. The LED
+switch in Settings turns the gauge off too. Plugged in is read from the charger
+supply's `online`, not the battery's `status`, which has said Full at 4067 mV.
+
+## Sleep turns the lamp off
+
+On a board, sleep drives the backlight PWM to zero. Here the PWM is only a
+brightness multiplier on the window, so a sleeping Braino used to draw black
+frames under a fully lit backlight, which is the largest drain on a handheld.
+`src/HostScreenPower.cpp` now follows the panel shim's Sleep In and Sleep Out
+and switches the real lamp: `/dev/disp`'s backlight ioctls on the H700, or
+`/sys/class/backlight` elsewhere. The log names which one it found (`[display]
+host: backlight through ...`). While asleep the window presents one black
+frame and then nothing until it wakes.
+
+Any button wakes it, and does nothing else: the press becomes a 200ms BOOT
+press, which `View::Asleep` takes as it takes a touch, and nothing reaches the
+screen underneath. The stick does not wake it, because a stick drifts. A run
+that dies with the lamp off leaves `<data dir>/backlight-off` holding the level
+to return to, and the next start restores it. Fatal signals restore it on the
+way out, and SIGTERM and SIGINT go through SDL's quit, which restores it too.
+The module is built only with `BRAINO_HOST_SCREEN_POWER` (cross-compiled builds
+by default), so a desktop build never touches the computer's own backlight.
+
+## The power button turns the console off
+
+Braino does not read the power button: SDL's gamepad layer does not report it,
+and muOS's `muhotkey` owns it. By default muOS answers with its own sleep
+(`suspend.sh`), which stops the network underneath Braino without telling it.
+So `muos/Braino.sh` sets `settings/power/shutdown` to 2, muOS's "shut down at
+once", and stops its restart loop when it sees muOS shutting down. Maintenance
+mode gets muOS's default of 600 back. `reviveRadio()` in `src/HostWifiOs.cpp`
+restarts the radio if anything else stops it, so a scan cannot come back empty
+without saying why (`[wifi] host: scan found N`).
+
+## Where the battery went
+
+`src/HostPowerProbe.cpp` is this platform's `PowerProbe` (`src/hal/CLAUDE.md`
+has the design). It reads /proc and /sys, so it runs on any Linux and reports
+less where a file is missing. Two things only a handheld can answer:
+
+- **Current.** `current_now` on the battery supply says what a change costs in
+  seconds. The unit and the sign vary by PMIC driver: anything at or above 20000
+  is taken as microamps, the direction comes from the battery's `status`, and
+  the first raw value is logged as `[power] host: current_now reads ...` so a
+  wrong guess shows up. **The RG40XXV's axp2202 has no `current_now`**, and its
+  `charge_counter` is only the percentage times the capacity, so it is no help
+  either. What it does have is `time_to_empty_now`, which the gauge can only
+  compute from a current it keeps to itself; the `[drain]` line turns that
+  back into `gauge_ma` off the charger. Trust it as the gauge's opinion, not
+  as a measurement.
+- **What else is running.** The three busiest processes, because a handheld runs
+  other people's software beside the firmware, and a daemon eating a core looks
+  exactly like a battery defect.
+
+**The firmware's brightness slider does not reach the real lamp here.** It only
+multiplies the picture (`HostPlatform::setBacklight()`), so the probe reports the
+lamp itself through `HostScreenPower::lampPercent()`, and the ledger bands on
+that rather than on the setting. The ledger's row names therefore say what the
+lamp is really doing.
+
+The `[power]` lines go to `braino.log` on the card, synced every five minutes,
+because a console is switched off by pulling power. That log is what survives a
+flat battery. The card's log is replaced on the next start and kept once as
+`braino.prev.log`, so read it before starting twice.
+
+The `[drain]` lines are the finer half, for while the drain is still being
+chased. Once at start, every power_supply value (serial numbers left out), the
+sleep states the kernel offers, the cores' idle states, the GPU's clocks, the
+thermal zones and what sits on each I2C bus. Then once a minute: interrupts and
+context switches per second and the four busiest interrupts, Braino's own
+wakeups by thread (so every thread is named: FreeRTOS tasks carry the
+firmware's names, plus `led-ring` and `ble-hci`), each core idle state's share
+of the minute, whether the audio device is running and how often it was
+opened, frames sent to the screen, Wi-Fi packets and power saving, the speaker
+amplifier's `spk_state`, and every temperature.
+
+Two of those answer questions the first nights raised. **The GPU's clock is
+not its power**: `gpu_mhz=360` asleep is the floor of `simple_ondemand`'s
+range, not a load, so each devfreq device also reports its runtime power state
+and the share of the minute it was active (`gpu_pm=suspended,0%`). **Wi-Fi
+packets are split by what they are** (`src/HostNetTraffic.cpp`): broadcast or
+addressed (`wifi_rx=bcast:..,ucast:..,arp_req:..`), and what the protocols
+made of them (`net_in=` and `net_out=`, from `/proc/net/snmp` and `snmp6`,
+which count loopback too, so `lo=` is given beside them). Every ten minutes a
+`[drain] sockets:` line names each process holding a network socket, with its
+protocol and local port (`lo` for loopback only, `L` for listening). Braino's
+own requests are a few a day, so anything else on that line is the platform's.
+Counts, ports and process names only: no address is read into any of it.
+
+## What the handheld does not keep running
+
+The first measured night lost 11-12% an hour asleep with the lamp off. The
+processor was being woken over four thousand times a second, and these were
+Braino's part of it. Each is a rule now:
+
+- **A frame is sent only when it differs from the last.** `TFT_eSPI::plot()`,
+  the one place a pixel is written, moves `frameGeneration()`, and `present()`
+  compares that plus the lamp, the selector and the cursor against what was
+  last shown. Anything new that writes `frame_` directly must move the
+  generation too, or the window keeps the old picture. A window event or the
+  splash forces the next frame.
+- **`delay()` services the window once a frame, not every 4ms**, and with the
+  panel asleep sleeps the whole wait. The loop reads input once a frame anyway,
+  so nothing is slower; a long `delay()` with the screen on still services
+  every 20ms.
+- **The audio device is the amplifier.** `setAmp(false)`, which the firmware
+  calls two seconds after the last sound, closes it (on a thread of its own,
+  because SDL waits out the last buffer), and the next write reopens it. An
+  open device kept the codec, its transfers and the speaker amplifier running
+  from boot whether or not anything sounded. The cost is a few milliseconds on
+  the first sound after a pause.
+- **Wi-Fi power saving goes back on once joined.** It stays off for the join,
+  because on these SDIO Realtek parts it drops handshakes and DHCP replies.
+  If the address is ever lost hours in, a DHCP renewal under power saving is
+  the first suspect.
+- **The light ring's thread wakes four times a second, not thirty, while the
+  screen sleeps and nothing is on the ring.** A charger or a stick still
+  lights it within a quarter of a second.
+- **The power chip is read at most once a second** (`HostBattery`'s
+  snapshot). Each read of an axp2202 file is a round of I2C on its bus,
+  `twi5`, which the log showed at about 430 interrupts a second, and the
+  firmware's battery task alone asked eight times in a row every two
+  seconds. A gauge that moves a percent every few minutes gives the same
+  answer a second later.
+- **The firmware's audio task sleeps until a sound is armed** once the
+  amplifier's tail has run out, instead of waking every 25ms
+  (`src/hal/BoardAudio.cpp`). That was forty wakeups a second for a silent
+  console; a board with no amplifier switch keeps the old timeout.
+
+A 3.6-hour run after those still read about 290 mA asleep from the gauge, and
+Braino's own part had become about 85 wakeups a second of 5,450. The rest was
+the platform, so sleep now switches two more things off
+(`src/HostSleep.cpp`), after the lamp and back before it:
+
+- **Wi-Fi.** `HostWifiOs::sleepRadio()` disconnects and takes the interface
+  down; waking brings it up, rejoins with power saving off as at start, asks
+  for an address if DHCP does not, and puts power saving back. About twelve
+  seconds. While it is down the link poller stops spawning `wpa_cli` and a
+  join the firmware asks for is dropped, because waking rejoins anyway.
+- **Three of the four cores**, offline through sysfs.
+
+Either can be switched off for a measurement (`BRAINO_SLEEP_WIFI=0`,
+`BRAINO_SLEEP_CORES=0`), and the log's `[sleep]` line says which are on.
+
+**The display output stays on, and must**, unless `BRAINO_SLEEP_LCD=1` asks
+for the experiment. It was the third saver -- `lcd0 disable` through the
+display driver's debug interface, as muOS's own `LCD_DISABLE` does, a second
+after the lamp -- and the first night of it ended with the console waking
+mirrored left to right and every colour inverted. Re-enabling powers the panel
+up without the setup the bootloader gave it, and only a reboot restores that.
+muOS ships the toggle off (`settings/advanced/disp_suspend` = 0) and its
+brightness script says why: it "causes display panel issues". Nor did it buy
+anything: that night the gauge read 263-277 mA asleep with all three savers on,
+against 264-270 mA the afternoon before with none -- Wi-Fi's 440 packets a
+minute gone, interrupts down a third, and the current where it was. What is
+left asleep is an awake H700 itself, which only Deep sleep below takes away.
+
+**A run that ends asleep must not leave them off**: the
+restart would come up to a black screen on one core with no network. Each
+writes a marker in `/run/braino` (emptied at boot) before switching off, and
+the next start (`HostSleep::recover()`, and `HostWifiOs`'s start for the
+radio) puts back whatever a marker names. `hostExit()` wakes them first anyway.
+
+## Deep sleep: suspend to RAM
+
+The firmware owns the setting and the timing (`SystemSuspend.h`,
+`BrainoApp::tickDeepSleep()`): with Deep sleep on in Settings -> Power, 15
+minutes asleep asks the platform to suspend. `src/HostSuspend.cpp` is the
+platform: on a handheld build with `mem` in `/sys/power/state` it stops the
+beacon and the scan, stamps `/run/braino/resumed`, syncs, writes `mem`, and
+when that write returns -- the power button pressed -- stamps the file again,
+restarts the radio as it was and hands back to the firmware, which wakes the
+panel to the lock screen. It declines on the charger, and the runtime asks
+again a minute later. A desktop build never suspends the computer;
+`BRAINO_FAKE_SUSPEND=1` makes any build pretend for three seconds, which is how
+the flow is tested on a PC, and `BRAINO_SUSPEND=0` turns it off on a handheld.
+
+**The press that wakes it must not also turn it off.** Braino writes
+`/run/braino/resumed` on every wake for exactly this. Under muOS the image's
+`/opt/braino/hotkeys.sh` turns the console off on the power key, muhotkey
+hears the press that ended the suspend, and that script (not in this tree)
+ignores the power key within five seconds of the stamp. The Braino-only
+image in `rg40xxv/` has no such script: acpid maps the power key to
+`board/overlay/etc/acpi/power`, which is `exec poweroff` and reads no stamp.
+Whether the waking press reaches acpid there has not been measured; until it
+has, that handler is where the same five-second guard belongs.
+
+## Seeing a screen without anyone at the window
+
+Two environment variables, both off by default:
+
+- `BRAINO_SHOTS="2500,5000"` saves the panel frame, at its real resolution,
+  as `<data dir>/shot-<ms>.bmp` (ms zero-padded to six digits, `shot-002500.bmp`) at those milliseconds after start. F12 saves one
+  on demand.
+- `BRAINO_TAPS="3000:237,223;4500:80,125,200"` presses the panel at frame
+  coordinates `x,y` -- logical pixels, the panel over the UI scale, so a
+  script written for 320x240 works at 640x480 too -- at that time, for 120 ms or the given hold. `4000:next`
+  and `4000:prev` press the page keys instead, and `4000:down,3000`,
+  `4000:up`, `4000:left` and `4000:right` hold the d-pad (for 1000 ms unless a
+  hold is given), `4000:a` holds A, and `4000:menu`, `4000:mute` and
+  `4000:lock` press M, L2 and R2.
+
+Together they walk to a screen and photograph it. These are pictures of the
+firmware's own drawing, so **unlike `tools/gen_screens.py` they do show
+clipping, partial-repaint mistakes and overdraw**. They are not a substitute
+for the panel: colours are exact RGB565 rather than what a given glass makes
+of them, and nothing here models SPI time.
+
+## The boot splash
+
+`braino --splash <file.bmp> [width height [progress [glow]]]` writes the picture a
+handheld shows from power-on until Braino's first screen, then exits without
+opening a window. `src/HostSplash.cpp` draws it, and it is the one thing the
+host draws itself rather than through the firmware's frame, which is the
+panel's own resolution too. The mark is vector artwork and gets every pixel:
+`tools/braino-badge.svg` is compiled into the binary (`cmake/EmbedMark.cmake`)
+and rasterised with 4x4 supersampling by a port of
+`tools/gen_logo_mask.py`'s rasteriser, the one that makes the device's
+bitmaps, so the two cannot disagree about the shape. Under it goes a glow,
+which is the mark's own coverage blurred and added in the theme's accent.
+Below sit a thin loading bar with its percentage, and `BRAINO_COPYRIGHT`. The
+colours are the Dark theme's and the text is TFT_eSPI's font 2 at native
+size. It is always Dark, so a console set to another theme shows a dark
+splash for the moment before its first screen.
+
+On a handheld the launcher sets `BRAINO_BOOT_SPLASH=1`, and Braino shows the
+same picture across the window before its first screen (`runBootPhase()`).
+The glow breathes there, between 35% and 115% of the static logo's
+strength, once every 1.6 s: slow enough to read as light rather than
+flicker. It starts at exactly the static logo's strength, so taking over from
+the logo the OS showed has no step in it. **What the bar measures, honestly:**
+Braino starts near the end of the boot, so the bar opens at the share of a
+boot already gone. That is `/proc/uptime` against how long the previous boot
+took to reach this point, which is written to `<data dir>/boot-seconds` each
+time, and only when uptime says this really was a boot. It then fills over
+about two seconds and reads 100% only when the first screen is next. The
+opening number is an estimate; the 100% is not.
+
+## The Anbernic RG40XXV as nothing but Braino (`rg40xxv/`)
+
+`rg40xxv/` builds a microSD image on which the console is Braino and nothing
+else: mainline Linux 7.2 with ROCKNIX's H700 patches, U-Boot and TF-A from
+source, a busybox system built into the kernel, and this program. Its
+`README.md` covers the build, the card and the licences. What it asks of the
+code in `host/`:
+
+- **`BRAINO_HOST_DRM` is the screen.** The image has no GPU driver and no
+  window system, so `src/HostDrm.cpp` opens the kernel's DRM card, makes two
+  dumb XRGB8888 buffers at the panel's mode and flips them on vertical blank,
+  with raw ioctls rather than libdrm. `HostPlatform` then initialises SDL
+  without video (gamepad, events and sound only) and `present()` converts the
+  RGB565 frame, dims it by the emulated backlight, scales it by a whole number
+  -- 1 on the panel, whose mode is the frame's size -- and draws the cursor
+  and selector over it in frame pixels, as the SDL renderer does at its
+  logical size. It still presents only when something
+  changed, and `presentImage()` (the splash) clears that so the next frame is
+  drawn. **HDMI wins whenever a television is connected that can hold the
+  panel's frame**: `outputChanged()` reads the kernel's hotplug uevents from
+  a netlink socket (no udev), moves the picture to the TV on fresh buffers
+  and turns the panel's CRTC off, and back again when it is unplugged;
+  `present()` re-centres and redraws whole when it says so. Instead of the
+  panel, not beside it: the room watches the TV, and the console is the
+  controller. Four rules hold it:
+  - **The layout never moves.** The firmware is laid out on the panel's mode
+    for the run, and the TV shows that frame at a whole scale (2x at 1080p).
+  - **The TV's mode is `HostTvMode::pick()`'s**: its preferred mode up to
+    1920x1080, else the largest progressive one under that, and none smaller
+    than the panel (`test/host/tv_mode_test.cpp`). Dumb buffers are
+    contiguous memory; the image's boot line reserves 64 MB (`cma=64M`) for
+    two at 1080p beside the kernel's own, and a 4K pair would not fit.
+  - **The panel's lamp follows the picture.** `HostScreenPower::setPanelShown()`
+    keeps it off while the TV has the picture, awake or asleep, and lights it
+    when the picture comes back; otherwise waking from sleep relit a panel
+    with no CRTC behind it.
+  - **Sleep turns off whichever output is showing** (`setPower()`), and a TV
+    unplugged meanwhile makes the wake-up's mode set fail, which marks a
+    recheck so the next frame moves to the panel without waiting for an
+    event.
+  There is no HDMI sound: the H700's audio hub has no mainline driver
+  (`rg40xxv/README.md`). The option is off by default: the PC build is
+  untouched.
+- **Headphones take the sound from the speaker, and `host/` never knows.**
+  The kernel reads the jack (`hp-det-gpios`, a `Headphone Jack` control and
+  an input switch); the image's `acpid` runs
+  `board/overlay/usr/bin/braino-headphones`, which switches the codec's
+  `Speaker` pin, and `S40keys` syncs it at boot. Braino's sound path is
+  unchanged on every platform, and its volume and Mute act before the codec,
+  so both outputs behave alike.
+- **The light ring is found, not assumed.** Under Anbernic's kernel the MCU
+  is `/dev/ttyS5` behind the PMIC's `mcu_pwr`; under mainline it is whichever
+  `ttyS` is UART5 (`5001400.serial`, or `5001400.serial:0.0` now the serial
+  core names a port device of its own -- `ttyS2` on the RG40XX V under 7.2),
+  behind the GPIO the device tree calls `rgb:kbd_backlight`. `BRAINO_LED_TTY`
+  overrides the search, and every way it can fail is logged.
+- **The kernel has no IPv6.** `board/linux.fragment` compiles it out. That was
+  chosen over the two runtime answers. A sysctl (`disable_ipv6`, or
+  `addr_gen_mode=3` with `use_tempaddr=2`) has to land before the radio comes
+  up, and the radio comes up in two places in `HostWifiOs.cpp` and once more
+  in udhcpc's own script, none of them an init script; the image also removes
+  `S02sysctl`. Stable-privacy addresses still leave a second address family to
+  reason about (link-local, router solicitations, a per-boot secret on a
+  system that runs from RAM) for requests a board makes over IPv4 anyway.
+  Absent code needs no ordering. `board/post-build.sh` reads the `.config` of
+  the kernel that was really built and fails the image if `CONFIG_IPV6` is in
+  it, so a kernel configured before the fragment changed, or a refreshed
+  ROCKNIX config, cannot ship; `S05hardware` writes `== ipv6` / `off` into
+  `hardware.txt` every boot, which is the check on a console with no shell.
+- **wpa_supplicant's config is the image's own**
+  (`board/overlay/etc/wpa_supplicant.conf`). Buildroot's ends in a
+  `network={ key_mgmt=NONE }` block with no name, which joins any open network
+  in range; `scrubSavedNetworks()` happened to remove it before
+  wpa_supplicant started, and the image no longer depends on that. No
+  `update_config`, so the file cannot be written from the control socket.
+- **`hardware.txt` and `dmesg.txt` are scrubbed of anything shaped like a
+  hardware address** as they are written. They are the files that get attached
+  to an issue, which is the banner's rule (`device=`, never `mac=`) applied to
+  the card. mac80211 logs `authenticate with <BSSID> (local address=<MAC>)` on
+  every join; both files are written before Braino starts the radio, so that
+  line is not in them today, and the scrub is what keeps a later change from
+  putting it there.
+- **The CPU governor is `schedutil`**, set by the image's init. The kernel
+  boots with `performance`, which held all four cores at 1.4 GHz at an idle
+  launcher (396 mA awake, measured).
+- **Sleep switches off more here than under muOS.** A 14.5-hour night on the
+  image lost about 6.9% an hour asleep and 4.4% suspended, against muOS's 9%
+  asleep. Its `[drain]` lines then showed what still woke a sleeping console
+  about 880 times a second, and each is dealt with:
+  - **The display output goes off with the lamp**, through
+    `HostDrm::setPower()`: the CRTC is disabled, which stops the display
+    engine and the DSI link and unprepares the panel. This is the mainline
+    driver, not the `lcd0 disable` above that broke the panel under muOS, so
+    it is on by default in a DRM build; `BRAINO_SLEEP_LCD=0` turns it off.
+    Frames drawn meanwhile are kept, and a hotplug waits until it is back.
+  - **The joypad is polled every 50 ms asleep, not every 10 ms.** It is a
+    polled input device -- three ADC conversions a poll, 300 interrupts a
+    second -- and `HostSleep` slows every polled input through the kernel
+    poller's own `poll` attribute, saving each one's interval in
+    `/run/braino/sleep-poll` so a restart can put it back. The driver sets no
+    ceiling, which makes 10 ms the ceiling too, so `rocknix-joypad.mk` adds
+    one (500 ms). A press still wakes the console. `BRAINO_SLEEP_INPUT=0`
+    leaves the polling alone.
+  - **The light ring's MCU loses its supply** while it is dark and the
+    console asleep, and gets it back 100 ms before the next frame (a charger
+    plugged in, or waking). The ring's thread reads the battery every 3 s
+    asleep instead of every second: each read is a round of I2C on the power
+    chip's bus.
+  - **SDL's ALSA hotplug thread is not built** (`external.mk`). It woke ten
+    times a second to notice a sound card being plugged into a console whose
+    only card is soldered on.
+
+  Bluetooth needed nothing: the kernel powers `hci0` down two seconds after
+  setting it up when nothing claims it, and Braino claims it only while the
+  beacon is on, when it has to stay up. The `[power]` line's `BT radio` is
+  the rfkill switch, not that. **The battery's `current_now` cannot be
+  trusted under this kernel**: it read 370-390 mA awake at full clock and
+  asleep alike, so the ledger's per-state milliamps are flat; judge a change
+  by the percentage per hour.
+- **The build stamp takes its commit from the environment.** Buildroot builds
+  a copy of the tree without `.git`, so `cmake/BuildStamp.cmake` reads
+  `BRAINO_BUILD_COMMIT` and `BRAINO_BUILD_BRANCH`, which `rg40xxv/build.sh`
+  works out (translating a Windows worktree's `gitdir` as this script does).
+- **The libraries are Buildroot packages.** `FETCHCONTENT_SOURCE_DIR_*` points
+  CMake at them, so the image build makes no network request of its own and
+  every source is in `legal-info`.
+
+## The Anbernic RG40XXV under muOS
+
+`cmake/aarch64-linux-gnu.cmake` cross-compiles against a Debian bullseye
+arm64 sysroot (glibc 2.31) with clang. Do not use a distribution's
+`aarch64-linux-gnu-gcc`: it carries its own newer glibc, searches it before
+the sysroot, and links half the program against each. libstdc++ and libgcc
+are linked statically. The binary needs glibc 2.30 or newer, plus SDL2 and
+libcurl, which muOS ships. A sysroot unpacked by hand needs its absolute
+symlinks made relative, or the linker resolves `libpthread.so` against the
+build machine's own `/lib` and silently takes the static archive instead.
+
+`muos/pack.sh` lays out what goes on the card's ROMS (exFAT) partition:
+`ROMS/Ports/Braino.sh` (the launcher, from `muos/Braino.sh`, with its line
+endings forced to Unix), `ports/braino/braino` and
+`ports/braino/bootlogo.bmp`. Launch Braino once from muOS's Ports list.
+Every run, the launcher then keeps three things true, even after someone
+changes them in muOS's menus:
+
+- **Startup is "Last Content",** so muOS relaunches Braino at every boot. Only
+  content can be the startup target (a muOS *Application* cannot), which is
+  why Braino ships as a port.
+- **The boot logo is Braino's splash.** It is copied into `/mnt/boot/bootlogo.bmp`
+  again whenever a theme change has replaced it; muOS regenerates that file
+  from the active theme on the shutdown after a theme change.
+- **muOS's safe-mode counter is cleared once Braino has run for ten
+  seconds.** muOS counts every boot and clears the count only after its own
+  menu has run for eight. A console that never shows that menu never clears
+  it, and on every third boot muOS would skip the autostart and show the
+  menu. Leave this out and the appliance works twice and fails once.
+
+**To the player there is no other operating system.** If Braino exits for
+any reason -- Select + Start, a crash, one of muOS's own kill hotkeys -- the
+launcher starts it again, and muOS's menu is never drawn. The splash and its
+loading bar run only on the first start of a boot, not on a restart. Two
+deliberate exceptions:
+
+- A file named `braino-maintenance` at the top of the card's games partition,
+  created from a PC, lets Select + Start leave for muOS's menu, for updates
+  and settings. Deleting it seals the console again.
+- Five exits inside thirty seconds is a Braino that cannot start, not a
+  player, so the loop gives up and muOS's menu appears. Otherwise a broken
+  build would leave a black screen that looks like a dead device. The
+  previous run's log is kept as `braino.prev.log` for exactly that case.
+
+muOS keeps its own hotkeys running underneath: volume, brightness (Menu +
+volume), suspend on the power key, and the L2 + R2 combos. Hiding muOS
+completely is not finished: its first-boot setup, its shutdown splash and its
+own network services are still to be dealt with, and a pre-built card image
+is the plan for the first boot.
+
+## Hearing the sounds
+
+`sound/` builds two more programs beside `braino`, from the firmware's own
+`src/hal/AudioSynth.cpp`, `BoardAudio.cpp` and `BoardAudioCues.cpp` and
+nothing else from `src/`. Every cue is asked for through
+`Board::playSound()`, mute gate and all, and the samples are pulled with
+`audio::generateBlock()`, as the `braino-audio` task does on a board.
+`SoundStubs.cpp` answers the rest of the firmware with nothing; if it ever
+computes a sample, it has stopped being a stand-in.
+
+```bash
+build/host/braino-sounds out/codec        # one WAV per cue, plus sequences
+build/host/braino-sounds-dac out/dac      # as the 8-bit built-in DAC plays them
+build/host/braino-sounds --check          # the same renders, judged
+build/host/braino-sounds --bench          # time per generated sample
+```
+
+`braino-sounds` is the codec path -- 16-bit at 16 kHz, what this program, the
+Freenove and a bare I2S amplifier are given. `braino-sounds-dac` is the
+E32R28T-1's: 24 kHz, of which the WAV keeps only the high byte the speaker
+hears. The sequences (a held piano key, a key pressed twice, a Ludo walk,
+the find alert) are played on the device's own timeline, the generator a
+DMA ahead of the speaker, because that is where a held note is decided.
+This is how the sound set chosen on 2026-11-15 was auditioned; a cue is
+changed by ear here first, then on a board.
+
+## Known differences from a board
+
+- Portrait layout is drawn turned on a landscape window, as it would be on a
+  device that cannot be turned round.
+- Heap figures in System Info are a fixed healthy picture, not the PC's.
+- The watchdog never reboots. Its frame statistics are real.
+- No SD card. A handheld build (`BRAINO_HOST_BATTERY`, on whenever
+  cross-compiling) reads its battery through a virtual sense pin that
+  `src/HostBattery.cpp` answers, so the firmware's own curve, deadband,
+  badge and 15% / 5% warnings run unchanged. Where the battery has a fuel
+  gauge (`/sys/class/power_supply/*/capacity`, the AXP2202 on the RG40XXV),
+  the pin answers with the voltage that curve maps back to the gauge's
+  percentage. The cell voltage is a poor guess beside it, since it moves with
+  the load and with charging. The curve is
+  copied into that file to be run backwards, so a change to `LIPO_CURVE` in
+  `src/hal/BoardPower.cpp` belongs there too. Without a gauge it reads
+  `voltage_now`. A desktop build has no battery and shows no badge. The RGB LED is a handheld's light ring
+  where it has one (`src/HostLed.cpp`), and nothing on a PC.
+- GCC 13 warns about some firmware code the ESP32 toolchain is quiet about.
+  Read those warnings: one already found a real truncated string.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

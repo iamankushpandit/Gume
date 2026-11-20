@@ -10,6 +10,9 @@
 #pragma once
 
 #include <TFT_eSPI.h>
+#include "ui/FocusRecorder.h"
+#include "ui/PaintClip.h"
+#include "ui/PanelArt.h"
 #include "ui/Renderer.h"
 
 namespace Ui {
@@ -24,20 +27,40 @@ public:
     int16_t width() override { return static_cast<int16_t>(tft_.width()); }
     int16_t height() override { return static_cast<int16_t>(tft_.height()); }
 
-    void fillScreen(uint16_t color) override { tft_.fillScreen(color); }
+    /* Every fill and outline is also reported to the d-pad's selector,
+     * which finds the controls on the panel by how they are drawn
+     * (FocusRecorder.h). On a board without keys the reports are empty
+     * inlines and cost nothing. */
+    void fillScreen(uint16_t color) override {
+        tft_.fillScreen(color);
+        Focus::noteScreenClear();
+    }
     void fillRect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t color) override {
         tft_.fillRect(x, y, w, h, color);
+        Focus::noteFill(x, y, w, h, 0, color);
     }
     void drawRect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t color) override {
         tft_.drawRect(x, y, w, h, color);
+        Focus::noteOutline(x, y, w, h, 0, color);
     }
     void fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h,
                        int32_t radius, uint16_t color) override {
         tft_.fillRoundRect(x, y, w, h, radius, color);
+        Focus::noteFill(x, y, w, h, radius, color);
     }
     void drawRoundRect(int32_t x, int32_t y, int32_t w, int32_t h,
                        int32_t radius, uint16_t color) override {
         tft_.drawRoundRect(x, y, w, h, radius, color);
+        Focus::noteOutline(x, y, w, h, radius, color);
+    }
+    bool drawArcArt(int16_t cx, int16_t cy, int16_t radius, int16_t fromDeg, int16_t toDeg,
+                    uint16_t colour) override {
+        return PanelArt::drawArc(tft_, cx, cy, radius, fromDeg, toDeg, colour);
+    }
+    bool drawLogoArt(uint8_t which, int16_t x0, int16_t y0, const uint8_t* bits,
+                     int16_t width, int16_t height, int16_t stride,
+                     uint16_t colour) override {
+        return PanelArt::drawLogo(tft_, which, x0, y0, bits, width, height, stride, colour);
     }
     void drawFastHLine(int32_t x, int32_t y, int32_t w, uint16_t color) override {
         tft_.drawFastHLine(x, y, w, color);
@@ -93,24 +116,117 @@ public:
         return static_cast<int16_t>(tft_.textWidth(text, font));
     }
 
+    /* A screen's own viewport is remembered as well as applied, because a
+     * paint clip may be laid over it -- see setPaintClip(). With no paint clip
+     * these two are what they always were: straight through to the driver. */
     void setViewport(int32_t x, int32_t y, int32_t w, int32_t h,
                      bool vpDatum = true) override {
-        tft_.setViewport(x, y, w, h, vpDatum);
+        ownSet_ = true;
+        own_ = PaintClip::Box{x, y, w, h};
+        ownDatum_ = vpDatum;
+        applyViewport();
+        /* The viewport the screen set, never the paint clip laid over it:
+         * the selector's controls are read against what a screen means to
+         * draw, and a clip for a notice hides pixels and nothing else. */
+        Focus::noteViewport(x, y, w, h, vpDatum);
     }
-    void resetViewport() override { tft_.resetViewport(); }
+    void resetViewport() override {
+        ownSet_ = false;
+        applyViewport();
+        Focus::noteViewportReset();
+    }
+
+    /* A paint clip: while one is set, nothing drawn through this renderer
+     * lands outside it. Not a screen's fills and text, not the chrome, not the
+     * d-pad's selector, not the rows of an image.
+     *
+     * The runtime sets one for a notice (BrainoApp::settleNotice). For as
+     * long as the notice is up, every painter is kept out of the strip it is
+     * on, so it is painted once and nothing can scribble on it; and when it
+     * goes, the screen is rendered once more with the clip turned round, so
+     * that the strip is the only thing repainted. Either way the screen draws
+     * exactly as it always does and knows nothing about it, which is the
+     * point: forty games did not each have to learn where a notice goes.
+     *
+     * It is laid over the viewport a screen sets for itself, not instead of
+     * it, and outlives any number of setViewport()/resetViewport() pairs. The
+     * panel driver has one viewport and no second clip, so the two are
+     * resolved into one here (PaintClip::resolve). The PC build's panel keeps
+     * a paint clip of its own instead: it reads the d-pad's controls off what
+     * a screen draws, clipped to the viewport the screen set, and a clip laid
+     * over that for a notice has to hide pixels and nothing else. */
+    void setPaintClip(int32_t x, int32_t y, int32_t w, int32_t h) {
+        clipSet_ = true;
+        clip_ = PaintClip::Box{x, y, w, h};
+        applyViewport();
+    }
+    void clearPaintClip() {
+        if (!clipSet_) return;
+        clipSet_ = false;
+        applyViewport();
+    }
 
     void startWrite() override { tft_.startWrite(); }
     void endWrite() override { tft_.endWrite(); }
+    /* An image goes to the panel through a raw window, which no viewport
+     * clips. Under a paint clip the window is therefore held back until its
+     * pixels arrive, and cut to the clip then. Every blit in Ui.cpp sends one
+     * row at a time, which is what makes that a matter of skipping and
+     * shortening; a taller window is not drawn at all under a clip, rather
+     * than drawn across it. */
     void setAddrWindow(int32_t x, int32_t y, int32_t w, int32_t h) override {
-        tft_.setAddrWindow(x, y, w, h);
+        window_ = PaintClip::Box{x, y, w, h};
+        if (!clipSet_) tft_.setAddrWindow(x, y, w, h);
     }
     bool getSwapBytes() override { return tft_.getSwapBytes(); }
     void setSwapBytes(bool swap) override { tft_.setSwapBytes(swap); }
-    void pushPixels(uint16_t* data, uint32_t len) override { tft_.pushPixels(data, len); }
+    void pushPixels(uint16_t* data, uint32_t len) override {
+        if (!clipSet_) {
+            tft_.pushPixels(data, len);
+            return;
+        }
+        int32_t skip = 0;
+        int32_t count = 0;
+        if (window_.h != 1 || len < static_cast<uint32_t>(window_.w) ||
+            !PaintClip::clipRow(clip_, window_.x, window_.y, window_.w, skip, count)) {
+            return;
+        }
+        tft_.setAddrWindow(window_.x + skip, window_.y, count, 1);
+        tft_.pushPixels(data + skip, static_cast<uint32_t>(count));
+    }
 
 private:
+    void applyViewport() {
+#ifdef TFT_ESPI_PAINT_CLIP
+        if (ownSet_) {
+            tft_.setViewport(own_.x, own_.y, own_.w, own_.h, ownDatum_);
+        } else {
+            tft_.resetViewport();
+        }
+        if (clipSet_) {
+            tft_.setPaintClip(clip_.x, clip_.y, clip_.w, clip_.h);
+        } else {
+            tft_.clearPaintClip();
+        }
+#else
+        const PaintClip::Viewport v =
+            PaintClip::resolve(ownSet_, own_, ownDatum_, clipSet_, clip_);
+        if (v.set) {
+            tft_.setViewport(v.box.x, v.box.y, v.box.w, v.box.h, v.datum);
+        } else {
+            tft_.resetViewport();
+        }
+#endif
+    }
+
     TFT_eSPI& tft_;
     uint8_t textSize_ = 1;
+    bool ownSet_ = false;
+    bool ownDatum_ = false;
+    bool clipSet_ = false;
+    PaintClip::Box own_;
+    PaintClip::Box clip_;
+    PaintClip::Box window_;
 };
 
 }  // namespace Ui

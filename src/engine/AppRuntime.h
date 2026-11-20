@@ -11,12 +11,14 @@
 
 #include <Arduino.h>
 #include "engine/AppRegistry.h"
+#include "engine/CarryOnScreen.h"
 #include "engine/ContentLoader.h"
 #include "engine/Game.h"
 #include "engine/LauncherApp.h"
 #include "games/GameInstances.h"
 #include "hal/Board.h"
 #include "ui/ScaledRenderer.h"
+#include "ui/FocusRecorder.h"
 #include "ui/TftRenderer.h"
 #include "ui/Ui.h"
 
@@ -61,9 +63,11 @@ private:
     void runConsoleLine(char* line, Print& out);
     // AppRuntimeConsole.cpp
     void cmdIdentify(int argc, char** argv, Print& out);
+    void cmdPower(int argc, char** argv, Print& out);
     void cmdHelp(int argc, char** argv, Print& out);
     void cmdUnlock(int argc, char** argv, Print& out);
     void cmdLock(int argc, char** argv, Print& out);
+    void cmdLights(int argc, char** argv, Print& out);
     void cmdWifi(int argc, char** argv, Print& out);
     // AppRuntimeConsoleSettings.cpp
     void cmdGet(int argc, char** argv, Print& out);
@@ -75,6 +79,8 @@ private:
     void cmdProfileRemove(int argc, char** argv, Print& out);
     void cmdGames(int argc, char** argv, Print& out);
     void cmdGame(int argc, char** argv, Print& out);
+    void cmdLevel(int argc, char** argv, Print& out);
+    void cmdNotice(int argc, char** argv, Print& out);
     void replyIdentify(Print& out);
     void repaintAfterConsoleChange();
     void refreshAfterProfileChange();
@@ -104,8 +110,11 @@ public:
     bool batteryLow() override;
     void pulseRgb(uint8_t r, uint8_t g, uint8_t b, uint16_t ms) override;
     void drawTopBar(const char* title) override;
+    bool drawTopBarClock() override;
     void goHome() override;
     void relaunchActiveGame() override;
+    uint8_t courseLevel(uint8_t track = 0) override;
+    void setCourseLevel(uint8_t level, uint8_t track = 0) override;
 
     /* Two-player games on nearby consoles. Thin: every one of these forwards
      * to NearbyPlay, which owns the policy, which in turn asks BleScan and
@@ -120,7 +129,13 @@ public:
                        uint8_t ack) override;
     void nearbyEnd(uint8_t session, uint8_t ply, uint8_t ack) override;
     void nearbyStop() override;
+    void nearbyStopLater() override;
+    void loadConsoleBlob(const char* key, void* dst, size_t len) override;
+    void saveConsoleBlob(const char* key, const void* src, size_t len) override;
+    void clearConsoleBlob(const char* key) override;
     const char* nearbySelfId() override;
+    uint8_t nearbyFreshSession(uint8_t lowBits = 0, uint8_t lowBitCount = 0) override;
+    uint32_t nearbyPeerAwayMs(const char* deviceId) override;
     bool nearbyTurnFrom(const char* deviceId, uint8_t session,
                         NearbyTurn& out) override;
     uint32_t nearbyPeerSilentMs(const char* deviceId) override;
@@ -128,6 +143,9 @@ public:
     void openWifi() override;
     void openProfiles() override;
     void applyOrientation() override;
+#if GUME_HAS_KEYBOARD
+    char typedChar() override { return frameTyped_; }
+#endif
 
     /* Lock now: blank the panel immediately, and make the next wake land on
      * the wake lock instead of on the screen underneath.
@@ -151,6 +169,11 @@ public:
     /* Nobody unlocked: go back where we came from rather than sitting lit. */
     static constexpr uint32_t LOCK_TIMEOUT_MS = 12000;
 
+    /* Deep sleep: how soon to ask again when the platform declined to
+     * suspend (the charger was in). How long it waits the first time is
+     * SystemSuspend::AFTER_ASLEEP_MS, beside the setting that states it. */
+    static constexpr uint32_t DEEP_SLEEP_RETRY_MS = 60UL * 1000UL;
+
 private:
     enum class View {
         Game,
@@ -167,6 +190,42 @@ private:
     uint8_t rotationForActiveScreen();
     void applyRotation(uint8_t rotation);
     void leaveActiveGame();
+    /* What the console keeps for a player between two visits to a game
+     * (AppRuntimeKeep.cpp): the game itself until the console is switched
+     * off, and the level reached in it for good. */
+    struct KeptGame {
+        uint32_t leftAtMs = 0;
+        uint8_t profile = 0;
+        uint8_t epoch = 0;
+        Game::Keep how = Game::Keep::No;
+    };
+    void noteGameLeft();
+    Game::Keep keptHow(const AppDefinition& app);
+    void enterApp(const AppDefinition& app, bool carryOn, uint32_t awayMs);
+    void askCarryOn(const AppDefinition& app);
+    void resumeKept(const AppDefinition& app);
+    void settleCarryOn();
+    void syncCourse();
+    /* The active player's level in the game called `id`. By id and not "the
+     * game that is open", because the console reads and sets the level of a
+     * game nobody has open; courseLevel() and setCourseLevel() are these two
+     * with the open game's id. storeCourseLevel() returns false for a track
+     * past COURSE_TRACKS or when every entry is taken, and then the level is
+     * not held anywhere. */
+    static uint16_t courseKey(const char* id, uint8_t track);
+    uint8_t courseLevelOf(const char* id, uint8_t track);
+    bool storeCourseLevel(const char* id, uint8_t track, uint8_t level);
+    static constexpr uint8_t COURSE_SLOTS = 80;
+    static constexpr uint8_t COURSE_ENTRY = 3;      // key low, key high, level
+    /* The track rides in the top bits of an entry's key, so how many tracks
+     * there are is how many bits it is given there. */
+    static constexpr uint8_t COURSE_TRACK_BITS = 2;
+    static constexpr uint8_t COURSE_TRACKS = 1U << COURSE_TRACK_BITS;
+    /* The highest level the console will set. The entry holds a byte, but no
+     * game's ladder comes near this, and Course::Ladder::start() brings a
+     * stored level past a game's top down to it -- so the cap is only there
+     * to refuse a number that can be nothing but a slip of the keyboard. */
+    static constexpr uint8_t COURSE_LEVEL_MAX = 63;
     const char* activeAppTitle() const;
 
     const AppDefinition& appById(const char* id) const;
@@ -176,6 +235,15 @@ private:
     void enterSleep();
     void wakeFromSleep();
     void exitScreenSaver();
+    /* Called on every asleep poll that brought no press: suspends the device
+     * once it has slept SystemSuspend::AFTER_ASLEEP_MS with the owner's Deep
+     * sleep setting on, and wakes the panel when it comes back. */
+    void tickDeepSleep(uint32_t nowMs);
+    uint32_t deepSleepDueMs_ = 0;
+    /* The panel has been asleep SleepPower::STATION_REST_AFTER_MS: stop the
+     * Wi-Fi station until the next wake (Board::restWifiForSleep()). */
+    void tickStationRest(uint32_t nowMs);
+    uint32_t stationRestDueMs_ = 0;
 
     /* Going idle ends an admin session, exactly as a reboot does.
      *
@@ -229,11 +297,20 @@ private:
     void onScreenSaverHit();
     void resetScreenSaverRally(int16_t effW, int16_t effH);
     void renderScreenSaver();
-    /* Paint the current header notification, if there is one. Called after the
-     * screen has drawn itself, so it lands on top. The battery warning wins
-     * over a Nearby event: one of them is a nicety, the other is the reason
-     * the console is about to switch off. */
-    void drawHeaderBanner(bool screenRepainted);
+    /* The notice due now, or nullptr. The battery warning wins over a Nearby
+     * event: one of them is a nicety, the other is the reason the console is
+     * about to switch off. */
+    const char* noticeText() const;
+    /* Put the notice on the panel, change its words, or take it away. Called
+     * once a frame, after the screen has drawn. True when the strip changed
+     * hands either way: a notice painted over part of the screen, or that
+     * part of the screen painted again. */
+    bool settleNotice();
+    /* The notice is not on the panel any more, whatever was: another view is
+     * taking the whole panel, or the panel is turning. */
+    void noticeOffPanel();
+    /* A press on the notice puts it away. */
+    void dismissNotice(uint32_t nowMs);
 
     /* Ask for a header-only repaint. Cheap enough to call on every tick that
      * changes a badge; the flag collapses several in one frame into one
@@ -248,8 +325,35 @@ private:
      * the admin: a parent who is not holding the device has no other way to
      * learn, and the wording tells a young player what to do about it. */
     void tickUpdateNotice(uint32_t nowMs);
+    /* Words as a notice for `ms`, ahead of whatever else is due: the serial
+     * console's `notice`, and anything else at the bench with a line for the
+     * person holding the console to read. Empty words take it down. */
+    void showBenchNotice(const char* words, uint32_t ms);
+    /* Retires it. */
+    void tickBenchNotice(uint32_t nowMs);
+    void tickPowerMonitor(uint32_t nowMs);
 
-    /* Mark the strip as needing paint and make the screen under it redraw. */
+    /* The serial console's `lights` (AppRuntimeLights.cpp): every light the
+     * firmware drives, one at a time, each blinking under its own name. */
+    struct LightTest {
+        bool running = false;
+        bool lit = false;
+        uint8_t step = 0;        // the one in hand; == steps is the last, everything at rest
+        uint8_t steps = 0;       // not counting that last one
+        uint8_t stopAfter = 0;
+        uint32_t stepMs = 0;     // how long each step is held
+        uint32_t stepAtMs = 0;
+        uint32_t blinkAtMs = 0;
+    };
+    LightTest lightTest_;
+    void tickLightTest(uint32_t nowMs);
+    uint8_t lightTestSteps() const;
+    void lightTestDrive(uint8_t step, bool on, char* name, size_t cap);
+    void lightTestBegin(uint32_t nowMs);
+    void lightTestEnd();
+
+    /* Mark the strip as needing to be looked at again: a notice has appeared,
+     * changed its words or gone. */
     void requestBannerRepaint();
 
     /* Long enough to read at a glance, and repeated rarely enough that it
@@ -261,6 +365,7 @@ private:
     /* Long enough to read a version number and an instruction, and no longer:
      * it repeats daily, so it does not need to be insistent once. */
     static constexpr uint32_t UPDATE_BANNER_MS = 6000;
+    static constexpr uint32_t BENCH_NOTICE_MS = 6000;
     static constexpr uint32_t BATTERY_REPEAT_MS = 120000;
 
     Board board_;
@@ -298,6 +403,18 @@ private:
     ContentLoader content_;
     GameInstances games_;
     LauncherApp launcher_;
+    CarryOnScreen carryOn_;
+    KeptGame kept_[PLAYABLE_APP_COUNT];
+    /* A press has reached the game since it was begun. A game opened and
+     * left untouched has nothing in it to keep. */
+    bool pressedInGame_ = false;
+    /* When the screen saver or sleep took the screen away, so the game under
+     * it can be told how long it was not running. */
+    uint32_t idleSinceMs_ = 0;
+    uint8_t course_[COURSE_SLOTS * COURSE_ENTRY] = {};
+    uint8_t courseProfile_ = 0;
+    uint8_t courseEpoch_ = 0;
+    bool courseLoaded_ = false;
     Game* activeGame_ = nullptr;
     const AppDefinition* activeApp_ = nullptr;
     /* True only while a playable game is the thing on screen.
@@ -324,6 +441,123 @@ private:
     bool ssav_initialized_ = false;
     View ssavPrevView_ = View::Game;
     bool swallowTouch_ = false;
+    /* This frame's keys, polled once at the top of loop(): the navigation key
+     * and the typed character, on the boards that have them. On every other
+     * board the struct is empty and each question below is a constant false,
+     * so loop() reads the same everywhere and the routing folds away where
+     * there is nothing to route -- no #if in loop() itself. */
+    struct FrameKeys {
+#if GUME_HAS_NAV_KEYS
+        /* What the keys hold this frame, and whether any of them -- the power
+         * key included -- went down since the last. The selector works out
+         * the rest from `held` (AppRuntimeSelector.cpp). */
+        HeldControls held;
+        bool pressedAny = false;
+        bool powerPressed = false;
+#endif
+#if GUME_HAS_KEYBOARD
+        char typed = 0;
+#endif
+        /* Any key at all: for the idle, saver, sleep and alert paths a key is
+         * a key, and does exactly what BOOT does there. */
+        bool any() const {
+            bool pressed = false;
+#if GUME_HAS_NAV_KEYS
+            pressed = pressed || pressedAny;
+#endif
+#if GUME_HAS_KEYBOARD
+            pressed = pressed || typed != 0;
+#endif
+            return pressed;
+        }
+        /* A power key's short press is the Lock button. */
+        bool power() const {
+#if GUME_HAS_NAV_KEYS
+            return powerPressed;
+#else
+            return false;
+#endif
+        }
+    };
+    FrameKeys pollKeys() {
+        FrameKeys keys;
+#if GUME_HAS_NAV_KEYS
+        keys.held = board_.pollControls();
+        keys.pressedAny = (keys.held.buttons & ~sel_.prev.buttons) != 0 ||
+                          (keys.held.dirs & ~sel_.prev.dirs) != 0 ||
+                          (keys.held.power && !sel_.prev.power);
+        keys.powerPressed = keys.held.power && !sel_.prev.power;
+#endif
+#if GUME_HAS_KEYBOARD
+        keys.typed = board_.pollTypedChar();
+#endif
+        return keys;
+    }
+    /* Hand the typed character to the active screen for its update(), unless
+     * the runtime consumed the frame itself; and take it back after, so
+     * typedChar() answers 0 at every other moment. */
+    void offerKeys(const FrameKeys& keys, bool consumed) {
+#if GUME_HAS_KEYBOARD
+        frameTyped_ = consumed ? 0 : keys.typed;
+#endif
+        (void)keys;
+        (void)consumed;
+    }
+    void withdrawKeys() {
+#if GUME_HAS_KEYBOARD
+        frameTyped_ = 0;
+#endif
+    }
+    /* What the d-pad's selector asks the routing to do this frame; on a
+     * board without keys it asks nothing. */
+    static constexpr uint8_t SELECTOR_HOME = 1;
+    static constexpr uint8_t SELECTOR_LOCK = 2;
+    static constexpr uint8_t SELECTOR_MUTE = 4;
+#if GUME_HAS_NAV_KEYS
+    /* The d-pad's selector (AppRuntimeSelector.cpp). Everything it does goes
+     * through the runtime's own doors -- a touch, BOOT's Home, the padlock's
+     * Lock, the speaker's Mute -- which is what its result bits are. */
+    struct SelectorState {
+        ControlJobs::Assignment jobs{};
+        bool jobsReady = false;
+        HeldControls prev;               // last frame's keys, in every view
+        bool on = false;                 // a control is selected
+        bool drawn = false;              // and its ring is on the panel
+        bool dirty = false;              // the ring has to be drawn again
+        const Game* screen = nullptr;    // the screen the selection belongs to
+        Focus::Target sel;
+        uint8_t moveDir = 0;             // the direction being repeated
+        uint32_t repeatAtMs = 0;
+        uint32_t restartSinceMs = 0;
+        /* A touch the selector is making, one frame at a time: a press held
+         * with the button, a tap (a page, a tab), or a drag down a list. */
+        enum class Script : uint8_t { None, Hold, Tap, Drag };
+        Script script = Script::None;
+        uint8_t step = 0;
+        int16_t tx = 0, ty = 0, dragDy = 0;
+        bool shapesDue = false;          // a new screen: paint the key symbols
+    };
+    SelectorState sel_;
+    uint8_t selectorFrame(TouchPoint& touch, const FrameKeys& keys);
+    void paintSelector(bool repainted);
+    void paintFaceShapes();
+    int selectorTargets(Focus::Target* out, int max);
+    bool selectorSettingsRect(Rect& out);
+    void selectorMove(int dx, int dy);
+    void selectorTap(int16_t x, int16_t y);
+    void selectorDrag(const Focus::ScrollArea& area, int dy);
+    void selectorErase();
+    void selectorPaintRing(const Focus::Target& t, bool on);
+    void selectorFollowScreen();
+    /* Whatever the selector was pressing is let go, as when a finger takes
+     * over: the rest of a press it was making is not delivered. */
+    void selectorLetGo() { sel_.script = SelectorState::Script::None; }
+#else
+    void selectorLetGo() {}
+#endif
+#if GUME_HAS_KEYBOARD
+    char frameTyped_ = 0;     /* the same, for a typed character */
+#endif
 
     /* Lock-screen state.
      *
@@ -372,11 +606,15 @@ private:
 
     uint32_t lastBannerGeneration_ = 0;
     bool bannerNeedsPaint_ = false;
+    /* A notice is painted on the panel, and the renderer's paint clip is
+     * keeping everything else out of its strip. The two are set and cleared
+     * together, in settleNotice() and noticeOffPanel() and nowhere else. */
+    bool noticeOnPanel_ = false;
 
-    /* Something in the header changed -- the clock, the battery badge, a
-     * notification -- but nothing the screen itself draws. Answered by
-     * Game::renderChrome(), which repaints the 30px strip instead of the
-     * 240px panel. See requestChromeRender(). */
+    /* Something in the header changed -- the clock or the battery badge --
+     * but nothing the screen itself draws. Answered by Game::renderChrome(),
+     * which repaints the 30px strip instead of the 240px panel. See
+     * requestChromeRender(). */
     bool chromeNeedsPaint_ = false;
 
     /* The battery warning currently on screen, or nullptr. Points at a string
@@ -388,12 +626,18 @@ private:
     char updateBanner_[48] = {0};
     bool updateBannerActive_ = false;
     uint32_t updateBannerShownMs_ = 0;
+    /* The words showBenchNotice() was given, and for how long. */
+    char benchNotice_[48] = {0};
+    bool benchNoticeActive_ = false;
+    uint32_t benchNoticeShownMs_ = 0;
+    uint32_t benchNoticeMs_ = BENCH_NOTICE_MS;
     uint32_t batteryCheckMs_ = 0;
     uint32_t batteryShownMs_ = 0;
     uint32_t batteryHiddenMs_ = 0;
     bool batteryEverHidden_ = false;
     uint8_t batteryWarnLevel_ = 0;   // 0 none, 1 low, 2 critical
     uint32_t lastClockMinute_ = 0;
+    uint32_t lastPowerPublishMs_ = 0;
     uint32_t lastActivityMs_ = 0;
     uint32_t screenSaverStartMs_ = 0;
 

@@ -100,6 +100,20 @@ def button(d, r, label, fill=None, tc=None, f=F2):
     d.text((x + (w - d.textlength(s, font=f)) / 2, y + h / 2 - f.size / 2 - 1), s, font=f, fill=tc)
 
 
+def plain_row(d, r, label, f=F2):
+    """A lobby row that only says what another console is doing: a plain
+    fill with no outline and no shadow, and muted words -- not a button,
+    because nothing happens when it is pressed (drawPlainRow() in the games'
+    lobby code)."""
+    x, y, w, h = r
+    d.rounded_rectangle([x, y, x + w - 1, y + h - 1], 6, fill=SURFACE)
+    s = label
+    while s and d.textlength(s, font=f) > w - 12:
+        s = s[:-1]
+    d.text((x + (w - d.textlength(s, font=f)) / 2, y + h / 2 - f.size / 2 - 1), s, font=f,
+           fill=MUTED)
+
+
 def fitted_text(d, text, max_w, f):
     s = text
     while len(s) > 2 and d.textlength(s, font=f) > max_w:
@@ -243,7 +257,7 @@ def topbar(d, title, synced=True, bars=3, muted=False, w=W):
     lock_icon(d, (40, 6, CONTROL_H, CONTROL_H), BAR_TEXT, BAR)
     # Mute, right of the padlock; the title starts after it now.
     speaker_icon(d, (64, 6, CONTROL_H, CONTROL_H), muted, BAR_TEXT)
-    t = "12:41 AM"
+    t = "12:41A"
     batt_w = battery_width(72)
     batt_right = w - 8 - CONTROL_H - 6
     wifi_cx = batt_right - batt_w - 6 - 8
@@ -287,16 +301,18 @@ def battery_width(pct=72):
     """Mirrors Ui::batteryBadgeWidth. Font 1 advances exactly 6px on the
     device, so the width is counted in characters rather than measured with
     PIL's proportional stand-in -- otherwise the mock-up packs differently
-    from the firmware and stops being evidence."""
-    text = "" if pct is None or pct < 0 else str(min(pct, 100))
-    inner = BATT_PAD * 2 + 6 * len(text)
+    from the firmware and stops being evidence. One width at every level,
+    the width "100" needs."""
+    if pct is None or pct < 0:
+        return 0
+    inner = BATT_PAD * 2 + 6 * len("100")
     return max(inner, 11) + 2 + BATT_TERM_W
 
 
 def battery_badge(d, cx, cy, pct=72):
     """Mirrors Ui::drawBatteryBadge: the percentage as numerals inside the
     shell over a bordered two-pixel level gauge along the inside bottom. No
-    charging state. Variable width -- see battery_width."""
+    charging state. One width, digits centred -- see battery_width."""
     text = "" if pct is None or pct < 0 else str(min(pct, 100))
     total = battery_width(pct)
     shell = total - BATT_TERM_W
@@ -319,7 +335,7 @@ def battery_badge(d, cx, cy, pct=72):
     if pct > 0 and track_w > 2:
         gw = max(1, int(pct * (track_w - 2) / 100))
         d.rectangle([track_x + 1, track_y + 1, track_x + gw, track_y + BATT_TRACK_H - 2], fill=level)
-    penx = bx + 1 + BATT_PAD
+    penx = bx + (shell - 6 * len(text) + 1) // 2
     if text:
         d.text((penx, cy - 6), text, font=F1, fill=out)
 
@@ -907,12 +923,17 @@ def backgammon(selected=12, targets=frozenset({7, 9}), moves=()):
 
 def backgammon_lobby():
     """Backgammon: three ways to play -- one console, the computer, or a
-    console nearby. One nearby console is offering a game."""
+    console nearby. Each console in the room is a row saying what it is
+    doing: one offers this console a game, one is playing a third, which is
+    a plain row because pressing it does nothing."""
     im, d = blank(); topbar(d, "Backgammon")
     rows = [("Two players", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
-            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("B1C3 is playing 7E09", None, None)]
     for r, (label, fill, ink) in enumerate(rows):
-        button(d, (10, 38 + r * 34, 300, 30), label, fill=fill, tc=ink)
+        if fill is None:
+            plain_row(d, (10, 38 + r * 34, 300, 30), label)
+        else:
+            button(d, (10, 38 + r * 34, 300, 30), label, fill=fill, tc=ink)
     note = "Moves travel by Bluetooth. Anyone near hears them."
     d.text(((W - d.textlength(note, font=F1)) / 2, H - 14), note, font=F1, fill=MUTED)
     return im
@@ -922,7 +943,7 @@ def flags_country():
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "3/5", font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength("+2", font=F2), 32), "+2", font=F2, fill=GOLD)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 242, 170], fill=WHITE, outline=OUTLINE)
     f = art("mnf_flag_br")
     if f: im.paste(f.resize((160, 120), Image.NEAREST), (80, 48), f.resize((160, 120), Image.NEAREST))
@@ -938,7 +959,7 @@ def flags_capital(answered=False):
     im, d = blank(); topbar(d, "Guess the Flag")
     d.text((8, 32), "4/5", font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength("+3", font=F2), 32), "+3", font=F2, fill=GOLD)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 242, 170], fill=WHITE, outline=OUTLINE)
     f = art("mnf_flag_br")
     if f: im.paste(f.resize((160, 120), Image.NEAREST), (80, 48), f.resize((160, 120), Image.NEAREST))
@@ -959,7 +980,7 @@ def flags_capital(answered=False):
 def states():
     im, d = blank(); topbar(d, "US States")
     d.text((8, 32), "3/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     q = "What is the capital of Texas?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
     for i, lab in enumerate(["Austin", "Houston", "Dallas", "El Paso"]):
@@ -971,7 +992,7 @@ def states():
 def stateflags():
     im, d = blank(); topbar(d, "State Flags")
     d.text((8, 32), "2/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Easy", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([78, 46, 241, 169], fill=WHITE, outline=OUTLINE)
     f = art("mnf_state_flag_ca")
     if f:
@@ -986,7 +1007,7 @@ def stateflags():
 def statemaps():
     im, d = blank(); topbar(d, "State Maps")
     d.text((8, 32), "4/6", font=F2, fill=TEXT)
-    button(d, (132, 31, 56, 16), "Medium", f=F1)
+    button(d, (132, 31, 56, 16), "Level 1", f=F1)
     d.rectangle([110, 42, 209, 141], fill=WHITE, outline=OUTLINE)
     m = tinted("mnf_state_map_fl", INK)
     if m: im.paste(m, (112 + (96 - m.width) // 2, 44 + (96 - m.height) // 2), m)
@@ -1428,13 +1449,23 @@ def hand(d, x0, raised, mirror):
     d.text((x0 + 2 * 26 + 11 - 12, 163), "Left" if not mirror else "Right", font=F2, fill=(150, 90, 88))
 
 
-def fingers_count():
+def _fingers_header(d, level, tally):
+    """FingerCountGame's header row: the level muted on the left, the tally
+    on the right, then the prompt (font 4, centred on 62) and the hint
+    (font 2, centred on 87)."""
+    d.text((8, 32), "Level %d" % level, font=F2, fill=MUTED)
+    d.text((W - 8 - d.textlength(tally, font=F2), 32), tally, font=F2, fill=TEXT)
+
+
+def fingers_count(answered=True):
+    """Level 3, any fingers: five up, scattered, answered right."""
     im, d = blank(); topbar(d, "Finger Counting")
-    d.text((W - 8 - d.textlength("4/6", font=F2), 32), "4/6", font=F2, fill=TEXT)
+    _fingers_header(d, 3, "5/6" if answered else "4/5")
     q = "How many fingers?"
-    d.text((W / 2 - d.textlength(q, font=F4) / 2, 41), q, font=F4, fill=TEXT)
-    h = "Count them, then tap the number"
-    d.text((W / 2 - d.textlength(h, font=F2) / 2, 71), h, font=F2, fill=MUTED)
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 53), q, font=F4, fill=TEXT)
+    h = "Yes! 5 - tap for next" if answered else "Count them, then tap the number"
+    d.text((W / 2 - d.textlength(h, font=F2) / 2, 80), h, font=F2,
+           fill=SUCCESS if answered else MUTED)
     hand(d, 22, [True, True, False, True, False], False)
     hand(d, 172, [False, True, True, False, False], True)
     for i, v in enumerate([4, 6, 5, 7]):
@@ -1444,17 +1475,21 @@ def fingers_count():
 
 
 def fingers_show(left=(True, True, True, False, False),
-                 right=(False, False, True, False, False)):
+                 right=(False, False, True, False, False), done=False):
+    """Level 2, a hand and more: "Show me 7", the count said as it goes,
+    and Done to answer."""
     im, d = blank(); topbar(d, "Finger Counting")
-    d.text((W - 8 - d.textlength("5/6", font=F2), 32), "5/6", font=F2, fill=TEXT)
+    up = sum(left) + sum(right)
+    _fingers_header(d, 2, "6/7" if done else "5/6")
     q = "Show me 7 fingers"
-    d.text((W / 2 - d.textlength(q, font=F4) / 2, 41), q, font=F4, fill=TEXT)
-    up = "Up: %d" % (sum(left) + sum(right))
-    d.text((W / 2 - d.textlength(up, font=F2) / 2, 71), up, font=F2, fill=MUTED)
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 53), q, font=F4, fill=TEXT)
+    h = "Yes! 7 - tap for next" if done else "Up: %d, then tap Done" % up
+    d.text((W / 2 - d.textlength(h, font=F2) / 2, 80), h, font=F2,
+           fill=SUCCESS if done or up == 7 else MUTED)
     hand(d, 22, list(left), False)
     hand(d, 172, list(right), True)
-    t = "Tap a finger to raise or lower it"
-    d.text((W / 2 - d.textlength(t, font=F2) / 2, 205), t, font=F2, fill=MUTED)
+    button(d, (88, 196, 144, 34), "Done", SUCCESS if done else PANEL,
+           (0, 0, 0) if done else TEXT, F4)
     return im
 
 
@@ -1675,31 +1710,56 @@ def on_fill_soft(fill):
     return soft if (hi + 0.05) / (lo + 0.05) >= 4.5 else ink
 
 
+def launcher_header(d, w, tall, name="Ava", beacon=False):
+    """The launcher's header, from LauncherLayout's own numbers.
+
+    The mark and the copyright are fixed. The player's name has the mark's row
+    to itself in landscape and the second row in portrait; the clock keeps its
+    sync check; the gear is the top bar's, 18px and 8px in from the right; and
+    the badge row runs Bluetooth (only while the beacon is on), padlock,
+    speaker, Wi-Fi, battery, right-aligned under the gear.
+    """
+    lock_x = w - 110                      # lockRect(): CONTROL_FROM_RIGHT
+    gear = (w - 8 - CONTROL_H, 32 if tall else 6, CONTROL_H, CONTROL_H)
+    t = "12:41A"
+    batt_w = battery_width(72)
+    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
+    if tall:
+        d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
+               font=F1, fill=MUTED)
+        d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
+        d.text((8, 33), name, font=F2, fill=TEXT)
+        row = 60
+        d.text((8, 53), t, font=F2, fill=TEXT)
+        sync_badge(d, int(8 + d.textlength(t, font=F2) + 12), row)
+    else:
+        d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
+        # headerDividerX(): 4px before the Bluetooth rune's box (lock_x - 13),
+        # from the mark's row (y=6) to the foot of the badge row (25 + 18).
+        divider_x = lock_x - 13 - 4
+        name_x = 10 + _logo_mask("WORD")[0] + 10
+        name_font = F2 if d.textlength(name, font=F2) <= divider_x - 4 - name_x else F1
+        d.text((name_x, 7), name, font=name_font, fill=TEXT)
+        d.line([(divider_x, 6), (divider_x, 25 + CONTROL_H - 1)], fill=OUTLINE)
+        row = 34
+        sync_cx = gear[0] - 6 - 7
+        sync_badge(d, sync_cx, 15)
+        d.text((sync_cx - 12 - d.textlength(t, font=F2), 7), t, font=F2, fill=TEXT)
+    gear_icon(d, gear, TEXT)
+    right = gear[0] + gear[2]
+    wifi_badge(d, right - batt_w - 14, row)
+    battery_badge(d, right - batt_w // 2, row)
+    lock_icon(d, (lock_x, row - 9, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (lock_x + 22, row - 9, CONTROL_H, CONTROL_H), False, TEXT)
+    if beacon:
+        ble_badge(d, lock_x - 9, row)
+
+
 def launcher_wide():
     im, d = blank(); d.rectangle([0, 0, W - 1, 47], fill=SURFACE)
     d.line([(0, 0), (W, 0)], fill=shade(SURFACE, 145))
     d.line([(0, 47), (W, 47)], fill=shade(SURFACE, 60))
-    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
-    d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-    # Profile name: plain text on the byline row, no button chrome.
-    d.text((124, 34), "Ava", font=F1, fill=TEXT)
-    t = "12:41 AM"
-    d.text((W - 40 - d.textlength(t, font=F1), 9), t, font=F1, fill=TEXT)
-    # Beacon badge sits left of the clock, off its measured width.
-    ble_badge(d, int(W - 40 - d.textlength(t, font=F1)) - 14, 14)
-    batt_w = battery_width(72)
-    batt_right = W - 36
-    wifi_cx = batt_right - batt_w - 6 - 8
-    sync_cx = wifi_cx - 8 - 6 - 6
-    sync_badge(d, sync_cx, 34); wifi_badge(d, wifi_cx, 34)
-    battery_badge(d, batt_right - batt_w // 2, 34)
-    # Third move: lW-116 -> lW-138 for Lock -> lW-160 for mute.
-    d.line([(W - 160, 8), (W - 160, 40)], fill=OUTLINE)
-    gear_icon(d, (W - 30, 11, 25, 25), TEXT)          # gearRect(), unchanged
-    # Lock at the left-hand end of the badge row, inside the hairline, at badge
-    # size. See LauncherLayout::lockRect().
-    lock_icon(d, (W - 158, 25, CONTROL_H, CONTROL_H))
-    speaker_icon(d, (W - 136, 25, CONTROL_H, CONTROL_H), False, TEXT)
+    launcher_header(d, W, tall=False)
     tiles = front_page_tiles(6)
     cols = [BLUE, GREEN, RED]
     for slot, (title, sub, icon) in enumerate(tiles):
@@ -1728,23 +1788,7 @@ def launcher_tall_dense():
     w, h = 320, 480
     im = Image.new("RGB", (w, h), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, w - 1, 77], fill=SURFACE)
-    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
-    d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
-           font=F1, fill=MUTED)
-    d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
-    d.text((8, 36), "Ava", font=F2, fill=TEXT)
-    d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
-    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
-    batt_w = battery_width(72)
-    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
-    battery_badge(d, bx + 40 + batt_w // 2, 60)
-    gear_icon(d, (w - 32, 48, 24, 24), TEXT)
-    lock_icon(d, (w - 64, 51, CONTROL_H, CONTROL_H))
-    # Directly above the padlock, taking its x. It sat at w-96 for a release,
-    # which is neither beside nor above anything -- an icon floating in an
-    # empty row, reported off both portrait panels. Mirrors
-    # LauncherLayout::speakerRect(), which derives this from lockRect().
-    speaker_icon(d, (w - 64, 32, CONTROL_H, CONTROL_H), False, TEXT)
+    launcher_header(d, w, tall=True)
 
     gap, header_h, footer_h, cols, rows_n = 8, 78, 32, 3, 3
     tile_w = (w - gap * (cols + 1)) // cols
@@ -1777,25 +1821,7 @@ def launcher_tall_dense():
 def launcher_tall():
     im = Image.new("RGB", (240, 320), BG); d = ImageDraw.Draw(im)
     d.rectangle([0, 0, 239, 77], fill=SURFACE)
-    # Title left, copyright right, sharing the top row. See AppRuntimeLauncher.
-    _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
-    d.text((232 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
-           font=F1, fill=MUTED)
-    d.line([(8, 30), (232, 30)], fill=shade(SURFACE, 150))
-    d.text((8, 36), "Ava", font=F2, fill=TEXT)
-    d.text((8, 53), "12:41 AM", font=F2, fill=TEXT)
-    bx = int(8 + d.textlength("12:41 AM", font=F2) + 10)
-    batt_w = battery_width(72)
-    batt_left = bx + 40
-    sync_badge(d, bx + 6, 60); wifi_badge(d, bx + 26, 60)
-    battery_badge(d, batt_left + batt_w // 2, 60)
-    ble_badge(d, batt_left + batt_w + 11, 60)
-    gear_icon(d, (208, 48, 24, 24), TEXT)
-    lock_icon(d, (176, 51, CONTROL_H, CONTROL_H))
-    # Profile-name row, because at 240px the badge row is full by x=155 -- but
-    # in the padlock's column, not floating in the middle of it. Mirrors
-    # LauncherLayout::speakerRect().
-    speaker_icon(d, (176, 32, CONTROL_H, CONTROL_H), False, TEXT)
+    launcher_header(d, 240, tall=True, beacon=True)
     _fills = (BLUE, GREEN, RED, BLUE)
     tiles = [(t, sub, ic, _fills[i % 4])
              for i, (t, sub, ic) in enumerate(front_page_tiles(4))]
@@ -2150,7 +2176,7 @@ def network_time():
     button(d, (166, 64, 140, 30), "Forget")
     d.text((14, 102), "TIME", font=F1, fill=MUTED)
     d.line([(48, 109), (306, 109)], fill=OUTLINE)
-    stamp = "Tue Aug 11 2026  12:41 AM"
+    stamp = "Tue Aug 11 2026  12:41A"
     d.text((14, 114), stamp, font=F2, fill=TEXT)
     sync_badge(d, int(14 + d.textlength(stamp, font=F2) + 12), 122, True)
     button(d, (14, 132, 140, 30), "Auto time: On", GREEN, WHITE)
@@ -2250,7 +2276,7 @@ def screensaver():
 
 
 # ---- Go --------------------------------------------------------------------
-# Geometry from src/games/GoDraw.cpp: BX, BY, STEP and MARGIN for the 9x9
+# Geometry from src/games/GoDrawArt.h and GoLayout.cpp: BX, BY, STEP and MARGIN for the 9x9
 # board, and the panel rectangles derived from the board's box.
 GO_BX, GO_BY, GO_STEP, GO_MARGIN = 5, 34, 23, 9
 GO_BOX = 8 * GO_STEP + 2 * GO_MARGIN
@@ -2289,7 +2315,7 @@ def go(played=False):
 
     The board is drawn as the device draws it -- wood, the grid, the five
     star points, stones at 46% of a step -- and every rectangle in the panel
-    is the one GoDraw.cpp derives from the board's box."""
+    is the one GoLayout.cpp derives from the board's box."""
     im, d = blank(); topbar(d, "Go")
     d.rectangle([GO_BX, GO_BY, GO_BX + GO_BOX - 1, GO_BY + GO_BOX - 1], fill=GO_WOOD)
     for i in range(9):
@@ -2353,9 +2379,13 @@ def go_lobby():
         d.text((x + 7, 48), value, font=F2, fill=TEXT)
         d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
     rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
-            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", SURFACE, TEXT)]
+            ("A4F2 invites you: Capture 1", SUCCESS, (0, 0, 0)),
+            ("B1C3 is asking 7E09", None, None)]
     for r, (label, fill, ink) in enumerate(rows):
-        button(d, (8, 70 + r * 36, W - 16, 31), label, fill=fill, tc=ink)
+        if fill is None:
+            plain_row(d, (8, 70 + r * 36, W - 16, 31), label)
+        else:
+            button(d, (8, 70 + r * 36, W - 16, 31), label, fill=fill, tc=ink)
     d.text((W // 2, H - 4), "Moves travel by Bluetooth. Anyone near hears them.",
            font=F1, fill=MUTED, anchor="ms")
     return im
@@ -2382,7 +2412,7 @@ def chess_lobby():
         d.text((x + 7, 48), value, font=F2, fill=TEXT)
         d.polygon([(x + cw - 16, 47), (x + cw - 8, 47), (x + cw - 12, 53)], fill=MUTED)
     rows = [("Pass and play", PANEL, TEXT), ("Play the computer", PANEL, TEXT),
-            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3 nearby", PANEL, TEXT)]
+            ("A4F2 invites you", SUCCESS, (0, 0, 0)), ("Play B1C3", SURFACE, TEXT)]
     for r, (label, fill, ink) in enumerate(rows):
         button(d, (10, 70 + r * 36, W - 20, 30), label, fill=fill, tc=ink)
     d.text((W // 2, H - 6), "Moves travel by Bluetooth. Anyone near hears them.",
@@ -2446,43 +2476,38 @@ def tictactoe(marks=None, status="X turn"):
     return im
 
 
-def memory(faces=None, pairs="Pairs 3/12"):
+def memory(faces=None, pairs="Moves 3"):
+    # The full board (levels 6-8), which keeps a best; below it the second
+    # line names the level instead. Header text as MemoryGame draws it.
     im, d = blank(); topbar(d, "Memory Match")
-    d.text((10, 36), pairs, font=F2, fill=TEXT)
-    cols, rows, cell, gap = 6, 4, 44, 4
+    d.text((8, 32), pairs, font=F2, fill=TEXT)
+    d.text((8, 48), "Best 18", font=F1, fill=TEXT)
+    # MemoryGame::cardRect() for the 4x6 board: 41px cells, 4px gaps,
+    # centred below GRID_TOP (the top bar plus 30).
+    cols, rows, cell, gap = 6, 4, 41, 4
     gw = cols * cell + (cols - 1) * gap
     gh = rows * cell + (rows - 1) * gap
-    sx, sy = (W - gw) // 2, 58 + (H - 58 - gh) // 2
+    sx, sy = (W - gw) // 2, 58 + (H - 58 - 4 - gh) // 2
     faces = {2: "A", 3: "A", 9: "F"} if faces is None else faces
     for i in range(cols * rows):
         x = sx + (i % cols) * (cell + gap)
         y = sy + (i // cols) * (cell + gap)
         if i in faces:
-            d.rounded_rectangle([x, y, x + cell, y + cell], 4, fill=(255, 246, 178), outline=OUTLINE)
-            d.text((x + cell / 2 - 4, y + cell / 2 - 7), faces[i], font=F2, fill=(40, 40, 46))
+            # CARD_FRONT 0x39EF, with the ink Ui::onFill() picks against it.
+            d.rounded_rectangle([x, y, x + cell, y + cell], 4, fill=(57, 61, 123), outline=OUTLINE)
+            d.text((x + cell / 2 - 4, y + cell / 2 - 7), faces[i], font=F2, fill=(255, 255, 255))
         else:
             d.rounded_rectangle([x, y, x + cell, y + cell], 4, fill=BLUE, outline=OUTLINE)
-            d.ellipse([x + 16, y + 16, x + cell - 16, y + cell - 16], outline=(150, 200, 240))
-    return im
-
-
-def _quiz4(title, eq, prompt, answers, correct, ay, ah, eq_y=96):
-    im, d = blank(); topbar(d, title)
-    d.text((10, 36), "Score 4/6", font=F2, fill=TEXT)
-    d.text((W / 2 - d.textlength(eq, font=F4) / 2, eq_y), eq, font=F4, fill=TEXT)
-    d.text((W / 2 - d.textlength(prompt, font=F2) / 2, 129), prompt, font=F2, fill=MUTED)
-    for i, a in enumerate(answers):
-        r = (18 + (i % 2) * 152, ay + (i // 2) * (ah + 8), 132, ah)
-        ok = (a == correct)
-        button(d, r, a, SUCCESS if ok else PANEL, (0, 0, 0) if ok else TEXT, F4)
+            d.ellipse([x + 15, y + 15, x + cell - 15, y + cell - 15], outline=(150, 200, 240))
     return im
 
 
 # ----------------------------------------------- the four-button quiz screens
 #
-# Math, Space and Roman are one layout with three question panels, so the
-# geometry lives here once and each screen passes what differs. The rects are
-# the ones in the C++ -- MathGame's PANEL_*/BUTTON_TOP block and SpaceGame's
+# Math, Multiplication, Space and Roman are one layout with three question
+# panels, so the geometry lives here once and each screen passes what differs.
+# The rects are the ones in the C++ -- MathGame's PANEL_*/BUTTON_TOP block
+# (Multiplication's MultiplicationCourse.h Screen block is the same) and SpaceGame's
 # questionRect()/noteRect() -- because a mock-up that approximates a rectangle
 # is a mock-up that cannot show you the rectangle is wrong.
 #
@@ -2543,28 +2568,97 @@ def _quiz_panel_text(d, rect, text, f, line_h):
         ty += line_h
 
 
-def math_game():
-    """Math: the plain sum. Panel is PANEL_Y..PANEL_Y+PANEL_H, prompt below it."""
+def _quiz_strip(d, text, fill):
+    """The strip between the panel and the buttons, PROMPT_Y..BUTTON_TOP, one
+    line of font 2 centred in it. Before an answer it is the prompt in the
+    warning colour -- or, on the first question of a level just reached, that
+    level's name in the same colour; after one it is the verdict."""
+    d.text((W / 2 - d.textlength(text, font=F2) / 2, 128), text, font=F2, fill=fill)
+
+
+# What MathGame draws in the strip once the right button has been pressed.
+QUIZ_RIGHT = "Correct - tap for next"
+
+
+def math_game(eq="? + 29 = 96", answers=("57", "125", "67", "77"), correct="67",
+              header=("Level 12", "Correct 6  1:12", "Streak 3", "Best 9 / 2:05"),
+              prompt="Tap the answer", answered=False):
+    """Math: the plain sum. Panel is PANEL_Y..PANEL_Y+PANEL_H, prompt below it.
+
+    The still is level 12, a missing number with the gap in front, and its
+    wrong buttons are that level's own mistakes: 125 is the sign shown done
+    (96 + 29), 57 and 77 are ten either side. `prompt` is the strip before an
+    answer -- "Level 4: Cross ten" on the first question of a level just
+    reached -- and `answered` puts the verdict there instead."""
     im, d = blank(); topbar(d, "Math")
-    _quiz_header(d, "Level 2", "Correct 6  1:12", "Streak 3", "Best 9 / 2:05")
+    _quiz_header(d, *header)
     d.rounded_rectangle([26, 70, 294, 126], 8, fill=PANEL, outline=OUTLINE)
-    eq = "12 - 7 = ?"
     d.text((W / 2 - d.textlength(eq, font=F4) / 2, 88), eq, font=F4, fill=TEXT)
-    p = "Tap the answer"
-    d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
-    _quiz_buttons(d, ["5", "4", "6", "9"], "5")
+    _quiz_strip(d, QUIZ_RIGHT if answered else prompt, SUCCESS if answered else WARN)
+    _quiz_buttons(d, list(answers), correct)
     return im
 
 
 def math_words(question="Nia has 21 shells and gives 8 away. How many are left?",
-               answers=("13", "11", "29", "12"), correct="13"):
-    """Math: the same sum as a word problem, wrapped into the same panel."""
+               answers=("23", "13", "27", "12"), correct="13",
+               header=("Level 7", "Correct 11  2:40", "Streak 4", "Best 14 / 3:02"),
+               answered=False):
+    """Math: the same sum as a word problem, wrapped into the same panel.
+
+    Stories begin at level 4. This one is level 7, ones taken across a ten,
+    and 27 is the mistake that level always offers: the smaller digit taken
+    from the larger (8 - 1) and the borrowed ten never paid back."""
     im, d = blank(); topbar(d, "Math")
-    _quiz_header(d, "Level 3", "Correct 11  2:40", "Streak 4", "Best 14 / 3:02")
+    _quiz_header(d, *header)
     _quiz_panel_text(d, (26, 70, 268, 56), question, F2, 18)
-    p = "Tap the answer"
-    d.text((W / 2 - d.textlength(p, font=F2) / 2, 128), p, font=F2, fill=WARN)
+    _quiz_strip(d, QUIZ_RIGHT if answered else "Tap the answer", SUCCESS if answered else WARN)
     _quiz_buttons(d, list(answers), correct)
+    return im
+
+
+def notification(d, text, w=W, h=H):
+    """Ui::drawNotification: the strip along the bottom edge of the panel,
+    NOTIFICATION_HEIGHT (26) tall and the panel's full width, with its
+    hairline on the edge that meets the screen and a bell at its left end.
+    Black ink whatever the theme: the fill is the warning colour."""
+    y = h - 26
+    ink = (0, 0, 0)
+    d.rectangle([0, y, w - 1, h - 1], fill=WARN)
+    d.line([(0, y), (w, y)], fill=shade(WARN, 60))
+    cx, cy = 16, y + 13
+    d.ellipse([cx - 5, cy - 6, cx + 5, cy + 4], fill=ink)
+    d.rectangle([cx - 6, cy + 2, cx + 6, cy + 3], fill=ink)
+    d.rectangle([cx - 1, cy + 5, cx + 1, cy + 6], fill=ink)
+    d.text((30, cy - 8), fitted_text(d, text, w - 40, F2), font=F2, fill=ink)
+
+
+def notice():
+    """A notice, on Math. It lies along the bottom, over the lower half of the
+    bottom row of answers and over none of the top bar, which is the point of
+    it being there. The words are the battery warning's own."""
+    im = math_game()
+    notification(ImageDraw.Draw(im), "Battery low - time to charge")
+    return im
+
+
+def carry_on(title="Math"):
+    """The runtime's question on the way back into a game that was left.
+
+    The geometry is CarryOnScreen.cpp's layoutFor() on the 320x240 game canvas:
+    210 rows under the top bar, the headline a sixth of the way down them, the
+    sentence 4 under the headline's 30, and the two buttons 8 below the middle,
+    each (320 - 2 * 18 - 20) / 2 wide and 46 high. Carry on is the filled one."""
+    im, d = blank(); topbar(d, title)
+    below = H - 30
+    head_y = 30 + below // 6
+    button_y = 30 + below // 2 + 8
+    bw = (W - 2 * 18 - 20) // 2
+    head = "Carry on?"
+    d.text((W / 2 - d.textlength(head, font=F4) / 2, head_y + 5), head, font=F4, fill=TEXT)
+    line = "Your game is where you left it."
+    d.text((W / 2 - d.textlength(line, font=F2) / 2, head_y + 34), line, font=F2, fill=MUTED)
+    button(d, (18, button_y, bw, 46), "Carry on", fill=ACCENT, tc=on_fill(ACCENT))
+    button(d, (18 + bw + 20, button_y, bw, 46), "New game")
     return im
 
 
@@ -2672,6 +2766,7 @@ def _regular(n, xs=100, ys=100, flat_bottom=True):
              math.sin(start + i * 2 * math.pi / n) * ys) for i in range(n)]
 
 
+SHAPE_POLYS["kite"] = [(0, -100), (62, -30), (0, 100), (-62, -30)]
 SHAPE_POLYS["pentagon"] = _regular(5)
 SHAPE_POLYS["hexagon"] = _regular(6)
 SHAPE_POLYS["heptagon"] = _regular(7)
@@ -2703,7 +2798,7 @@ def _shape_screen(level, names, order, matched, stats):
     head = "Tap a shape, then its matching outline"
     d.text((W / 2 - d.textlength(head, font=F2) / 2, 34), head, font=F2, fill=TEXT)
     d.text((W - 8 - d.textlength(stats, font=F1), 50), stats, font=F1, fill=TEXT)
-    tight = level >= 4
+    tight = level == 6   # Concave or convex: ShapesCourse::LEVELS
     cols = [(225, 60, 80), (42, 117, 213), (39, 157, 112), (244, 188, 48)]
     for i, (label, shape, concave) in enumerate(names):
         r = (16, 58 + i * 43, 136, 38)
@@ -2740,17 +2835,50 @@ def shapes():
 
 
 def shapes_concave():
-    """Shape & Color, level 4: two concave, two convex, and the word on the row."""
+    """Shape & Color, level 6: two concave, two convex, and the word on the row.
+
+    The shapes are from ShapesCourse.h's level 6 pool, four of each kind."""
     return _shape_screen(
-        4,
+        6,
         [("cross", "cross", True), ("hexagon", "hexagon", False),
-         ("pinwheel", "pinwheel", True), ("diamond", "diamond", False)],
-        [2, 3, 0, 1], set(), "Level 4   Taps 0   Best 8")
+         ("pinwheel", "pinwheel", True), ("kite", "kite", False)],
+        [2, 3, 0, 1], set(), "Level 6   Taps 0   Best 8")
 
 
 
-def multiply():
-    return _quiz4("Multiplication", "6 x 7 = ?", "Tap the product", ["42", "36", "48", "40"], "42", 144, 38)
+# MultiplicationCourse.h's Screen block: the operator stands at a fixed x,
+# the left number right-aligned OP_GAP before it and the rest left-aligned
+# OP_GAP after, so the sign does not move from one question to the next.
+MULT_OP_X, MULT_OP_GAP = 142, 12
+MULT_DIVIDE_BAR_STEP = 3        # MultiplicationGame.cpp: the bar, three times
+
+
+def multiply(left="56", op="divide", right="8 = ?",
+             answers=("6", "7", "9", "8"), correct="7",
+             header=("Level 10", "Score 6", "Streak 3", "Best 9"),
+             prompt="Tap the answer", answered=False):
+    """Multiplication: one question, in the same panel and strip as Math.
+
+    The still is level 10, a division. Font 4 has no division sign, so the
+    game draws its colon and lays its minus over it three times, 3px apart;
+    this does the same with this file's font, which is not the panel's, so
+    the sign here is a likeness and not evidence. `op` is "times" for a
+    product or a missing number ("? x 7 = 56")."""
+    im, d = blank(); topbar(d, "Multiplication")
+    _quiz_header(d, *header)
+    d.rounded_rectangle([26, 70, 294, 126], 8, fill=PANEL, outline=OUTLINE)
+    y = 88
+    d.text((MULT_OP_X - MULT_OP_GAP - d.textlength(left, font=F4), y), left, font=F4, fill=TEXT)
+    d.text((MULT_OP_X + MULT_OP_GAP, y), right, font=F4, fill=TEXT)
+    if op == "times":
+        d.text((MULT_OP_X - d.textlength("x", font=F4) / 2, y), "x", font=F4, fill=TEXT)
+    else:
+        d.text((MULT_OP_X - d.textlength(":", font=F4) / 2, y), ":", font=F4, fill=TEXT)
+        for dx in (-MULT_DIVIDE_BAR_STEP, 0, MULT_DIVIDE_BAR_STEP):
+            d.text((MULT_OP_X + dx - d.textlength("-", font=F4) / 2, y), "-", font=F4, fill=TEXT)
+    _quiz_strip(d, QUIZ_RIGHT if answered else prompt, SUCCESS if answered else WARN)
+    _quiz_buttons(d, list(answers), correct)
+    return im
 
 
 def time_game(answered=False):
@@ -2789,7 +2917,9 @@ def time_game(answered=False):
     q = "Which time is shown?"
     d.text((W / 2 - d.textlength(q, font=F2) / 2, 136), q, font=F2, fill=TEXT)
 
-    for i, a in enumerate(["6:00", "5:00", "2:00", "4:00"]):
+    # Level 1's options: the hour either side, and the hands read the wrong
+    # way round (TimeCourse::swapped(): 6:00 so read is 12:30).
+    for i, a in enumerate(["6:00", "12:30", "7:00", "5:00"]):
         r2 = (18 + (i % 2) * 152, 152 + (i // 2) * 40, 132, 34)
         ok = answered and a == "6:00"
         button(d, r2, a, SUCCESS if ok else PANEL, (0, 0, 0) if ok else TEXT)
@@ -2837,22 +2967,93 @@ def microku(grid=None, selected=None):
     return im
 
 
-def counting():
+# CountingGame.cpp's screen, top to bottom. The panel ends two rows above the
+# strip and the strip two rows above the buttons, both derived there from the
+# button row, and every picture is centred on the panel's middle.
+CNT_PROMPT_CY, CNT_PROMPT_W = 45, W - 32
+CNT_PANEL = (18, 76, 284, 90)
+CNT_STRIP_CY = 177
+CNT_CX, CNT_CY = 18 + 284 // 2, 76 + 90 // 2
+# Its five dot colours, RGB565 as the panel expands them; and the ring round
+# a dot is TFT_DARKGREY, a constant there rather than a theme role.
+CNT_DOTS_565 = (0xE8E4, 0x24BD, 0x05D1, 0xFEC0, 0xAA9F)
+CNT_DOT_EDGE = (123, 125, 123)
+
+
+def _cnt_dot(d, x, y, r, fill):
+    d.ellipse([x - r, y - r, x + r, y + r], fill=fill, outline=CNT_DOT_EDGE)
+
+
+def _cnt_picture(d, picture, shown):
+    """drawPicture(): the row, the ten-frame, the twenty-frame and the rods.
+    Empty slots of a frame are rings in the outline colour, and each five is
+    one colour, so seven on a ten-frame also reads as three short of ten."""
+    dots = [_palette_rgb(v) for v in CNT_DOTS_565]
+    if picture == "row":
+        x0 = CNT_CX - (shown - 1) * 39 // 2
+        for i in range(shown):
+            _cnt_dot(d, x0 + i * 39, CNT_CY, 10, dots[i % 5])
+    elif picture in ("fives", "tens"):
+        cols, pitch, gap, pitch_y, r = (5, 39, 0, 30, 10) if picture == "fives" else (10, 24, 10, 26, 9)
+        width = (cols - 1) * pitch + (gap if cols > 5 else 0)
+        x0, y0 = CNT_CX - width // 2, CNT_CY - pitch_y // 2
+        for i in range(cols * 2):
+            col = i % cols
+            x = x0 + col * pitch + (gap if col >= 5 else 0)
+            y = y0 + (i // cols) * pitch_y
+            if i < shown:
+                _cnt_dot(d, x, y, r, dots[(i // 5) % 5])
+            else:
+                d.ellipse([x - r, y - r, x + r, y + r], outline=OUTLINE)
+    elif picture == "rods":
+        tens, ones = divmod(shown, 10)
+        rod_w, rod_h, rod_pitch, dot_pitch = 12, 10 * 7 + 4, 16, 7
+        ones_cols, ones_pitch, ones_gap, ones_r = 3, 14, 18, 5
+        width = (tens - 1) * rod_pitch + rod_w
+        if ones:
+            width += ones_gap + (min(ones, ones_cols) - 1) * ones_pitch + 2 * ones_r
+        x0, top = CNT_CX - width // 2, CNT_CY - rod_h // 2
+        for t in range(tens):
+            x = x0 + t * rod_pitch
+            d.rounded_rectangle([x, top, x + rod_w - 1, top + rod_h - 1], 3, outline=OUTLINE)
+            for k in range(10):
+                cy = top + 2 + dot_pitch // 2 + k * dot_pitch
+                d.ellipse([x + rod_w // 2 - 3, cy - 3, x + rod_w // 2 + 3, cy + 3], fill=dots[1])
+        rows = (ones + ones_cols - 1) // ones_cols
+        ox = x0 + (tens - 1) * rod_pitch + rod_w + ones_gap + ones_r
+        oy = CNT_CY - (rows - 1) * ones_pitch // 2
+        for i in range(ones):
+            _cnt_dot(d, ox + (i % ones_cols) * ones_pitch, oy + (i // ones_cols) * ones_pitch,
+                     ones_r, dots[0])
+
+
+def counting(picture="rods", shown=43, ask="How many dots?",
+             answers=("34", "42", "43", "53"), correct="43",
+             stats="Score 9/11   Streak 4   Best 7", level_line=None, answered=False):
+    """Counting: the question line, the stats, one picture, four buttons in a row.
+
+    The still is level 6, tens and ones: four rods of ten and three loose
+    dots, and its wrong buttons are that level's mistakes -- the digits the
+    wrong way round, one ten out, one out. `level_line` is the first
+    question of a level just reached: the level's name takes the question
+    line in the accent colour, and the question moves to the strip under the
+    panel until it is answered."""
     im, d = blank(); topbar(d, "Counting")
-    q = "How many objects?"
-    d.text((W / 2 - d.textlength(q, font=F4) / 2, 32), q, font=F4, fill=TEXT)
-    st = "Score 3/5   Streak 2   Best 5"
-    d.text((W / 2 - d.textlength(st, font=F1) / 2, 60), st, font=F1, fill=MUTED)
-    d.rounded_rectangle([18, 76, 302, 174], 8, fill=PANEL, outline=OUTLINE)
-    import random
-    random.seed(4)
-    for i in range(7):
-        cx = 18 + 24 + (i % 7) * 39
-        cy = 76 + 24 + (i // 7) * 30
-        d.ellipse([cx - 10, cy - 10, cx + 10, cy + 10], fill=(255, 170, 90), outline=(120, 120, 128))
-    for i, v in enumerate(["6", "7", "8", "5"]):
+    top = level_line or ask
+    f = F4 if d.textlength(top, font=F4) <= CNT_PROMPT_W else F2
+    d.text((W / 2 - d.textlength(top, font=f) / 2, CNT_PROMPT_CY - (13 if f is F4 else 8)),
+           top, font=f, fill=ACCENT if level_line else TEXT)
+    d.text((W / 2 - d.textlength(stats, font=F1) / 2, 60), stats, font=F1, fill=MUTED)
+    x, y, w, h = CNT_PANEL
+    d.rounded_rectangle([x, y, x + w, y + h], 8, fill=PANEL, outline=OUTLINE)
+    _cnt_picture(d, picture, shown)
+    strip, ink = (QUIZ_RIGHT, SUCCESS) if answered else ((ask, TEXT) if level_line else ("", TEXT))
+    if strip:
+        d.text((W / 2 - d.textlength(strip, font=F2) / 2, CNT_STRIP_CY - 8), strip, font=F2, fill=ink)
+    for i, v in enumerate(answers):
+        ok = v == correct
         button(d, (15 + i * 76, 188, 62, 40), v,
-               SUCCESS if v == "7" else PANEL, (0, 0, 0) if v == "7" else TEXT, F4)
+               SUCCESS if ok else BLUE, (0, 0, 0) if ok else WHITE, F4)
     return im
 
 
@@ -2899,9 +3100,11 @@ def money():
     coins = [25, 10, 5, 1, 1]         # 42c, the highlighted answer
     cols = pw // 34
     for i, v in enumerate(coins):
-        draw_coin(d, px + 18 + (i % cols) * 34, py + 18 + (i // cols) * 30, v)
+        draw_coin(d, px + 18 + (i % cols) * 34, py + 14 + (i // cols) * 30, v)
 
-    for i, a in enumerate(["42c", "37c", "45c", "40c"]):
+    # MoneyCourse's slips for 42c: the quarter missed (17c), a cent counted
+    # twice (43c), every coin counted as one (5c).
+    for i, a in enumerate(["42c", "17c", "43c", "5c"]):
         r = (18 + (i % 2) * 152, 160 + (i // 2) * 36, 132, 30)   # optionRect
         button(d, r, a,
                SUCCESS if a == "42c" else BLUE, (0, 0, 0) if a == "42c" else TEXT)
@@ -2909,15 +3112,29 @@ def money():
 
 
 def fractions():
+    """Fractions, level 1: name the pie. Geometry from FractionGame.cpp: the
+    header, the line on y=70 in font 1, the pie at (160, 120) radius 38 with
+    its slices from twelve o'clock, buttons at (18 + col*152, 164 + row*34,
+    132, 30). The wrong answers are FractionsCourse's for 3/4: the empty
+    slice counted (1/4), one slice out (2/4), one slice too many cut (3/5)."""
     im, d = blank(); topbar(d, "Fractions")
+    d.text((8, 35), "Level 1", font=F2, fill=TEXT)
+    d.text((8, 51), "Score 3", font=F1, fill=TEXT)
+    for txt, y, f in (("Streak 3", 35, F2), ("Best 5", 51, F1)):
+        d.text((W - 8 - d.textlength(txt, font=f), y), txt, font=f, fill=TEXT)
     q = "Pick the matching fraction"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
-    cx, cy, r = W // 2, 84, 30
-    d.pieslice([cx - r, cy - r, cx + r, cy + r], -90, 90, fill=(255, 202, 84), outline=OUTLINE)
-    d.pieslice([cx - r, cy - r, cx + r, cy + r], 90, 270, fill=WHITE, outline=OUTLINE)
-    for i, a in enumerate(["1/2", "1/3", "2/3", "1/4"]):
+    d.text((W / 2 - d.textlength(q, font=F1) / 2, 66), q, font=F1, fill=MUTED)
+    cx, cy, r = W // 2, 120, 38
+    d.ellipse([cx - r - 3, cy - r - 3, cx + r + 3, cy + r + 3], fill=SURFACE)
+    d.pieslice([cx - r, cy - r, cx + r, cy + r], -90, 180, fill=(255, 216, 0), outline=(8, 8, 24))
+    d.pieslice([cx - r, cy - r, cx + r, cy + r], 180, 270, fill=(56, 60, 120), outline=(8, 8, 24))
+    for a in (-90, 0, 90, 180):
+        import math
+        d.line([(cx, cy), (cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a)))],
+               fill=(8, 8, 24))
+    for i, a in enumerate(["3/4", "1/4", "2/4", "3/5"]):
         rr = (18 + (i % 2) * 152, 164 + (i // 2) * 34, 132, 30)
-        button(d, rr, a, SUCCESS if a == "1/2" else PANEL, (0, 0, 0) if a == "1/2" else TEXT)
+        button(d, rr, a, SUCCESS if a == "3/4" else BLUE, (0, 0, 0) if a == "3/4" else WHITE)
     return im
 
 
@@ -2988,17 +3205,39 @@ def sorting(done=((0, 1),), nxt="Next: 4"):
     return im
 
 
-def colormix():
+def colormix(answered=True):
+    """Color Mix, level 1: red and yellow.
+
+    Geometry from ColorMixGame.cpp: the header on y=35, the line on
+    (10, 52, 300, 18), swatches at (56, 78, 60, 44) and (204, 78, 60, 44)
+    with their names 12px under, buttons at (26 + col*148, 142 + row*44,
+    120, 34) filled with their own colour, and once answered a ring round
+    the right one. Fills are ColorMixCourse's SWATCHES. The wrong buttons
+    are mixes that share a colour with this one, as the course builds them.
+    """
+    sw = {"red": (225, 30, 30), "yellow": (250, 220, 30), "orange": (250, 140, 20),
+          "pink": (250, 170, 190), "green": (40, 170, 60), "purple": (130, 40, 170)}
     im, d = blank(); topbar(d, "Color Mix")
-    q = "What do you get?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 40), q, font=F2, fill=MUTED)
-    d.ellipse([84, 66, 138, 120], fill=(230, 60, 60))
-    d.ellipse([182, 66, 236, 120], fill=(240, 210, 60))
-    d.text((153, 84), "+", font=F4, fill=TEXT)
-    for i, lab in enumerate(["orange", "purple", "green", "brown"]):
-        r = (26 + (i % 2) * 148, 142 + (i // 2) * 44, 120, 34)
-        button(d, r, lab, SUCCESS if lab == "orange" else PANEL,
-               (0, 0, 0) if lab == "orange" else TEXT)
+    d.text((10, 35), "Level 1", font=F2, fill=TEXT)
+    tally = "3/4  Best 3" if answered else "2/3  Best 3"
+    d.text((W - 8 - d.textlength(tally, font=F2), 35), tally, font=F2, fill=TEXT)
+    q = "Correct!" if answered else "What do you get?"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 53), q, font=F2,
+           fill=SUCCESS if answered else TEXT)
+    for (x, name) in ((56, "red"), (204, "yellow")):
+        d.rounded_rectangle([x, 78, x + 59, 121], 6, fill=sw[name], outline=OUTLINE)
+        d.text((x + 30 - d.textlength(name, font=F1) / 2, 130), name, font=F1, fill=TEXT)
+    d.text((W / 2 - d.textlength("+", font=F4) / 2, 88), "+", font=F4, fill=TEXT)
+    for i, lab in enumerate(["orange", "pink", "green", "purple"]):
+        x, y = 26 + (i % 2) * 148, 142 + (i // 2) * 44
+        fill = sw[lab]
+        ink = (0, 0, 0) if sum(fill) > 380 else (255, 255, 255)
+        d.rounded_rectangle([x, y, x + 119, y + 33], 6, fill=fill, outline=OUTLINE)
+        d.text((x + 60 - d.textlength(lab, font=F2) / 2, y + 9), lab, font=F2, fill=ink)
+        if answered and lab == "orange":
+            for k in (2, 3):
+                d.rounded_rectangle([x - k, y - k, x + 119 + k, y + 33 + k], 6 + k,
+                                    outline=SUCCESS)
     return im
 
 
@@ -3021,36 +3260,57 @@ def slide(layout=None, moves=14):
     return im
 
 
-def oddone(picked=False, score="Score 5/7"):
+def oddone(picked=False, score="Score 5"):
+    """Odd One Out, level 7 (Ignore the rest): the circles come in two
+    colours, split four and five so neither is alone, and the odd card is
+    the one square. Geometry from OddOneOutGame.cpp: nine cards at
+    (36 + col*86, 70 + row*50, 66, 40), radius 13, the header on y=35, the
+    line at (8, 52, 304, 16) in font 1, and once answered a ring 2-3px
+    outside the odd card."""
     im, d = blank(); topbar(d, "Odd One Out")
+    d.text((10, 35), "Level 7  " + score, font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("Best 5", font=F2), 35), "Best 5", font=F2, fill=TEXT)
     q = "Tap the one that is different"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 40), q, font=F2, fill=MUTED)
-    for i in range(6):
+    d.text((W / 2 - d.textlength(q, font=F1) / 2, 56), q, font=F1, fill=MUTED)
+    blue, green = (90, 178, 255), (50, 255, 128)
+    second = {0, 2, 5, 7}
+    for i in range(9):
         r = (36 + (i % 3) * 86, 70 + (i // 3) * 50, 66, 40)
-        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 5, fill=SURFACE,
-                            outline=SUCCESS if picked and i == 4 else OUTLINE,
-                            width=3 if picked and i == 4 else 1)
+        d.rounded_rectangle([r[0], r[1], r[0] + r[2], r[1] + r[3]], 6, fill=SURFACE,
+                            outline=OUTLINE)
+        if picked and i == 4:
+            for k in (2, 3):
+                d.rounded_rectangle([r[0] - k, r[1] - k, r[0] + r[2] + k, r[1] + r[3] + k],
+                                    6 + k, outline=SUCCESS)
         cx, cy = r[0] + r[2] // 2, r[1] + r[3] // 2
+        col = green if i in second else blue
         if i == 4:
-            d.rectangle([cx - 12, cy - 12, cx + 12, cy + 12], fill=(255, 246, 178))
+            d.rectangle([cx - 12, cy - 12, cx + 12, cy + 12], fill=col, outline=OUTLINE)
         else:
-            d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(110, 190, 255))
-    d.text((W / 2 - d.textlength(score, font=F2) / 2, 186), score, font=F2, fill=TEXT)
+            d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=col, outline=OUTLINE)
     return im
 
 
-def shapearith():
+def shapearith(answered=True):
+    """ObjectAddGame at level 2, a take-away just answered. Geometry from the
+    game: panels (8|180, 50, 132, 110), shapes in rows of five at x + 18 +
+    col * 24, y + 50 + row * 26, radius 10; the strip under the panels at 166;
+    the level and the tally right-aligned in the header row."""
     im, d = blank(); topbar(d, "Shape Arith")
     d.text((8, 34), "5 take away 2 circles", font=F2, fill=TEXT)
-    d.text((W - 8 - d.textlength("3/6", font=F2), 34), "3/6", font=F2, fill=TEXT)
+    tally = "Level 2  3/6"
+    d.text((W - 8 - d.textlength(tally, font=F2), 34), tally, font=F2, fill=TEXT)
+
+    def cell(p, i):
+        return p[0] + 18 + (i % 5) * 24, p[1] + 50 + (i // 5) * 26
+
     lp = (8, 50, 132, 110)
     d.rounded_rectangle([lp[0], lp[1], lp[0] + lp[2], lp[1] + lp[3]], 6, fill=PANEL, outline=OUTLINE)
     d.text((lp[0] + lp[2] / 2 - d.textlength("left", font=F1) / 2, lp[1] + 7),
            "left", font=F1, fill=MUTED)
     for i in range(3):
-        cx = lp[0] + 18 + (i % 4) * 28
-        cy = lp[1] + 34 + (i // 4) * 32
-        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(110, 190, 255), outline=OUTLINE)
+        cx, cy = cell(lp, i)
+        d.ellipse([cx - 10, cy - 10, cx + 10, cy + 10], fill=(110, 190, 255), outline=OUTLINE)
     d.line([(148, 106), (172, 106)], fill=(249, 158, 158), width=2)
     d.polygon([(172, 106), (164, 101), (164, 111)], fill=(249, 158, 158))
     rp = (180, 50, 132, 110)
@@ -3058,62 +3318,93 @@ def shapearith():
     d.text((rp[0] + rp[2] / 2 - d.textlength("take away", font=F1) / 2, rp[1] + 7),
            "take away", font=F1, fill=MUTED)
     for i in range(2):
-        cx = rp[0] + 18 + i * 28
-        cy = rp[1] + 34
-        d.ellipse([cx - 13, cy - 13, cx + 13, cy + 13], fill=(249, 158, 158), outline=OUTLINE)
-    d.text((W / 2 - d.textlength("How many are left?", font=F1) / 2, 162),
-           "How many are left?", font=F1, fill=MUTED)
-    for i, v in enumerate(["2", "3", "4", "1"]):
+        cx, cy = cell(rp, i)
+        d.ellipse([cx - 10, cy - 10, cx + 10, cy + 10], fill=(249, 158, 158), outline=OUTLINE)
+    msg = "Correct - tap for next" if answered else "How many are left?"
+    d.text((W / 2 - d.textlength(msg, font=F1) / 2, 162), msg, font=F1,
+           fill=SUCCESS if answered else MUTED)
+    for i, v in enumerate(["2", "3", "4", "5"]):
         button(d, (15 + i * 76, 172, 62, 42), v,
                SUCCESS if v == "3" else PANEL, (0, 0, 0) if v == "3" else TEXT, F4)
     return im
 
 
 def calendar():
+    """Calendar, Days at level 2: across the join of the week.
+
+    Geometry from SequenceGame.cpp: the track buttons, the tally and the
+    level right of them, the prompt on y=70, the subject's box at
+    (60, 84, 200, 52), the tiles at (8 + col*159, 152 + row*48, 152, 40).
+    The wrong tiles are CalendarCourse's: the day on the other side, the day
+    the question starts from, and one too far.
+    """
     im, d = blank(); topbar(d, "Calendar")
     for m, lab in enumerate(["Days", "Months"]):
         r = (8 + m * 124, 32, 120, 26)
         button(d, r, lab, BLUE if m == 0 else PANEL, WHITE if m == 0 else TEXT)
-    q = "What comes after Wednesday?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 96), q, font=F2, fill=TEXT)
-    for i, day in enumerate(["Thursday", "Tuesday", "Friday", "Monday"]):
+    d.text((W - 8 - d.textlength("4/5", font=F2), 33), "4/5", font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("Level 2", font=F1), 50), "Level 2", font=F1, fill=TEXT)
+    q = "What comes AFTER:"
+    d.text((W / 2 - d.textlength(q, font=F2) / 2, 62), q, font=F2, fill=TEXT)
+    d.rounded_rectangle([60, 84, 259, 135], 8, fill=SURFACE, outline=BLUE)
+    d.text((W / 2 - d.textlength("Sunday", font=F4) / 2, 97), "Sunday", font=F4, fill=TEXT)
+    for i, day in enumerate(["Saturday", "Monday", "Sunday", "Tuesday"]):
         r = (8 + (i % 2) * 159, 152 + (i // 2) * 48, 152, 40)
-        button(d, r, day, SUCCESS if day == "Thursday" else PANEL,
-               (0, 0, 0) if day == "Thursday" else TEXT)
+        button(d, r, day, SUCCESS if day == "Monday" else PANEL,
+               (0, 0, 0) if day == "Monday" else TEXT)
     return im
 
 
-def numberline():
+def numberline(answered=True):
+    """Number Line, level 2: the question first, then the frog checks it.
+
+    Geometry from NumberLineGame.cpp: header at y=34, the question centred on
+    y=62 in font 4, the note on y=90, the line at y=162 from x=22 over 276px,
+    the frog 14px above it, buttons at (14 + i*74, 194, 64, 38). The options
+    are NumberLineCourse's for 6 + 3: the start counted as a hop (8), the
+    frog sent the wrong way and the hop count read off (both 3), one past.
+    """
     im, d = blank(); topbar(d, "Number Line")
-    d.text((8, 34), "3 + 4 = ?", font=F4, fill=TEXT)
-    d.text((W - 8 - d.textlength("2/5", font=F2), 38), "2/5", font=F2, fill=TEXT)
-    y = 130
-    x0, x1 = 24, 296
-    d.line([(x0, y), (x1, y)], fill=TEXT, width=2)
+    d.text((8, 34), "Level 2", font=F2, fill=TEXT)
+    d.text((W - 8 - d.textlength("4/5", font=F2), 34), "4/5", font=F2, fill=TEXT)
+    q = "6 + 3 = 9" if answered else "6 + 3 = ?"
+    d.text((W / 2 - d.textlength(q, font=F4) / 2, 49), q, font=F4,
+           fill=SUCCESS if answered else TEXT)
+    note = "Correct!" if answered else "Where will the frog land?"
+    d.text((W / 2 - d.textlength(note, font=F2) / 2, 82), note, font=F2,
+           fill=SUCCESS if answered else MUTED)
+    y = 162
+
+    def nx(n):
+        return 22 + n * 276 // 10
+
+    if answered:
+        for k in range(3):
+            d.arc([nx(6 + k), y - 20, nx(7 + k), y + 20], 180, 360, fill=(255, 200, 0), width=2)
+    d.line([(18, y), (302, y)], fill=TEXT, width=1)
     for n in range(11):
-        x = x0 + n * (x1 - x0) // 10
+        x = nx(n)
         d.line([(x, y - 6), (x, y + 6)], fill=TEXT)
-        d.text((x - 3, y + 10), str(n), font=F1, fill=MUTED)
-    hx = x0 + 3 * (x1 - x0) // 10
-    d.ellipse([hx - 8, y - 8, hx + 8, y + 8], fill=(255, 246, 178), outline=(160, 140, 60))
-    for k in range(3):
-        ax = x0 + (3 + k) * (x1 - x0) // 10
-        bx = x0 + (4 + k) * (x1 - x0) // 10
-        d.arc([ax, y - 26, bx, y], 180, 360, fill=SUCCESS, width=2)
-    for i, v in enumerate(["7", "6", "8", "5"]):
+        d.text((x - d.textlength(str(n), font=F1) / 2, y + 9), str(n), font=F1, fill=TEXT)
+    at = 9 if answered else 6
+    fx, fy = nx(at), y - 14
+    d.ellipse([fx - 9, fy - 9, fx + 9, fy + 9], fill=(80, 230, 80), outline=TEXT)
+    d.text((fx - d.textlength(str(at), font=F1) / 2, fy - 4), str(at), font=F1, fill=(0, 0, 0))
+    for i, v in enumerate(["8", "9", "3", "10"]):
+        ok = answered and v == "9"
         button(d, (14 + i * 74, 194, 64, 38), v,
-               SUCCESS if v == "7" else PANEL, (0, 0, 0) if v == "7" else TEXT, F4)
+               SUCCESS if ok else (36, 132, 204), (0, 0, 0) if ok else (255, 255, 255), F4)
     return im
 
 
 def _si_tabs(d, active):
-    """Mirrors SystemInfoApp: strip at TOP_BAR_HEIGHT+2, 28px tall, W/5 each."""
-    labels = ["Board", "Memory", "Network", "BLE", "App"]
-    y, tw = 32, W // 5
+    """Mirrors SystemInfoApp: strip at TOP_BAR_HEIGHT+2, 28px tall, W/6 each."""
+    labels = ["Board", "Memory", "Network", "BLE", "Batt", "App"]
+    y, tw = 32, W // 6
     d.rectangle([0, y, W - 1, y + 27], fill=PANEL)
     for i, lab in enumerate(labels):
         x = i * tw
-        w = (W - x) if i == 4 else tw
+        w = (W - x) if i == 5 else tw
         on = i == active
         top = y if on else y + 4
         h = 28 if on else 24
@@ -3189,6 +3480,26 @@ def systeminfo_ble():
     ])
     d.rounded_rectangle([306, 63, 312, 236], 3, fill=PANEL, outline=OUTLINE)
     d.rounded_rectangle([307, 66, 311, 130], 2, fill=(88, 164, 224))
+    return im
+
+
+def systeminfo_battery():
+    """SystemInfoPower.cpp, on a handheld that has a current sensor."""
+    im, d = blank(); topbar(d, "System Info")
+    _si_tabs(d, 4)
+    _si_rows(d, [
+        ("s", "Now", "", None),
+        ("r", "Measured by", "Battery current sensor", None),
+        ("r", "Battery", "62%  3.84 V", None),
+        ("r", "Draw", "640 mA", None),
+        ("r", "On charger", "No", None),
+        ("s", "Result", "", None),
+        ("r", "On battery", "2:14 h", None),
+        ("r", "Most drain", "Awake full WL (71%)", WARN),
+        ("s", "States", "", None),
+        ("r", "Awake full WL", "640 mA  21.0%/h  1:32 h", None),
+        ("r", "Asleep W", "210 mA  7.5%/h  0:42 h", None),
+    ])
     return im
 
 
@@ -3281,8 +3592,7 @@ def about_intro():
     """
     import re as _re
     from app_registry_parser import playable_apps
-    version = _re.search(r'BRAINO_VERSION\s+"([^"]+)"',
-                         (ROOT / "include" / "AppVersion.h").read_text(encoding="utf-8")).group(1)
+    version = _firmware_version()
     board = _re.search(r'BOARD_NAME=\\"([^"\\]+)',
                        (ROOT / "platformio.ini").read_text(encoding="utf-8")).group(1)
     im, d = blank(); topbar(d, "About")
@@ -3293,7 +3603,10 @@ def about_intro():
             (70, COPYRIGHT_SHORT, F1, MUTED),
             (84, "Educational games for the %s." % board, F1, MUTED),
             (98, "Copyright 2026.", F1, MUTED),
-            (116, "Version %s" % version, F2, TEXT),
+            # AboutApp drops "Version " rather than cut the version short.
+            (116, ("Version %s" % version
+                   if d.textlength("Version %s" % version, font=F2) <= W - 28
+                   else version), F2, TEXT),
             (140, "%d games built in" % len(playable_apps()), F2, TEXT),
             (156, "195 flags and 50 US states, stored.", F1, MUTED),
             (170, "Two-console play: experimental.", F1, MUTED),
@@ -3406,8 +3719,8 @@ def about_updates():
 
 def percent():
     im, d = blank(); topbar(d, "Percent")
-    q = "What percent?"
-    d.text((W / 2 - d.textlength(q, font=F2) / 2, 38), q, font=F2, fill=MUTED)
+    q = "What percent?"   # PercentCircleGame: font 4, centred on x=160, y=60
+    d.text((160 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     # Draw circle at (96, 130) with radius 62
     cx, cy, r = 96, 130, 62
@@ -3441,14 +3754,14 @@ def percent():
         y = cy + int(r * math.sin(rad))
         d.line([(cx, cy), (x, y)], fill=(100, 150, 200), width=1)
 
-    # Four option buttons
-    for i, pct in enumerate(["25%", "50%", "60%", "75%"]):
+    # Level 2's options for 60%: the empty part (40%), a ten either side.
+    for i, pct in enumerate(["40%", "50%", "60%", "70%"]):
         rr = (164 + (i % 2) * 76, 96 + (i // 2) * 44, 70, 38)
         button(d, rr, pct, SUCCESS if pct == "60%" else PANEL,
-               (0, 0, 0) if pct == "60%" else TEXT)
+               on_fill(SUCCESS) if pct == "60%" else TEXT)
 
     # Score line
-    d.text((8, 226), "Score: 15  Streak: 2  Lvl: 1", font=F1, fill=TEXT)
+    d.text((8, 226), "Level 2  Score 15  Streak 2", font=F1, fill=TEXT)
 
     return im
 
@@ -3463,7 +3776,7 @@ def percent_make():
     import math
     im, d = blank(); topbar(d, "Percent")
     q = "Shade 70%"
-    d.text((200 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
+    d.text((160 - d.textlength(q, font=F4) / 2, 48), q, font=F4, fill=MUTED)
 
     cx, cy, r = 96, 130, 62
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(81, 113, 147), outline=BLUE)
@@ -3481,12 +3794,12 @@ def percent_make():
 
     button(d, (164, 152, 34, 34), "-")
     d.rounded_rectangle([200, 152, 237, 185], 4, fill=PANEL, outline=OUTLINE)
-    v = "45%"
+    v = "?"     # from Fives on the circle is read, not this box
     d.text((219 - d.textlength(v, font=F1) / 2, 164), v, font=F1, fill=TEXT)
     button(d, (240, 152, 34, 34), "+")
     button(d, (276, 152, 34, 34), "OK", ACCENT, on_fill(ACCENT))
 
-    d.text((8, 226), "Score: 7  Streak: 5  Lvl: 2", font=F1, fill=TEXT)
+    d.text((8, 226), "Level 3  Score 7  Streak 5", font=F1, fill=TEXT)
     return im
 
 
@@ -3545,6 +3858,20 @@ def grewords_study():
     return im
 
 
+def scores_tab_row_note(d, text, w, try_large=True):
+    """ScoresApp::drawTabRowNote: right-aligned on the tab row, in the room
+    from the Device tab's right edge + 8 to w - 8, at font 2 if it fits, else
+    font 1, else not at all. The name used to be at y = 60 and the headings
+    at y = 64, inside row 0, which covered them on the panel."""
+    x0 = 80 + 80 + 8
+    room = w - 8 - x0
+    for f, ok in ((F2, try_large), (F1, True)):
+        if ok and d.textlength(text, font=f) <= room:
+            d.text((w - 8 - d.textlength(text, font=f), 34 + 9 - (7 if f is F2 else 5)),
+                   text, font=f, fill=TEXT if try_large else MUTED)
+            return
+
+
 def scores_mine():
     """Scores tab: this player's best and worst per game."""
     im, d = blank(); topbar(d, "Scores")
@@ -3561,10 +3888,8 @@ def scores_mine():
                font=F2, fill=TEXT if active else MUTED)
     d.line([(8, 52), (312, 52)], fill=OUTLINE)
 
-    # Profile name and column headings
-    d.text((8, 60), "Ava", font=F2, fill=TEXT)
-    d.text((244 - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
-    d.text((306 - d.textlength("worst", font=F1), 64), "worst", font=F1, fill=MUTED)
+    # The player's name on the tab row; no column headings.
+    scores_tab_row_note(d, "Ava", W)
 
     # Sample score rows
     rows = [
@@ -3575,14 +3900,21 @@ def scores_mine():
         ("Slide", "18moves", "25moves"),
     ]
     for i, (name, best, worst) in enumerate(rows):
-        y = 56 + (i + 1) * 30
+        y = 56 + i * 30   # ScoresApp::rowRect: SCORES_ROWS_TOP + row * pitch
         d.rounded_rectangle([8, y, 312, y + 28], 4, fill=SURFACE, outline=OUTLINE)
         d.text((16, y + 14 - 6), name, font=F2, fill=TEXT)
-        d.text((244 - d.textlength(best, font=F2) / 2, y + 14 - 6), best, font=F2, fill=SUCCESS)
-        d.text((306 - d.textlength(worst, font=F2) / 2, y + 14 - 6), worst, font=F2, fill=MUTED)
-        if i >= 2:  # Show "lower is better" on Memory
-            if i == 2:
-                d.text((100, y + 14 - 6), "lower is better", font=F1, fill=MUTED)
+        # ScoresApp::scoreColumns at 320px: right edges 238 and 306.
+        d.text((238 - d.textlength(best, font=F2), y + 14 - 6), best, font=F2, fill=SUCCESS)
+        d.text((306 - d.textlength(worst, font=F2), y + 14 - 6), worst, font=F2, fill=MUTED)
+        if i == 2:  # Memory: lower is better. ScoresApp puts the note right-
+            # aligned in the gap between the name and the best value.
+            gap_right = 238 - d.textlength(best, font=F2) - 6
+            gap_left = 16 + d.textlength(name, font=F2) + 6
+            for note in ("lower is better", "lower wins"):
+                if d.textlength(note, font=F1) <= gap_right - gap_left:
+                    d.text((gap_right - d.textlength(note, font=F1), y + 14 - 5),
+                           note, font=F1, fill=MUTED)
+                    break
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
@@ -3609,25 +3941,35 @@ def scores_device():
 
     # Sample device best rows
     rows = [
-        ("Multiply", "250pts", "Priya"),    # Priya is current player (gold)
+        ("Multiply", "250pts", "Priya"),    # Priya is current player (warning colour)
         ("Math", "150pts", "Kai"),
         ("Memory", "30s", "Liam"),
         ("Maze", "12lvl", "Ava"),
         ("Slide", "10moves", "Priya"),
     ]
     for i, (name, best, holder) in enumerate(rows):
-        y = 56 + (i + 1) * 30
+        y = 56 + i * 30   # ScoresApp::rowRect: SCORES_ROWS_TOP + row * pitch
         d.rounded_rectangle([8, y, 312, y + 28], 4, fill=SURFACE, outline=OUTLINE)
         d.text((16, y + 14 - 6), name, font=F2, fill=TEXT)
-        d.text((244 - d.textlength(best, font=F2) / 2, y + 14 - 6), best, font=F2, fill=SUCCESS)
-        holder_color = GOLD if holder == "Priya" else MUTED
-        d.text((312 - d.textlength(holder, font=F2) / 2, y + 14 - 6), holder, font=F2, fill=holder_color)
+        # ScoresApp::scoreColumns at 320px: right edges 238 and 306.
+        d.text((238 - d.textlength(best, font=F2), y + 14 - 6), best, font=F2, fill=SUCCESS)
+        holder_color = WARN if holder == "Priya" else MUTED
+        d.text((306 - d.textlength(holder, font=F2), y + 14 - 6), holder, font=F2, fill=holder_color)
 
     # Pager buttons
     button(d, (8, 208, 88, 26), "Prev")
     button(d, (104, 208, 112, 26), "Switch player", ACCENT, on_fill(ACCENT), F2)
     button(d, (224, 208, 88, 26), "Next")
     return im
+
+
+def picker_controls(d, w):
+    """The picker's own padlock and speaker, at the right-hand end of the
+    "Who is playing?" row: LauncherLayout::pickerLockRect()/pickerSpeakerRect().
+    It has no top bar, so without these it had no Lock at all."""
+    speaker_x = w - 8 - CONTROL_H
+    lock_icon(d, (speaker_x - 4 - CONTROL_H, 31, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (speaker_x, 31, CONTROL_H, CONTROL_H), False, TEXT)
 
 
 def profiles_pick():
@@ -3641,6 +3983,7 @@ def profiles_pick():
     d.text((W / 2 - d.textlength("Who is playing?", font=F2) / 2, 32), "Who is playing?", font=F2, fill=TEXT)
     d.text((W / 2 - d.textlength("Guest plays without saving scores", font=F1) / 2, 50),
            "Guest plays without saving scores", font=F1, fill=MUTED)
+    picker_controls(d, W)
     # Six rows (five players + Guest) from ProfileApp's rowsTop/rowsPitch.
     profiles = ["Alice", "Bob", "Carol", "Diana", "Eve", "Guest"]
     for i, prof in enumerate(profiles):
@@ -3655,10 +3998,13 @@ def profiles_pick():
             d.rounded_rectangle([W - 8 - 62, y, W - 8, y + 23], 4, fill=SURFACE, outline=OUTLINE)
             d.text((W - 8 - 62 + (62 - d.textlength("Edit", font=F2)) / 2, y + 23 / 2 - 6),
                    "Edit", font=F2, fill=MUTED)
-    # Add Player and Done buttons
-    btn_w = (W - 24) // 2
+    # Add Player and Done, with the battery between them -- ProfileApp's
+    # batterySlot(): the badge's width at 100 plus 8px of air either side.
+    slot = battery_width(100) + 16
+    btn_w = (W - 16 - slot) // 2
     button(d, (8, H - 30, btn_w, 26), "Add Player", GREEN, WHITE)
-    button(d, (16 + btn_w, H - 30, btn_w, 26), "Done")
+    button(d, (W - 8 - btn_w, H - 30, btn_w, 26), "Done")
+    battery_badge(d, W // 2, H - 30 + 13)
     return im
 
 
@@ -3740,6 +4086,79 @@ def nearby_name():
     btn_w = 52
     button(d, ((W - btn_w) // 2, H - 30, btn_w, 22), "Cancel", f=F1)
     _keypad(d)
+    return im
+
+
+# ------------------------------------------------- keyboard attached
+# Mirrors ui/TypingPanel: on the Attaky Core with its clip-on keyboard found at
+# boot, a text field leaves the on-screen keypad off. The field grows into the
+# space and a hint says where to type; the bottom row is the keyboard button
+# (which brings the keypad back), Cancel where it was, and OK. Keep in step
+# with TypingPanel.cpp.
+def _typing_toggle(d, r):
+    button(d, r, "")
+    x, y, w, h = r
+    gx, gy = x + (w - 24) // 2, y + (h - 12) // 2
+    d.rounded_rectangle([gx, gy, gx + 23, gy + 11], 2, outline=TEXT)
+    for row in range(2):
+        for col in range(5):
+            kx, ky = gx + 3 + col * 4, gy + 2 + row * 3
+            d.rectangle([kx, ky, kx + 1, ky + 1], fill=TEXT)
+    d.rectangle([gx + 7, gy + 8, gx + 16, gy + 9], fill=TEXT)
+
+
+def _typing_row(d, sw=None, sh=None):
+    sw = W if sw is None else sw
+    sh = H if sh is None else sh
+    _typing_toggle(d, (8, sh - 30, 52, 22))
+    button(d, (sw - 8 - 60, sh - 30, 60, 22), "OK", (45, 154, 96), TEXT, F2)
+
+
+def _typing_hint(d, y, sw=None):
+    sw = W if sw is None else sw
+    lab = "Type on the keyboard"
+    d.text((sw / 2 - d.textlength(lab, font=F2) / 2, y), lab, font=F2, fill=MUTED)
+
+
+def _typing_field(sw, sh, top):
+    """TypingPanel's fieldRect(): 44px tall, centred with its hint above the
+    bottom row."""
+    bottom = sh - 30 - 8
+    block = 44 + 10 + 16
+    y = max(top, top + (bottom - top - block) // 2)
+    w = min(280, sw - 24)
+    return ((sw - w) // 2, y, w, 44)
+
+
+def profiles_rename_typing():
+    """Name entry with the keyboard attached: no keypad, a larger field."""
+    im, d = blank()
+    lab = "New player"
+    d.text((W / 2 - d.textlength(lab, font=F2) / 2, 8), lab, font=F2, fill=TEXT)
+    fx, fy, fw, fh = _typing_field(W, H, 28)
+    d.rounded_rectangle([fx, fy, fx + fw, fy + fh], 4, fill=SURFACE, outline=OUTLINE)
+    draft = "Ada"
+    d.text((W / 2 - d.textlength(draft, font=F4) / 2, fy + fh / 2 - 13), draft, font=F4, fill=TEXT)
+    _typing_hint(d, fy + fh + 10)
+    button(d, ((W - 52) // 2, H - 30, 52, 22), "Cancel", f=F1)
+    _typing_row(d)
+    return im
+
+
+def profiles_pin_typing():
+    """The admin PIN with the keyboard attached: larger dots, no pad."""
+    im, d = blank()
+    button(d, (6, 6, 52, 22), "Back", f=F1)
+    lab = "Enter Admin PIN"
+    d.text((W / 2 - d.textlength(lab, font=F2) / 2, 6), lab, font=F2, fill=TEXT)
+    cy, r, pitch = H // 2 - 12, 12, 40
+    x0 = W // 2 - (pitch * 3) // 2
+    for i in range(4):
+        cx = x0 + i * pitch
+        d.ellipse([cx - r, cy - r, cx + r, cy + r],
+                  fill=SUCCESS if i < 3 else PANEL, outline=OUTLINE)
+    _typing_hint(d, cy + r + 14)
+    _typing_row(d)
     return im
 
 
@@ -4003,7 +4422,7 @@ def wifi_tall():
     # The date drops off this row on a 240px panel: TFT_eSPI stops drawing at
     # the viewport edge, mid-word and unmarked. Shown here as the device shows
     # it rather than wrapped, because wrapping is not what the firmware does.
-    stamp = "Tue Aug 11 2026  12:41 AM"
+    stamp = "Tue Aug 11 2026  12:41A"
     d.text((pw(14), ph(114)), stamp, font=F2, fill=TEXT)
     sync_badge(d, int(pw(14) + d.textlength(stamp, font=F2) + 12), ph(122), True)
     button(d, prect(14, 132, 140, 30), "Auto time: On", GREEN, WHITE)
@@ -4013,6 +4432,48 @@ def wifi_tall():
     hint = "Tap the zone to change it"
     d.text((PW / 2 - d.textlength(hint, font=F1) / 2, ph(210)), hint, font=F1, fill=MUTED)
     return im
+
+
+WIFI_SYMBOL_ROWS = ["!@#$%^&*()", "-_=+[]{};:", "'\",.<>/?~\\"]
+
+
+def _wifi_password_typing(tall):
+    """WifiPassword.cpp with the clip-on keyboard typing (Attaky Core): the
+    hint where the digit row was, the symbol page's three rows -- the keyboard
+    has no symbol keys beyond , . # -- the keyboard button where CAPS was, and
+    JOIN. Every rect is WifiApp::baseRect, so the same picture serves both
+    orientations."""
+    if tall:
+        im, d = blank_tall(); sw, sh = PW, PH
+        mx, my, mr = pw, ph, prect
+    else:
+        im, d = blank(); sw, sh = W, H
+        mx, my, mr = (lambda x: x), (lambda y: y), (lambda x, y, w, h: (x, y, w, h))
+    topbar(d, "Wi-Fi", w=sw)
+    d.text((mx(8), my(36)), "< back   DextersLab", font=F2, fill=TEXT)
+    fx, fy, fw, fh = mr(8, 54, 304, 34)
+    d.rounded_rectangle([fx, fy, fx + fw, fy + fh], 4, fill=SURFACE, outline=OUTLINE)
+    d.text((fx + 8, fy + fh / 2 - 8), "********", font=F2, fill=TEXT)
+    sx, sy_, sw_, shh = mr(234, 59, 74, 24)
+    button(d, (sx, sy_, sw_, shh), "")
+    d.rounded_rectangle([sx + 6, sy_ + (shh - 14) // 2, sx + 20, sy_ + (shh - 14) // 2 + 14],
+                        3, fill=SURFACE, outline=OUTLINE)
+    d.text((sx + 26, sy_ + shh / 2 - 8), "Show", font=F2, fill=TEXT)
+    _typing_hint(d, my(100), sw)
+    for r, row in enumerate(WIFI_SYMBOL_ROWS, start=1):
+        for c, ch in enumerate(row):
+            button(d, mr(2 + c * 32, 96 + r * 28, 28, 24), ch, SURFACE, TEXT, F2)
+    _typing_toggle(d, mr(2, 208, 52, 24))
+    button(d, mr(246, 208, 72, 24), "JOIN", ACCENT, WHITE, F2)
+    return im
+
+
+def wifi_password_typing():
+    return _wifi_password_typing(False)
+
+
+def wifi_password_typing_tall():
+    return _wifi_password_typing(True)
 
 
 def settings_tall():
@@ -4088,7 +4549,7 @@ def scores_tall():
         d.text((r[0] + r[2] / 2 - d.textlength(lab, font=F2) / 2, r[1] + 3), lab,
                font=F2, fill=TEXT if active else MUTED)
     d.line([(8, 52), (160, 52)], fill=OUTLINE)
-    d.text((8, 58), "Ava", font=F2, fill=TEXT)
+    scores_tab_row_note(d, "Ava", PW)
 
     pitch = max(30, ((PH - 32) - 56 - 4) // 5)
     rows = [("Memory Match", "18 moves"), ("Math", "24 pts"), ("Multiplication", "31 pts"),
@@ -4101,10 +4562,6 @@ def scores_tall():
     show_second = (row_w - 68 * 2 - 14) >= 96
     first_right = second_right - 68 if show_second else second_right
     label_max = first_right - 68 - 16 - 6
-    d.text((first_right - d.textlength("best", font=F1), 64), "best", font=F1, fill=MUTED)
-    if show_second:
-        d.text((second_right - d.textlength("worst", font=F1), 64), "worst",
-               font=F1, fill=MUTED)
     for i, (name, value) in enumerate(rows):
         y = 56 + i * pitch
         h = pitch - 2
@@ -4120,9 +4577,20 @@ def scores_tall():
     footer_y = PH - 32
     button(d, (8, footer_y, int(PW * 0.275), 26), "Prev")
     sw = int(PW * 0.35)
-    button(d, ((PW - sw) // 2, footer_y, sw, 26), "Switch")
+    button(d, ((PW - sw) // 2, footer_y, sw, 26), "Switch", ACCENT, on_fill(ACCENT))
     button(d, (PW - 8 - int(PW * 0.275), footer_y, int(PW * 0.275), 26), "Next")
     return im
+
+
+def _firmware_version():
+    """FIRMWARE_VERSION as the E32R28T-1 the mock-ups show would report it:
+    BRAINO_VERSION, "+", and that board's GUME_VERSION_TAG."""
+    import re as _re
+    version = _re.search(r'BRAINO_VERSION\s+"([^"]+)"',
+                         (ROOT / "include" / "AppVersion.h").read_text(encoding="utf-8")).group(1)
+    tag = _re.search(r'GUME_VERSION_TAG\s+"([^"]+)"',
+                     (ROOT / "include" / "boards" / "e32r28t1.h").read_text(encoding="utf-8")).group(1)
+    return "%s+%s" % (version, tag)
 
 
 def about_tall():
@@ -4149,7 +4617,10 @@ def about_tall():
     line(70, "(C) GoodTime Micro Company", F1, MUTED)
     line(84, "Educational games for the E32R28T-1.", F1, MUTED)
     line(98, "Copyright 2026.", F1, MUTED)
-    line(116, "Version 5.11.0-SNAPSHOT")
+    version = "Version " + _firmware_version()
+    # AboutApp drops "Version " rather than cut the version short.
+    line(116, version if d.textlength(version, font=F2) <= PW - 28
+         else _firmware_version())
     line(140, "37 games built in")
     line(162, "195 flags and 50 US states, stored.", F1, MUTED)
     line(176, "Two-console play: experimental.", F1, MUTED)
@@ -4162,12 +4633,12 @@ def about_tall():
 
 def systeminfo_tall():
     """System Info (Board tab) in portrait. SystemInfoApp::tabRect divides the
-    live width by TAB_COUNT=5, so on 240px each tab is 48px -- the labels are
+    live width by TAB_COUNT=6, so on 240px each tab is 40px -- the labels are
     fitted here because that is what the strip has room for, and the content
     below starts at TOP_BAR_HEIGHT + 2 + TAB_STRIP_H."""
     im, d = blank_tall()
     topbar(d, "System Info", w=PW)
-    labels = ["Board", "Memory", "Network", "BLE", "App"]
+    labels = ["Board", "Memory", "Network", "BLE", "Batt", "App"]
     strip_y, strip_h = 32, 28
     each = PW // len(labels)
     for i, lab in enumerate(labels):
@@ -4208,6 +4679,7 @@ def profiles_tall():
            font=F1, fill=MUTED)
     prompt = "Who is playing?"
     d.text((PW / 2 - d.textlength(prompt, font=F2) / 2, 32), prompt, font=F2, fill=TEXT)
+    picker_controls(d, PW)
 
     menu_w, top, pitch, row_h = 54, 62, 38, 33
     people = [("Ava", True), ("Ben", False), ("Cora", False),
@@ -4221,9 +4693,11 @@ def profiles_tall():
                             fill=PANEL, outline=OUTLINE)
         d.text((PW - 8 - menu_w + menu_w / 2 - d.textlength("Edit", font=F1) / 2,
                 y + row_h / 2 - 5), "Edit", font=F1, fill=MUTED)
-    bw = (PW - 24) // 2
+    slot = battery_width(100) + 16
+    bw = (PW - 16 - slot) // 2
     button(d, (8, PH - 30, bw, 26), "Add")
-    button(d, (16 + bw, PH - 30, bw, 26), "Done", GREEN, WHITE)
+    button(d, (PW - 8 - bw, PH - 30, bw, 26), "Done", GREEN, WHITE)
+    battery_badge(d, PW // 2, PH - 30 + 13)
     return im
 
 
@@ -4244,8 +4718,13 @@ EXTRA_SCREENS = [
     ("profiles-rename", profiles_rename, "Profiles: the name entry for Add / Rename"),
     ("nearby", nearby, "Nearby: who else is playing"),
     ("nearby-name", nearby_name, "Nearby: naming a device, locally"),
+    ("profiles-rename-typing", profiles_rename_typing, "Profiles: the name entry with a keyboard attached"),
+    ("profiles-pin-typing", profiles_pin_typing, "Profiles: the admin PIN with a keyboard attached"),
+    ("wifi-password-typing", wifi_password_typing, "Wi-Fi: the password with a keyboard attached"),
+    ("wifi-password-typing-tall", wifi_password_typing_tall, "Wi-Fi: the password with a keyboard attached, Tall layout"),
     ("systeminfo-ble", systeminfo_ble, "System Info: what BLE is broadcasting"),
     ("systeminfo-memory", systeminfo_memory, "System Info: heap and CPU"),
+    ("systeminfo-battery", systeminfo_battery, "System Info: where the battery went"),
     ("about-intro", about_intro, "About: the mark, the version, what is inside"),
     ("about-radios", about_radios, "About: what the radios do"),
     ("about-password", about_password, "About: where the Wi-Fi password lives"),
@@ -4256,6 +4735,8 @@ EXTRA_SCREENS = [
     ("memory", memory, "Memory Match"),
     ("math", math_game, "Math"),
     ("math-words", math_words, "Math: a word problem"),
+    ("carry-on", carry_on, "Carry on? -- the question on the way back into a game"),
+    ("notice", notice, "A notice: one line along the bottom, the header left whole"),
     ("multiply", multiply, "Multiplication"),
     ("time", time_game, "Time"),
     ("whack", whack, "Whack A Mole"),
@@ -4334,7 +4815,7 @@ THEME_SHEET_SCREENS = (
     "settings-admin",       # destructive actions, the error colour
     "settings-pin",         # a keypad and its dots
     "systeminfo-memory",    # dense rows, meters, muted labels
-    "scores",               # a list with values
+    "scores-mine",          # a list with values
     "math",                 # a game: big text and answer buttons
     "trace",                # a game with its own canvas colours
     "wakelock",             # chrome on the bare ground

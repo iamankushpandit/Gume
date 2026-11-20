@@ -11,6 +11,7 @@
 
 #include "BoardConfig.h"
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 /*
@@ -112,6 +113,9 @@ private:
     Rect idleAfterRect() const;
     Rect sleepAfterRect() const;
     Rect wakeLockRect() const;
+    /* Only where SystemSuspend::supported(); elsewhere Hold to unlock keeps
+     * the whole last row and this is an empty rect. */
+    Rect deepSleepRect() const;
 
     void cycleScreenSaver(Board& board);
     void cycleSleepSeconds(Board& board);
@@ -130,6 +134,8 @@ private:
     /* Shared by the unlock screen and the change-PIN flow. Returns true if the
      * touch landed on the pad, so callers can stop looking. */
     bool handlePinPadTouch(GameHost& host, const TouchPoint& touch);
+    void typePinChar(GameHost& host, char typed);   /* a keyboard's key */
+    void confirmPin(GameHost& host);
 
     /* True when the Sleep-after row is inert: SaverOnly never blanks, and
      * SleepOnly blanks at the idle delay instead. A live-looking control that
@@ -148,6 +154,9 @@ private:
     uint8_t enteredPinDigits_ = 0;
 
     PinTask pinTask_ = PinTask::None;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
     uint16_t pendingPin_ = 0;   // first entry of a new PIN, awaiting confirmation
 
     /* WHICH CONTROL CHANGED, so the repaint can be that control rather than

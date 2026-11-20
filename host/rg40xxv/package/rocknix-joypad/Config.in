@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+#
+# Part of Braino! -- https://github.com/iamankushpandit/Gume
+# Free software under GPL-3.0-or-later. Reusing any part of this file, in
+# any work, must keep this notice, credit iamankushpandit as the
+# author, and stay under the same licence with corresponding source
+# offered. See LICENSE and NOTICE.md.
+
+config BR2_PACKAGE_ROCKNIX_JOYPAD
+	bool "rocknix-joypad"
+	depends on BR2_LINUX_KERNEL
+	help
+	  ROCKNIX's joypad driver. On the H700 consoles it reads the
+	  d-pad, buttons and both sticks (through the ADC multiplexer)
+	  as one input device, "H700 Gamepad".
+
+	  https://github.com/hackbar/rocknix-joypad

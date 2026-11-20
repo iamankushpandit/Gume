@@ -34,7 +34,11 @@
  *    subject -- Cinnamon, Color Mix, Shape & Color and the two flags -- and
  *    each says so at the case.
  *
- * 3. **Fill the box.** ICON_HALF is 18 and the main mass should approach it.
+ * 3. **Fill the box, and stay in it.** ICON_HALF is 18 and the main mass
+ *    should approach it -- but nothing may pass it, outline or highlight
+ *    included: paging repaints only a tile's interior, from two pixels inside
+ *    its frame, so anything drawn over the frame stays behind on the next
+ *    page. test/host/launcher_icons_test.cpp checks every icon.
  *    Landscape tiles are 145x46 with the icon centred at (r.x + 24, r.y + 22),
  *    so the vertical budget binds: past cy +/- 22 the art leaves the tile, and
  *    past +/- 18 it crowds the rounded border.
@@ -253,11 +257,15 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
         case LauncherIcon::Cinnamon:
             /* Colour exemption (rule 2): four lit pads *are* the game. Three
              * sit back in a muted tint so the fourth reads as the flashing one. */
-            tft.fillCircle(cx - 10, cy - 10, 8, Ui::shade(coral(), 55));
-            tft.fillCircle(cx + 10, cy - 10, 8, Ui::shade(sky(), 55));
-            tft.fillCircle(cx - 10, cy + 10, 8, Ui::shade(mint(), 55));
-            tft.fillCircle(cx + 10, cy + 10, 8, amber());
-            ring(tft, cx + 10, cy + 10, 10, snow());
+            /* Inside the icon box (rule 3), ring and all. The ring was radius
+             * 10 round a pad at +10, which reached cy + 20 -- over the tile's
+             * bevel and outline, which paging does not repaint -- so the
+             * bottom of its rim stayed on the next page's tile. */
+            tft.fillCircle(cx - 9, cy - 9, 7, Ui::shade(coral(), 55));
+            tft.fillCircle(cx + 9, cy - 9, 7, Ui::shade(sky(), 55));
+            tft.fillCircle(cx - 9, cy + 9, 7, Ui::shade(mint(), 55));
+            tft.fillCircle(cx + 9, cy + 9, 7, amber());
+            ring(tft, cx + 9, cy + 9, 9, snow());
             break;
         case LauncherIcon::Microku: {
             // One empty square left to solve. Its digits used to be font 1.
@@ -278,7 +286,8 @@ void drawLauncherIcon(Ui::Renderer& tft, LauncherIcon icon, const Rect& r,
              * tile has to carry shape and colour at once. */
             tft.fillCircle(cx - 9, cy - 7, 9, snow());
             tft.fillRoundRect(cx + 2, cy - 16, 16, 16, RADIUS, amber());
-            Ui::drawTriangleShape(tft, cx, cy + 10, 9, coral(), true);
+            // Its foot at cy + 18, the box's edge (rule 3); it was at + 19.
+            Ui::drawTriangleShape(tft, cx, cy + 9, 9, coral(), true);
             break;
         case LauncherIcon::Counting:
             // A countable group, three over two, rather than a scatter.

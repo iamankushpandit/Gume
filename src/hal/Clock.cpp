@@ -61,8 +61,12 @@ String timeText() {
         hour12 = 12;
     }
 
-    char buffer[9];
-    snprintf(buffer, sizeof(buffer), "%u:%02u %s", hour12, minute, pm ? "PM" : "AM");
+    /* "12:41P", not "12:41 PM": one letter says morning or afternoon as well
+     * as two and a space do, and every header this sits in is short of width
+     * -- the space and the M were most of what the launcher needed to show a
+     * player's whole name. */
+    char buffer[8];
+    snprintf(buffer, sizeof(buffer), "%u:%02u%c", hour12, minute, pm ? 'P' : 'A');
     return String(buffer);
 }
 

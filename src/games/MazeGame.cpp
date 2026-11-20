@@ -59,6 +59,14 @@ void MazeGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* A maze part walked is worth coming back to. One not started, or solved, is
+ * not: the level is stored the moment the exit is reached, so begin() opens
+ * the next maze anyway. The step throttle needs no moving -- time away only
+ * makes it pass. */
+Game::Keep MazeGame::keepsGame() const {
+    return !won_ && moves_ > 0 ? Keep::Ask : Keep::No;
+}
+
 void MazeGame::chooseMaze() {
     maze_ = MazeData::MAZES[levelIndex_];
     if (!isActiveMazeSolvable()) {
@@ -279,7 +287,15 @@ void MazeGame::drawMazeCell(Ui::Renderer& tft, uint8_t col, uint8_t row) const {
     } else if (cell == 'E') {
         fill = EXIT;
     }
-    tft.fillRect(x, y, CELL, CELL, fill);
+    /* A path cell is a fill and an outline of one rectangle, so the d-pad's
+     * selector stops on it and A steps the dot towards it. A wall's fill stops
+     * a pixel inside its outline, which covers that pixel anyway, so a wall is
+     * never a stop -- and the board stays under the selector's limit. */
+    if (cell == '#') {
+        tft.fillRect(x + 1, y + 1, CELL - 2, CELL - 2, fill);
+    } else {
+        tft.fillRect(x, y, CELL, CELL, fill);
+    }
     tft.drawRect(x, y, CELL, CELL, Ui::rgb(210, 210, 210));
 }
 
@@ -352,3 +368,20 @@ void MazeGame::renderDynamic(AppContext& host) {
         drawnWon_ = true;
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The dot reaches to within three pixels of its square's edge, inside the
+ * ring's inner line, so the square is drawn again with the dot on it. */
+bool MazeGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    int8_t col = 0;
+    int8_t row = 0;
+    if (!touchToCell(static_cast<int16_t>(box.x + box.w / 2), static_cast<int16_t>(box.y + box.h / 2),
+                     col, row)) {
+        return false;
+    }
+    Ui::Renderer& tft = host.display();
+    drawMazeCell(tft, static_cast<uint8_t>(col), static_cast<uint8_t>(row));
+    if (col == playerCol_ && row == playerRow_) drawPlayer(tft);
+    return true;
+}
+#endif

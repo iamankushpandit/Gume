@@ -81,6 +81,22 @@ void PianoGame::begin(AppContext& host) {
     markFullDirty();
 }
 
+/* Nothing to come back to: a keyboard has no round and no score. */
+Game::Keep PianoGame::keepsGame() const {
+    return Keep::No;
+}
+
+/* Back from the screen saver, sleep or the lock screen. A key that was held
+ * as the panel went away -- through a physical key, say -- is not held now,
+ * and must not come back sounding: with held_ still set, a finger landing
+ * anywhere without a fresh press edge would keep re-arming the old note. */
+void PianoGame::resume(AppContext& host, uint32_t awayMs) {
+    (void)host;
+    (void)awayMs;
+    held_ = NO_KEY;
+    lit_ = NO_KEY;
+}
+
 /* Every rect below is measured from the live panel. On the 4-inch in landscape
  * that is 480x320 and the keys simply get bigger; in portrait it is 240x320
  * and they get narrower and taller. Neither case is a special case. */
@@ -168,17 +184,17 @@ void PianoGame::update(AppContext& host, const TouchPoint& touch) {
         held_ = NO_KEY;
     }
 
-    /* Held keys keep sounding. A cue runs for SOUND_NOTE_MS and then stops,
-     * so a finger resting on a key went quiet while it was still pressed --
-     * which is not what a piano does. Re-arming slightly before the note ends
-     * leaves no audible gap, and arm() recognises the repeat and carries the
-     * oscillator phase across the seam rather than snapping it back to zero,
-     * so there is no click either. It is a re-trigger rather than true
-     * sustain, which the synthesiser has no notion of. */
-    if (held_ != NO_KEY && now - lastArmMs_ >= SOUND_NOTE_MS - 40) {
+    /* Held keys keep sounding. A note is held for SOUND_NOTE_MS and then let
+     * go, so a finger resting on a key would go quiet while it was still
+     * pressed -- which is not what a piano does. Saying NoteHold well before
+     * that keeps it held, seamlessly: nothing is struck again. Well before,
+     * because the sound is generated ahead of the speaker; see
+     * SOUND_NOTE_REARM_MS. Asking for the note itself would strike it again,
+     * which is what a key pressed twice must do and a key held must not. */
+    if (held_ != NO_KEY && now - lastArmMs_ >= SOUND_NOTE_REARM_MS) {
         lastArmMs_ = now;
         litSinceMs_ = now;
-        host.playSound(soundFor(held_));
+        host.playSound(Sound::NoteHold);
     }
 
     if (lit_ != NO_KEY && held_ == NO_KEY && now - litSinceMs_ >= KEY_LIT_MS) {
@@ -200,6 +216,18 @@ void PianoGame::drawKey(AppContext& host, uint8_t key, bool lit) const {
                               : (white ? Ui::rgb(248, 248, 244) : Ui::rgb(24, 24, 28));
     tft.fillRect(r.x, r.y, r.w, r.h, fill);
     tft.drawRect(r.x, r.y, r.w, r.h, Ui::outline());
+    if (white) {
+        /* The part of a white key below the black ones, as a fill and an
+         * outline of one rectangle in the key's own colour, so nothing on the
+         * panel changes: that pair is what the d-pad's selector stops at, and
+         * pressing it plays this key rather than the black one over its top. */
+        const Rect kb = keyboardRect(host);
+        const int16_t top = static_cast<int16_t>(kb.y + kb.h * 2 / 3 + 1);
+        const Rect low{static_cast<int16_t>(r.x + 1), top, static_cast<int16_t>(r.w - 2),
+                       static_cast<int16_t>(r.y + r.h - 1 - top)};
+        tft.fillRect(low.x, low.y, low.w, low.h, fill);
+        tft.drawRect(low.x, low.y, low.w, low.h, fill);
+    }
 
     /* The note name lives on the key, low down where a black key does not
      * cover it. It is what makes this teach something rather than just make a
@@ -275,3 +303,18 @@ void PianoGame::renderDynamic(AppContext& host) {
         drawKey(host, key, key == now);
     }
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring on a white key's lower part crosses its note name; the key is
+ * drawn again, and the black keys after it, since they sit over its top. */
+bool PianoGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    const uint8_t key = keyAt(host, static_cast<int16_t>(box.x + box.w / 2),
+                              static_cast<int16_t>(box.y + box.h / 2));
+    if (key == NO_KEY) return false;
+    drawKey(host, key, lit_ == key);
+    if (key < WHITE_KEYS) {
+        for (uint8_t b = WHITE_KEYS; b < KEY_COUNT; ++b) drawKey(host, b, lit_ == b);
+    }
+    return true;
+}
+#endif

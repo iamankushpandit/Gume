@@ -218,8 +218,12 @@ void SeaBattleGame::drawStatus(AppContext& host) const {
     } else if (mode_ == Mode::Remote && watch_.paused() && !gameOver()) {
         /* Still here after Keep waiting has taken the card away. */
         snprintf(top, sizeof(top), "%s", opponentLabel());
+        /* Away is heard but saying nothing in this game: quiet would be the
+         * wrong word for a console that is plainly still there. */
         snprintf(bot, sizeof(bot),
-                 watch_.state() == NearbyWatch::State::Gone ? "out of range" : "gone quiet");
+                 watch_.state() == NearbyWatch::State::Gone   ? "out of range"
+                 : watch_.state() == NearbyWatch::State::Away ? "not in this game"
+                                                              : "gone quiet");
         colour = Ui::warning();
     } else if (won_) {
         snprintf(top, sizeof(top), "You win!");
@@ -310,6 +314,13 @@ void SeaBattleGame::drawTally(AppContext& host) const {
 
 void SeaBattleGame::drawButtons(AppContext& host) const {
     Ui::Renderer& tft = host.display();
+    if (mode_ == Mode::Waiting) {
+        /* No Ready and no Shuffle until they answer: there is no game yet,
+         * and a button drawn is a button a finger or the d-pad lands on. */
+        Ui::drawButton(tft, actionRect(), "Cancel", Ui::panel(), Ui::outline(),
+                       Ui::text(), false, 2);
+        return;
+    }
     if (phase_ == Phase::Placing) {
         Ui::drawButton(tft, readyRect(), "Ready", Ui::success(), Ui::outline(),
                        Ui::bg(), false, 2);
@@ -323,6 +334,20 @@ void SeaBattleGame::drawButtons(AppContext& host) const {
                    over ? "New game" : (confirming ? "Sure?" : "End game"),
                    confirming ? Ui::warning() : Ui::panel(), Ui::outline(),
                    confirming ? Ui::bg() : Ui::text(), false, 2);
+}
+
+/* A fill and an outline of one rectangle in the background's own colour,
+ * under the words, so nothing changes on the panel: it gives the d-pad's
+ * selector something on the curtain to stop on besides Home, and A on it is
+ * the tap the curtain is waiting for. */
+constexpr Rect READY_RECT{GAME_CANVAS_WIDTH / 2 - 80, 168, 160, 24};
+
+static void drawReadyLine(Ui::Renderer& tft) {
+    tft.fillRect(READY_RECT.x, READY_RECT.y, READY_RECT.w, READY_RECT.h, Ui::bg());
+    tft.drawRect(READY_RECT.x, READY_RECT.y, READY_RECT.w, READY_RECT.h, Ui::bg());
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(Ui::muted(), Ui::bg());
+    tft.drawString("Tap when ready", GAME_CANVAS_WIDTH / 2, READY_RECT.y + READY_RECT.h / 2, 2);
 }
 
 /* The curtain. Nothing of either sea on it, which is the entire point: this
@@ -348,7 +373,7 @@ void SeaBattleGame::renderPass(AppContext& host) const {
                                                 : "then take your shot";
     tft.setTextColor(Ui::muted(), Ui::bg());
     tft.drawString(sub, GAME_CANVAS_WIDTH / 2, 140, 2);
-    tft.drawString("Tap when ready", GAME_CANVAS_WIDTH / 2, 180, 2);
+    drawReadyLine(tft);
     tft.setTextDatum(TL_DATUM);
 }
 
@@ -379,7 +404,10 @@ void SeaBattleGame::renderStatic(AppContext& host) {
 
 void SeaBattleGame::renderDynamic(AppContext& host) {
     if (mode_ == Mode::Lobby) {
-        renderLobby(host);
+        /* On a whole repaint renderStatic() has just drawn the lobby, and its
+         * rows change more often now that they say what each console is
+         * doing. Twice over was two clears to the eye. */
+        if (!needsFullRender()) renderLobby(host);
         return;
     }
     if (phase_ == Phase::Passing || fullPaint_) {
@@ -398,3 +426,13 @@ void SeaBattleGame::renderDynamic(AppContext& host) {
     }
     drawPause(host);
 }
+
+#if GUME_HAS_NAV_KEYS
+/* The ring's inner line crosses the words on the curtain. */
+bool SeaBattleGame::repaintUnderRing(AppContext& host, const Rect& box) {
+    if (phase_ != Phase::Passing || box.x != READY_RECT.x || box.y != READY_RECT.y) return false;
+    drawReadyLine(host.display());
+    host.display().setTextDatum(TL_DATUM);
+    return true;
+}
+#endif

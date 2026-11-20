@@ -11,6 +11,7 @@
 
 #include "BoardConfig.h"
 #include "engine/Game.h"
+#include "ui/TypingPanel.h"
 #include "ui/Ui.h"
 
 class WifiApp : public Game {
@@ -22,6 +23,8 @@ public:
      * renderStatic() in the .cpp and its entry in docs/RENDER_AUDIT.md. */
     void renderStatic(GameHost& host) override;
     void renderDynamic(GameHost& host) override;
+    /* Puts the radio's power saving back; see the .cpp. */
+    void end(GameHost& host) override;
 
 private:
     enum class Phase : uint8_t { Idle, Scanning, List, Keyboard, Connecting, Done, TimeZone };
@@ -31,6 +34,9 @@ private:
     static const char KEYS_SYMBOL[4][11];
 
     Phase phase_ = Phase::Idle;
+    /* Whether this visit's text field leaves its on-screen keypad off,
+     * because a keyboard is typing. See ui/TypingPanel.h. */
+    Ui::KeypadChoice keypad_;
     int8_t netCount_ = 0;
     int8_t selectedNet_ = -1;
     uint8_t listPage_ = 0;
@@ -38,6 +44,11 @@ private:
     bool connectOk_ = false;
     bool capsLock_ = false;
     bool symbols_ = false;   // symbol layer: WPA keys are full of these
+    /* The password shows as '*' unless this is ticked. Hidden by default and
+     * hidden again each time a network is chosen: the screen is readable by
+     * anyone standing beside the console, and typing a network password is the
+     * one time it is on the panel at all. */
+    bool showPassword_ = false;
     uint32_t connectStart_ = 0;
     uint32_t scanStart_ = 0;
     bool scanPending_ = false;    // draw "Scanning..." first, then block
@@ -64,6 +75,10 @@ private:
     void checkScan();
     void runScan();
     void startConnect(GameHost& host);
+    void typePassword(GameHost& host, char typed);
+    /* The password phase, in WifiPassword.cpp. */
+    void updatePassword(GameHost& host, const TouchPoint& touch);
+    void renderPassword(GameHost& host);
     /** Reconnect to the network already in NVS, if there is one. */
     void rejoinSaved(GameHost& host);
     void checkConnect(GameHost& host);
@@ -88,4 +103,6 @@ private:
     Rect netRect(uint8_t slot) const;
     Rect zoneRect(uint8_t slot) const;
     Rect keyRect(uint8_t row, uint8_t col) const;
+    /* The "Show" checkbox inside the right-hand end of the password field. */
+    Rect showRect() const;
 };

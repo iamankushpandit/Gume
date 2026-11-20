@@ -11,6 +11,7 @@
 #include "hal/Clock.h"
 #include "hal/Board.h"
 #include "ui/LauncherLayout.h"
+#include "ui/FocusRecorder.h"
 #include "ui/LogoMask.h"
 #include "ui/TftRenderer.h"
 #include <WiFi.h>
@@ -201,6 +202,10 @@ void setTheme(Theme t) {
     COLOR_TILE[1] = p.tile[1];
     COLOR_TILE[2] = p.tile[2];
     COLOR_RADIUS  = p.radius;
+}
+
+uint16_t bar() {
+    return COLOR_BAR;
 }
 
 uint16_t barText() {
@@ -486,6 +491,11 @@ void drawLogo(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t colour,
      * against a left edge passes x + logoCentre(). */
     const int16_t x0 = static_cast<int16_t>(cx - art.centre);
     const int16_t y0 = static_cast<int16_t>(cy - art.height / 2);
+    /* A platform that can draw the mark better than its mask does (PanelArt). */
+    if (tft.drawLogoArt(static_cast<uint8_t>(which), x0, y0, art.bits, art.width,
+                        art.height, art.stride, colour)) {
+        return;
+    }
     for (int16_t y = 0; y < art.height; ++y) {
         const uint8_t* row = art.bits + y * art.stride;
         int16_t runStart = -1;
@@ -557,6 +567,16 @@ void drawGearIcon(Ui::Renderer& tft, const Rect& r, uint16_t color) {
  * landscape ones are well clear, so nothing about the wide layout changes. */
 constexpr int16_t TOP_BAR_MIN_TITLE_W = 44;
 
+/* Where drawTopBar() last put the clock, so the minute can change the time
+ * alone (drawTopBarClock()). Stateless otherwise; this is one panel. */
+struct TopBarClock {
+    int16_t screenW = 0;
+    int16_t right = 0;
+    int16_t width = -1;
+    bool shown = false;
+};
+static TopBarClock s_topBarClock;
+
 void drawTopBar(Board& board, const String& title) {
     TftRenderer tft(board.display());
     const int16_t w = static_cast<int16_t>(tft.width());
@@ -577,9 +597,8 @@ void drawTopBar(Board& board, const String& title) {
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     /* The right-hand cluster is laid out from the gear leftwards off MEASURED
-     * widths, because the battery badge is no longer a fixed size -- it grows
-     * with the number it is showing. Everything here used to be a constant
-     * offset, which is exactly what a variable-width badge invalidates. */
+     * widths: the battery badge is one size, but it is no size at all on a
+     * board with no battery sense, and the clock's text varies. */
     const int8_t battPct = board.getBatteryPercent();
     const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
     /* Derived from the gear rather than stated, so the two cannot drift: the
@@ -624,6 +643,7 @@ void drawTopBar(Board& board, const String& title) {
      * the clock), then the wifi badge, then the gear. The sync badge goes with
      * the clock when the clock goes -- a tick or an exclamation mark with
      * nothing to qualify says nothing. */
+    s_topBarClock = TopBarClock{w, clockRight, tft.textWidth(Clock::timeText(), 2), showClock};
     if (showClock) {
         tft.drawString(Clock::timeText(), clockRight, TOP_BAR_HEIGHT / 2, 2);
         Ui::drawSyncBadge(tft, syncCx, TOP_BAR_HEIGHT / 2, Clock::synced(), COLOR_BAR);
@@ -633,21 +653,47 @@ void drawTopBar(Board& board, const String& title) {
     tft.setTextDatum(TL_DATUM);
 }
 
+bool drawTopBarClock(Board& board) {
+    TftRenderer tft(board.display());
+    const int16_t w = static_cast<int16_t>(tft.width());
+    /* Only the same width can be redrawn alone. A wider or narrower time
+     * moves the title's budget, and with it whether the clock shows at all,
+     * so that minute takes the whole bar (false). */
+    if (w != s_topBarClock.screenW || tft.textWidth(Clock::timeText(), 2) != s_topBarClock.width) {
+        return false;
+    }
+    if (!s_topBarClock.shown) {
+        return true;   // given way to a long title: nothing on the bar to change
+    }
+    /* Drawn over the old time with its background filled, glyph by glyph:
+     * the same width means every old pixel is painted again, and nothing is
+     * cleared first, so there is nothing to see but the digits changing. */
+    tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
+    tft.setTextDatum(MR_DATUM);
+    tft.drawString(Clock::timeText(), s_topBarClock.right, TOP_BAR_HEIGHT / 2, 2);
+    tft.setTextDatum(TL_DATUM);
+    return true;
+}
+
 void drawNotification(Ui::Renderer& tft, const char* text) {
     if (text == nullptr || text[0] == '\0') {
         return;
     }
-    const int16_t w = static_cast<int16_t>(tft.width());
+    const Rect strip = notificationRect(static_cast<int16_t>(tft.width()),
+                                        static_cast<int16_t>(tft.height()));
+    const int16_t w = strip.w;
     const uint16_t fill = warning();
     /* The warning colour is a light amber on both themes, so the text on it is
      * always the dark one -- COLOR_BAR_TEXT would vanish. */
     const uint16_t ink = TFT_BLACK;
-    tft.fillRect(0, 0, w, TOP_BAR_HEIGHT, fill);
-    tft.drawFastHLine(0, TOP_BAR_HEIGHT - 1, w, shade(fill, 60));
+    tft.fillRect(strip.x, strip.y, strip.w, strip.h, fill);
+    /* The hairline goes on the edge that meets the screen, which is the upper
+     * one now that the strip lies along the bottom. */
+    tft.drawFastHLine(strip.x, strip.y, strip.w, shade(fill, 60));
 
     // Small bell, so the strip reads as a notice before it is read as words.
     const int16_t cx = 16;
-    const int16_t cy = TOP_BAR_HEIGHT / 2;
+    const int16_t cy = static_cast<int16_t>(strip.y + strip.h / 2);
     tft.fillCircle(cx, static_cast<int16_t>(cy - 1), 5, ink);
     tft.fillRect(static_cast<int16_t>(cx - 6), static_cast<int16_t>(cy + 2), 13, 2, ink);
     tft.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(cy + 5), 3, 2, ink);
@@ -727,6 +773,8 @@ void drawWifiBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
         const WifiPixel* arc = WIFI_ARCS[band];
         const uint8_t count = WIFI_ARC_COUNTS[band];
         const uint16_t col = lit >= band + 2 ? on : off;
+        /* The same arc, drawn by a platform that can (ui/PanelArt.h). */
+        if (tft.drawArcArt(cx, dotY, static_cast<int16_t>(3 * (band + 1)), -132, -48, col)) continue;
         for (uint8_t i = 0; i < count; ++i) {
             tft.drawPixel(static_cast<int16_t>(cx + arc[i].dx),
                           static_cast<int16_t>(dotY + arc[i].dy), col);
@@ -787,9 +835,12 @@ void drawBleBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, uint16_t bg) {
  * inside bottom, so the analogue cue and the digits are both there and neither
  * is guessing.
  *
- * The badge is therefore VARIABLE WIDTH, growing with the digits. Callers must
- * lay out from batteryBadgeWidth() rather than assuming a size. It used to be
- * wider still while charging, to fit a bolt; there is no charging state now. */
+ * The badge is ONE WIDTH, sized for "100", with the digits centred inside it.
+ * It grew with its digits for a while, so it shrank on the way from 10 to 9 --
+ * at the moment it also turned red, which made a status badge look like a
+ * glitch. Callers still lay out from batteryBadgeWidth(), because a board with
+ * no battery sense gets no badge at all. It used to be wider still while
+ * charging, to fit a bolt; there is no charging state now. */
 namespace {
 
 constexpr int16_t BATT_H        = 15;   // shell height, outline included
@@ -811,9 +862,9 @@ void batteryText(char* out, size_t len, int8_t percent) {
     snprintf(out, len, "%d", static_cast<int>(percent));
 }
 
-int16_t batteryShellWidth(Ui::Renderer& tft, const char* text) {
-    int16_t inner = BATT_PAD * 2;
-    if (text[0] != '\0') inner = static_cast<int16_t>(inner + tft.textWidth(text, 1));
+/* Measured on the widest thing the shell ever holds, whatever it holds now. */
+int16_t batteryShellWidth(Ui::Renderer& tft) {
+    int16_t inner = static_cast<int16_t>(BATT_PAD * 2 + tft.textWidth("100", 1));
     if (inner < BATT_MIN_INNER) inner = BATT_MIN_INNER;
     return static_cast<int16_t>(inner + 2);   // the two outline pixels
 }
@@ -839,9 +890,7 @@ int16_t batteryBadgeWidth(Ui::Renderer& tft, int8_t percent) {
     if (!BOARD.hasBatterySense() || percent < 0) {
         return 0;
     }
-    char text[8];
-    batteryText(text, sizeof(text), percent);
-    return static_cast<int16_t>(batteryShellWidth(tft, text) + BATT_TERM_W);
+    return static_cast<int16_t>(batteryShellWidth(tft) + BATT_TERM_W);
 }
 
 void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colour) {
@@ -887,6 +936,8 @@ void drawSpeakerIcon(Ui::Renderer& tft, const Rect& r, bool muted, uint16_t colo
      * plotted by hand is four pixels each. */
     for (int8_t band = 0; band < 2; ++band) {
         const int16_t rad = static_cast<int16_t>(2 + band * 3);
+        /* The same arc, drawn by a platform that can (ui/PanelArt.h). */
+        if (tft.drawArcArt(static_cast<int16_t>(waveX - 1), cy, rad, -60, 60, colour)) continue;
         for (int16_t dy = static_cast<int16_t>(-rad); dy <= rad; ++dy) {
             const int32_t dx2 = static_cast<int32_t>(rad) * rad - static_cast<int32_t>(dy) * dy;
             if (dx2 < 0) continue;
@@ -907,7 +958,7 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
     char text[8];
     batteryText(text, sizeof(text), percent);
 
-    const int16_t shellW = batteryShellWidth(tft, text);
+    const int16_t shellW = batteryShellWidth(tft);
     const int16_t totalW = static_cast<int16_t>(shellW + BATT_TERM_W);
     const int16_t bx = static_cast<int16_t>(cx - totalW / 2);
     const int16_t by = static_cast<int16_t>(cy - BATT_H / 2);
@@ -963,9 +1014,10 @@ void drawBatteryBadge(Ui::Renderer& tft, int16_t cx, int16_t cy, int8_t percent,
                      gw, static_cast<int16_t>(BATT_TRACK_H - 2), levelCol);
     }
 
-    const int16_t penX = static_cast<int16_t>(bx + 1 + BATT_PAD);
-
     if (text[0] != '\0') {
+        // Centred, so 9 and 100 sit in the same shell without either hugging an end.
+        const int16_t penX =
+            static_cast<int16_t>(bx + (shellW - tft.textWidth(text, 1) + 1) / 2);
         /* Transparent text: the gauge runs under the glyph box and a filled
          * background would punch a notch out of it. */
         tft.setTextColor(outClr);
@@ -1027,6 +1079,8 @@ void drawPagerButton(Ui::Renderer& tft, const Rect& r, const String& label, bool
                COLOR_OUTLINE,
                enabled ? COLOR_TEXT : COLOR_MUTED,
                false, 2);
+    /* Where the page buttons (L1/R1) and walking off a row of tiles go. */
+    Focus::notePager(r, label == "Next", enabled);
 }
 
 void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active) {
@@ -1060,6 +1114,9 @@ void drawTab(Ui::Renderer& tft, const Rect& r, const String& label, bool active)
     tft.drawString(fitted, static_cast<int16_t>(r.x + r.w / 2),
                    static_cast<int16_t>(top + h / 2), 2);
     tft.setTextDatum(TL_DATUM);
+    /* A tab is not drawn as a fill and an outline of one rectangle, so the
+     * selector is told where it is (FocusRecorder.h). */
+    Focus::noteTab(Rect{r.x, top, r.w, h}, active, fill);
 }
 
 void drawTabBaseline(Ui::Renderer& tft, int16_t y, int16_t x0, int16_t x1,
@@ -1344,8 +1401,8 @@ static void physicalImageOrigin(Ui::Renderer& tft, const Rect& r,
     *phys = tft.physicalRenderer();
     const float sxAxis = tft.imageScaleX();
     const float syAxis = tft.imageScaleY();
-    *px = static_cast<int32_t>(lroundf(r.x * sxAxis + (r.w * sxAxis - imgW) / 2.0f));
-    *py = static_cast<int32_t>(lroundf(r.y * syAxis + (r.h * syAxis - imgH) / 2.0f));
+    *px = static_cast<int32_t>(lroundf(tft.imageOriginX() + r.x * sxAxis + (r.w * sxAxis - imgW) / 2.0f));
+    *py = static_cast<int32_t>(lroundf(tft.imageOriginY() + r.y * syAxis + (r.h * syAxis - imgH) / 2.0f));
 }
 
 void drawCountryImage(Ui::Renderer& tft, const void* img, int16_t x, int16_t y, uint16_t bgColor) {
