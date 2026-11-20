@@ -10,7 +10,7 @@ anybody writes code.
 Each entry says **what** it is, **why** it might be worth doing, its
 **status** -- *idea*, *partly done*, or *blocked on the owner* -- and, where it
 matters, what it costs against the two budgets that bind on a board: **flash**
-(2,706,221 of 3,145,728 bytes of the app partition, 86.0%, on the 4 MB boards,
+(2,706,117 of 3,145,728 bytes of the app partition, 86.0%, on the 4 MB boards,
 leaving about 429 KB) and the **20 ms frame budget**.
 
 Three things are deliberately not repeated here: `docs/FRAMEWORK_PLAN.md` (the
@@ -164,12 +164,12 @@ Attaky is public. Until then nothing public describes how that work came about.
 
 ### 2.1 Release cadence
 
-**What.** Cut a release. Nothing has been released since 5.12.4 (2026-10-12);
-`dev` carries 5.14.0-SNAPSHOT with the Attaky port, the RG40XX V image,
-courses, kept games, the notice strip and the lobby rework. `main` also
-carries site commits that `dev` never got back. Then settle a habit -- a
-release at a regular interval, or whenever a hardware-tested batch is ready --
-so the gap does not open again.
+**What.** Settle a release habit -- a release at a regular interval, or
+whenever a hardware-tested batch is ready. 5.14.0 (2026-11-20) came five
+weeks after 5.12.4, with the Attaky port, the RG40XX V image, courses, kept
+games, the notice strip and the lobby rework all in one, and `main` had
+gathered site commits `dev` never got back; a habit keeps that gap from
+opening again.
 
 **Status: blocked on the owner** (hardware testing of the consolidated branch).
 
@@ -269,7 +269,7 @@ and no `ota_1`, so `esp_ota_get_next_update_partition()` has nothing to return.
   `app3M_spiffs9M_fact512k_16MB.csv` gives two 3 MB slots -- the size the
   firmware already targets -- plus a 512 KB factory slot for a recovery image.
 - **The 4 MB boards cannot.** The best stock OTA layout, `min_spiffs.csv`, has
-  two slots of 1,966,080 bytes. The firmware is 2,706,221: **740,141 bytes
+  two slots of 1,966,080 bytes. The firmware is 2,706,117: **740,037 bytes
   (about 723 KB, 38%) over**. Removing NimBLE and the BT controller saves about
   192 KB, not a third of the gap.
 - **Over Wi-Fi, never Bluetooth.** A ~2.7 MB image over a BLE connection at a
