@@ -779,17 +779,24 @@
 
   <div class="method" id="flash-handheld">
     <h3>The RG40XX V, on a card.</h3>
-    <p>The card image is published with every release on GitHub, beside its checksums, the script that writes it from Windows, and the corresponding source of everything on the card. <a href="{{REPO}}/releases/latest">The latest release</a></p>
-    <p><b>Windows.</b> Use <code>write-card.ps1</code> from the release rather than an ordinary image writer: with some card readers Windows writes over the start of a card the moment it mounts it. In PowerShell opened as administrator, in the folder with the download:</p>
-    <pre class="cmd"><code>powershell -ExecutionPolicy Bypass -File write-card.ps1          # lists the cards
-powershell -ExecutionPolicy Bypass -File write-card.ps1 -Image braino-rg40xxv.img.gz -Disk 2</code></pre>
+    <p><b>The card.</b> Any microSD card of 1&nbsp;GB or more, in a card reader on a computer. Braino uses about 100&nbsp;MB of it, and writing replaces everything that was on the card.</p>
+    <p><b>The download.</b> Braino {{VERSION}} for the RG40XX V is on GitHub, with nothing to sign in to: <a href="{{REPO}}/releases/download/{{CARD_TAG}}/braino-rg40xxv.img.gz">the card image</a> (17&nbsp;MB), <a href="{{REPO}}/releases/download/{{CARD_TAG}}/braino-rg40xxv.sha256">its checksums</a> and <a href="{{REPO}}/releases/download/{{CARD_TAG}}/write-card.ps1">write-card.ps1</a>, the script that writes it from Windows. <a href="{{REPO}}/releases/tag/{{CARD_TAG}}">The release</a> also carries the corresponding source of everything on the card.</p>
+    <p><b>Windows.</b> Use <code>write-card.ps1</code> rather than an ordinary image writer: with some card readers Windows writes over the start of a card the moment it mounts it, and the card then does not start. Put the card in the reader, open PowerShell as administrator (right-click Start, then <i>Terminal (Admin)</i>), and paste this. It downloads both files into your Downloads folder and lists the cards it can write to:</p>
+    <pre class="cmd"><code>cd "$env:USERPROFILE\Downloads"
+Invoke-WebRequest {{REPO}}/releases/download/{{CARD_TAG}}/braino-rg40xxv.img.gz -OutFile braino-rg40xxv.img.gz
+Invoke-WebRequest {{REPO}}/releases/download/{{CARD_TAG}}/write-card.ps1 -OutFile write-card.ps1
+powershell -ExecutionPolicy Bypass -File write-card.ps1</code></pre>
+    <p>Then write the card, with <code>2</code> replaced by the <code>-Disk</code> number it listed for your card. It asks you to type the number again before it writes anything, and tells you when to take the card out:</p>
+    <pre class="cmd"><code>powershell -ExecutionPolicy Bypass -File write-card.ps1 -Image braino-rg40xxv.img.gz -Disk 2</code></pre>
     <p><b>Linux.</b> Find the card with <code>lsblk</code>, then, with <code>sdX</code> replaced by it:</p>
-    <pre class="cmd"><code>gunzip -c braino-rg40xxv.img.gz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress</code></pre>
+    <pre class="cmd"><code>curl -LO {{REPO}}/releases/download/{{CARD_TAG}}/braino-rg40xxv.img.gz
+gunzip -c braino-rg40xxv.img.gz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress</code></pre>
     <p><b>macOS.</b> Find the card with <code>diskutil list</code>, then, with <code>N</code> replaced by its number:</p>
-    <pre class="cmd"><code>diskutil unmountDisk /dev/diskN
+    <pre class="cmd"><code>curl -LO {{REPO}}/releases/download/{{CARD_TAG}}/braino-rg40xxv.img.gz
+diskutil unmountDisk /dev/diskN
 gunzip -c braino-rg40xxv.img.gz | sudo dd of=/dev/rdiskN bs=4m
 diskutil eject /dev/diskN</code></pre>
-    <p>Check the download first against <code>braino-rg40xxv.sha256</code>. Writing replaces everything on the card. <a href="{{REPO}}/blob/main/host/rg40xxv/README.md">What is on the card, and how it is built</a></p>
+    <p>Then put the card in the RG40XX V and switch it on. <a href="{{REPO}}/blob/main/host/rg40xxv/README.md">What is on the card, and how it is built</a></p>
   </div>
 
 </section>
