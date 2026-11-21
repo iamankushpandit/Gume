@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+  SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit <https://github.com/iamankushpandit>
+
+  Part of Braino! - https://github.com/iamankushpandit/Gume
+  Free software under GPL-3.0-or-later. Reusing any part of this file, in
+  any work, must keep this notice, credit iamankushpandit as the
+  author, and stay under the same licence with corresponding source
+  offered. See LICENSE and NOTICE.md.
+
+  Braino! as the whole device on Android. hasCode="false": there is no Java
+  and no dex in this package. The activity is the system's own NativeActivity,
+  which loads libbraino.so - src/ compiled unchanged - and runs it.
+
+  HOME makes Braino the device's home screen: what it boots into, and what
+  every way back leads to. Nothing else is installed for the player to reach.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.iamankushpandit.braino"
+    android:versionCode="1"
+    android:versionName="5.15.0-SNAPSHOT">
+
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="28" />
+
+    <!-- The firmware's three outbound flows, and nothing more: NTP, the
+         ip-api.com time zone lookup, and the update check. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The Wi-Fi app: read the link, scan, and join the network the owner
+         types (HostWifiOsAndroid.cpp). Android 9 shows an app Wi-Fi names
+         only behind the location permission; Braino never asks where the
+         device is. build.ps1 -Install grants it. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <application
+        android:label="Braino!"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:extractNativeLibs="true">
+
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|screenLayout|uiMode|density">
+
+            <meta-data android:name="android.app.lib_name" android:value="braino" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

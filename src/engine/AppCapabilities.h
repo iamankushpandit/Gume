@@ -20,4 +20,9 @@ enum AppCapability : uint32_t {
     APP_CAP_SCORES          = 1UL << 4,
     APP_CAP_FACTORY_RESET   = 1UL << 5,
     APP_CAP_DIAGNOSTICS     = 1UL << 6,
+    /* Not what the app may do but who may open it: only while the admin
+     * profile is active. A non-admin player does not see the app at all --
+     * no launcher tile, and for Settings no gear -- and launch() refuses it
+     * by every other route. See AppDefinition::availableTo(). */
+    APP_CAP_ADMIN_ONLY      = 1UL << 7,
 };

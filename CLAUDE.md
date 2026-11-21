@@ -125,7 +125,7 @@ rule; the last group is the part only reading catches.
 | `main` takes pull requests from `dev`, `release/<version>` or `hotfix/<topic>` only | `ci.yml`, step "main takes pull requests from..." |
 | Every file carries its licence notice | `check_licenses.py` |
 | Only the four outbound flows; the update request is anonymous; Linux adds nothing underneath; the router is told one fixed name; no rulebook miscounts the flows | `check_privacy.py` |
-| No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/CMakeLists.txt` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
+| No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/cmake/BrainoSources.cmake` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
 | No image but the Attaky Core's carries an Attaky-only symbol | `check_platforms.py --elf .pio/build`, after a build |
 | Every host test states its build line, builds and passes | `run_host_tests.py` |
 | The pin tables and diagrams in `docs/boards/` match the profiles | `gen_board_docs.py --check` |
@@ -662,8 +662,9 @@ stay here:
 - **`host/` adapts to `src/`, never the reverse.** No platform `#if` under
   `src/` or `include/`; a difference between platforms is an interface in
   `src/` with one implementation per platform (`PanelSize`, `PowerProbe`,
-  `SystemSuspend`, `SleepPower`, `PanelArt`). `tools/check_platforms.py`
-  checks both, and that `host/CMakeLists.txt` leaves out exactly the ESP32
+  `SystemSuspend`, `SleepPower`, `PanelArt`, `DevicePose`). `tools/check_platforms.py`
+  checks both, and that `host/cmake/BrainoSources.cmake` (the source list
+  every host build shares) leaves out exactly the ESP32
   implementations.
 - **A new platform call in `src/` breaks the host build until `host/shim/`
   answers it**, and a shim only answers: it never adds a request, a header or
@@ -814,9 +815,9 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,706,157 / 3,145,728 bytes,
-**86.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 95,108 / 327,680 (29.0%) -- higher than it was, deliberately: RowList traded
+Flash is global and nearly the binding constraint (2,707,169 / 3,145,728 bytes,
+**86.1%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
+at 95,124 / 327,680 (29.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1137,14 +1138,20 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   right after `begin()` with each index's key, because the board cannot know
   the catalogue. **Renaming a game's id resets its visibility for every
   player**, as it resets their level in it.
-- **Settings is readable by everyone and writable only by the admin.** There is
-  no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
-  early return in `SettingsApp::update()`, sitting *below* tab switching so a
-  non-admin can still page through and read. The greyed-out controls are a
-  drawing decision and enforce nothing on their own: for a while every greyed
-  row was still live and a player could toggle the lot. If you add a control,
-  it is covered by that early return automatically — do not add a path above
-  it.
+- **Settings, Wi-Fi and System Info are the admin's alone.** They carry
+  `APP_CAP_ADMIN_ONLY`, and `AppDefinition::availableTo()` is the one rule
+  that reads it. For anyone but the admin they have no launcher tile; the gear
+  is neither drawn nor pressable in the launcher header, the top bar or the
+  d-pad selector (`Ui::settingsShown()`, a question the runtime registers at
+  boot so it is asked live as each header draws, never a frame stale after a
+  profile switch); and `BrainoApp::launch()` refuses them by any other route.
+  Waking from an idle that ended an admin session goes Home rather than back
+  into one of them (`resumeUnderlyingScreen()`). **Add a way into an
+  admin-only app and it must come through `launch()`** -- that is what holds
+  if the tile and the gear were the only things hidden. Profiles stays open to
+  everyone: it is the way to become admin. `SettingsApp::update()` still
+  returns early for a non-admin, a second lock behind the first; a control
+  added below that return is covered by it automatically.
 - **Boot must not leave the admin profile active.** `BrainoApp::begin()`
   drops to Guest if it finds admin selected. The picker's Done button goes home
   with whatever is already active, so a remembered admin selection is a PIN
@@ -1176,7 +1183,8 @@ and it is the same guard, not a second one: it sleeps through the ordinary
 - **Each playable game declares its own metadata once.** `AppMetadata` owns id, title, screen title, subtitle, launcher label, blurb, score pointer, launcher icon, launcher index and default visibility. `APP_REGISTRY` only binds that metadata to the concrete static instance.
 - **`APP_REGISTRY` holds the 40 playable games plus 7 launchable system apps.** The launcher itself is not a tile in that table; it is `LauncherApp`, activated by `goHome()`.
 - **Metadata launcher indices must stay contiguous and index-aligned.** `check_catalog.py` enforces this now, but the failure mode is still the same: a misalignment launches the wrong game from the right tile.
-- **The launcher shows the profile name as plain text, not a button, and a whole name always fits.** `LauncherLayout::profileRect()` is both where it draws and the touch target. In landscape it shares the mark's row, not the copyright's: after the copyright it lost pixels to every control added to the badge row until a nine-letter name ran over the hairline and under the padlock. Beside the mark it runs to 4px short of the header's hairline (`LauncherLayout::headerDividerX()`, 4px before the Bluetooth rune, the status group's leftmost glyph, so it divides both rows) -- 62px on a 320px panel -- and `drawProfileName()` uses font 2 when the name fits and font 1 when it does not -- `PROFILE_NAME_MAX` characters of font 1 always fit -- so a short name reads large and a long one is made smaller rather than cut. In portrait it has the second row to itself up to the gear. **The mark and the copyright never move to make room**; everything else in the header can.
+- **The launcher shows the profile name as plain text, not a button, and a whole name always fits.** `LauncherLayout::profileRect()` is both where it draws and the touch target. In landscape it shares the mark's row, not the copyright's: after the copyright it lost pixels to every control added to the badge row until a nine-letter name ran over the hairline and under the padlock. Beside the mark it runs to 4px short of the header's hairline (`LauncherLayout::headerDividerX()`, the status group's left edge, so it divides both rows) and `drawProfileName()` uses font 2 when the name fits and font 1 when it does not -- `PROFILE_NAME_MAX` characters of font 1 always fit -- so a short name reads large and a long one is made smaller rather than cut. In portrait it has the second row up to the same hairline. **The mark and the copyright never move to make room**; everything else in the header can.
+- **The launcher header's status group is packed, not placed.** The clock with its sync check (and the gear, for the admin) on the top row, and the Bluetooth rune, padlock, speaker, Wi-Fi and battery on the badge row, are packed from the right edge out of only what is there -- no gear for a non-admin, no battery on a board without battery sense, no rune while the beacon is off -- so nothing missing leaves a hole. The group is the same shape in both orientations, with the hairline at its left edge in both. All of it is `LauncherLayout` (`clockRight()`, `syncCx()`, `wifiCx()`, `batteryLeft()`, `bleCx()`, `lockRect()`, `speakerRect()`, `gearRect()`, `headerDivider*()`), read by the drawing, the runtime's padlock and speaker hit tests and the d-pad selector alike: **never place a header glyph off a constant of your own.** While the gear is drawn, the speaker's touch slop ends two slops short of it, because the runtime takes padlock and speaker presses before the launcher sees the gear's; the controls therefore move when the gear comes or goes, which is only ever a change of player and a whole repaint. The battery is drawn left-aligned in a slot as wide as its widest reading, so a minute's change of percentage never moves a control. The clock is right-aligned against its check, and the hairline allows for the widest time, so the minute repaint never moves it either.
 - **The launcher header is laid out by `LauncherLayout`, in one place, and ordered by how often each thing is there.** Landscape: the mark and the name, then the clock with its sync check and the gear, on the top row; the copyright, then Bluetooth, padlock, speaker, Wi-Fi and battery on the bottom row, right-aligned under the gear. Portrait: the mark and the copyright; the name and the gear; the clock and its sync check on the left of the third row and the same badge group on its right. Four rules hold it together. **The sync check sits with the clock**, because on its own it means nothing. **Bluetooth is outermost**, because it is drawn only while the beacon is on and its absence must leave a gap rather than move the rest. **The gear is the top bar's** -- `Ui::CONTROL_H`, 8px in from the right edge -- because at 26px here and 18px in every app it looked like two controls. **And the gear is kept away from the padlock and the speaker**: the runtime takes their taps before the launcher sees the gear's, so a speaker under the gear would turn taps on the gear's lower edge into Mute; Wi-Fi and the battery sit between them. The battery badge is **one width at every level** -- the width `100` needs, digits centred -- because a badge that shrank from 10% to 9%, just as it turned red, looked like a glitch. The badge group is still laid out right-to-left off `Ui::batteryBadgeWidth()`, which is 0 on a board with no battery sense, and the padlock's position (`screenW-110`) leaves room for it. The clock is `12:41P`, not `12:41 PM`, which is what bought the name its width. Anything new in that header: measure, don't guess.
 - **The BLE advertisement has exactly one description.** `BleBeacon::Advertisement`
   is compiled into a raw AD buffer that is handed to the controller verbatim,
@@ -1846,7 +1854,9 @@ host/                     src/ built unchanged as an SDL desktop program:
                           emulated FT6336U, Wi-Fi through the OS, boot
                           splash), sound/ (every cue rendered to WAV,
                           through the firmware's own synthesiser),
-                          cmake/ (aarch64 toolchain), muos/ (the
+                          cmake/ (aarch64 toolchain, the shared
+                          source list), android/ (the Portal+ APK:
+                          the same build as a home-screen app), muos/ (the
                           RG40XXV launcher and card packer), rg40xxv/ (the
                           RG40XX V's Braino-only Buildroot image: build.sh,
                           configs/, board/, package/, and rocknix/ --

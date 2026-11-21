@@ -105,7 +105,8 @@ without a board. These hold it together:
   under `src/`. The board is `host/boards/host.h`, whose pins are virtual and
   answered by `host/src/`. It is deliberately outside `include/boards/`,
   because a header there is a claim of support. Only the hardware watchdog and
-  the codec/DAC backend are replaced, and `CMakeLists.txt` names them; the
+  the codec/DAC backend are replaced, and `cmake/BrainoSources.cmake` -- the
+  source list every host build includes -- names them; the
   radios are the firmware's own code over shims (Wi-Fi through the OS, BLE
   through `host/shim/NimBLEDevice.h` on a raw HCI socket).
 - **A new platform call in `src/` breaks the host build until `host/shim/`
@@ -304,7 +305,7 @@ code: storage goes through `Board` into Preferences, touch goes through
 synthesiser and its `braino-audio` task. A host build that needed `src/` to
 bend would be testing a different program from the one on the device.
 
-What the host *replaces* is the short list in `CMakeLists.txt`'s exclusion
+What the host *replaces* is the short list in `cmake/BrainoSources.cmake`'s exclusion
 filters: the hardware watchdog, the codec/DAC backend, and the per-platform
 interfaces, `PowerProbe`, `SystemSuspend`, `PanelSize`, `PanelArt` and `SleepPower` (which
 answers no to everything here: `HostSleep` already slows the cores and takes
@@ -835,6 +836,12 @@ has, that handler is where the same five-second guard belongs.
 
 Two environment variables, both off by default:
 
+- `BRAINO_POSE=landscape|landscape-180|portrait|portrait-180` gives the
+  desktop build a device pose (`src/hal/DevicePose.h`; `src/HostDevicePose.cpp`),
+  as a device with a motion sensor would report: Settings then offers Auto,
+  and with Auto chosen -- the default -- the layout follows the pose. Unset,
+  there is no sensor, as on every board. The Portal's build reads a real
+  accelerometer instead (`android/src/HostDevicePoseAndroid.cpp`).
 - `BRAINO_SHOTS="2500,5000"` saves the panel frame, at its real resolution,
   as `<data dir>/shot-<ms>.bmp` (ms zero-padded to six digits, `shot-002500.bmp`) at those milliseconds after start. F12 saves one
   on demand.

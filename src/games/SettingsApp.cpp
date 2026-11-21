@@ -11,6 +11,7 @@
 
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
+#include "hal/DevicePose.h"
 
 /* The screen itself: lifecycle, the tab strip, and the one touch handler that
  * routes everything else.
@@ -302,13 +303,27 @@ void SettingsApp::update(GameHost& host, const TouchPoint& touch) {
          * and the flip is the half that also turns the games. */
         const Rect box = layoutRect();
         const bool back = touch.x < box.x + box.w / 2;
-        const uint8_t current = static_cast<uint8_t>(
-            (board.screenFlipped() ? 2 : 0) +
-            (board.layoutMode() == Board::LayoutMode::Vertical ? 1 : 0));
-        const uint8_t next = static_cast<uint8_t>((current + (back ? 3 : 1)) & 3);
-        board.setLayoutMode((next & 1) ? Board::LayoutMode::Vertical
-                                       : Board::LayoutMode::Horizontal);
-        board.setScreenFlipped((next & 2) != 0);
+        /* A device with a motion sensor has a fifth position, Auto, where the
+         * device's pose decides (Board::autoRotate()); it sits after Portrait
+         * 180, so one step back from Landscape reaches it. Without a sensor
+         * there are four, exactly as before, and the Auto setting is never
+         * written. While Auto is on, layoutMode() and screenFlipped() answer
+         * from the pose, so Auto is position 4 rather than whatever they say. */
+        const bool sensed = DevicePose::available();
+        const uint8_t positions = sensed ? 5 : 4;
+        const uint8_t current = (sensed && board.autoRotate())
+            ? 4
+            : static_cast<uint8_t>((board.screenFlipped() ? 2 : 0) +
+                                   (board.layoutMode() == Board::LayoutMode::Vertical ? 1 : 0));
+        const uint8_t next = static_cast<uint8_t>((current + (back ? positions - 1 : 1)) % positions);
+        if (next == 4) {
+            board.setAutoRotate(true);
+        } else {
+            if (sensed) board.setAutoRotate(false);
+            board.setLayoutMode((next & 1) ? Board::LayoutMode::Vertical
+                                           : Board::LayoutMode::Horizontal);
+            board.setScreenFlipped((next & 2) != 0);
+        }
         markControl(box);
         /* This screen is always landscape, so of the four steps only the two
          * that cross the flip turn what is in front of the owner. The runtime

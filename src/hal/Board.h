@@ -390,6 +390,21 @@ public:
      * it always did. */
     bool screenFlipped();
     void setScreenFlipped(bool flipped);
+    /* Auto: on a device with a motion sensor (DevicePose), the layout and the
+     * half-turn follow the way the device is held, and layoutMode() and
+     * screenFlipped() answer with that rather than the stored choice -- so
+     * every screen that already honours them turns with the device and none
+     * of them learns a new question. The stored choice is kept, and comes
+     * back when Auto is turned off.
+     *
+     * Global and RAM-mirrored, on by default: a device with a sensor turns
+     * out of the box. Where there is no sensor -- every ESP32 board -- it
+     * changes nothing and Settings does not offer it. */
+    bool autoRotate();
+    void setAutoRotate(bool on);
+    /* Whether the pose is deciding right now: Auto on, a sensor present, and
+     * a pose settled. */
+    bool autoRotating();
     uint16_t screenSaverSeconds();
     void setScreenSaverSeconds(uint16_t seconds);
     /* What happens when the device has been idle for screenSaverSeconds().
@@ -775,6 +790,8 @@ private:
     uint8_t cachedLayout_ = 0;
     bool flipCached_ = false;
     bool cachedFlip_ = false;
+    bool autoRotCached_ = false;
+    bool cachedAutoRot_ = true;
     bool idleCached_ = false;
     uint16_t cachedIdleSecs_ = 0;
     bool idleActionCached_ = false;

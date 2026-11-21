@@ -163,7 +163,11 @@ void BrainoApp::resumeUnderlyingScreen() {
      * is where each screen clears whatever it was part way through. */
     const bool restart = adminEndedByIdle_;
     adminEndedByIdle_ = false;
-    if (ssavPrevView_ == View::Game && activeGame_ != nullptr) {
+    /* An admin-only screen (Settings, Wi-Fi, System Info) left up when the
+     * idle ended the admin session is not the player's to come back to:
+     * idle has made them Guest, and Guest does not see these apps at all. */
+    const bool screenStillTheirs = activeApp_ == nullptr || activeApp_->availableTo(board_);
+    if (ssavPrevView_ == View::Game && activeGame_ != nullptr && screenStillTheirs) {
         applyRotation(rotationForActiveScreen());
         Watchdog::setContext(activeAppTitle());
         view_ = View::Game;

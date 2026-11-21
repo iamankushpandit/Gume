@@ -18,3 +18,10 @@
  * the window mid-wait ended in "terminate called without an active exception"
  * with the beacon left on the air. */
 [[noreturn]] void hostExit(int code);
+
+/* The whole program after the operating system has started it: the self
+ * test, the window, the boot splash and the firmware's setup() and loop().
+ * main() is only this on a desktop or a handheld; on Android the system
+ * calls android_main() instead (host/android/src/AndroidMain.cpp), which
+ * waits for its window and then calls the same function. */
+int hostMain(int argc, char** argv);

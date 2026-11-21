@@ -22,7 +22,8 @@ machine can check:
   2. Every platform interface has one implementation per platform. Each
      `src/**/<Name>Esp32.cpp` implements the interface declared in
      `<Name>.h` beside it; `host/src/` must implement the same namespace,
-     and `host/CMakeLists.txt` must leave out exactly the ESP32
+     and `host/cmake/BrainoSources.cmake` (the source list every host
+     build shares) must leave out exactly the ESP32
      implementations plus the two parts the host replaces outright (the
      hardware watchdog and the codec/DAC backend). A new interface whose
      ESP32 file the host still compiles fails to link on Linux; one the host
@@ -63,6 +64,10 @@ CONDITIONAL = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")
 SDL_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]SDL')
 
 # --- rule 2 ---------------------------------------------------------------
+
+# Where every host build's firmware source list is filtered: the desktop and
+# the RG40XX V (host/CMakeLists.txt) and the Portal (host/android/) include it.
+HOST_SOURCE_LIST = "host/cmake/BrainoSources.cmake"
 
 # Replaced on the host by a file of its own rather than through an interface
 # with a *Esp32.cpp beside it. Each names the host file that replaces it.
@@ -135,8 +140,9 @@ def interface_namespace(header):
 
 
 def cmake_exclusions():
-    """The src/ files host/CMakeLists.txt filters out of the firmware."""
-    text = read("host/CMakeLists.txt")
+    """The src/ files the shared host source list filters out of the
+    firmware."""
+    text = read(HOST_SOURCE_LIST)
     excluded = set()
     for block in re.findall(r"list\(FILTER\s+FIRMWARE_SOURCES\s+EXCLUDE\s+REGEX\s+"
                             r"\"([^\"]+)\"", text, re.S):
@@ -186,15 +192,15 @@ def check_platform_interfaces(problems):
                             "exist" % (src, replacement))
     excluded = cmake_exclusions()
     for path in sorted(expected - excluded):
-        problems.append("host/CMakeLists.txt compiles %s, an ESP32-only "
+        problems.append("%s compiles %s, an ESP32-only "
                         "implementation; add it to the FIRMWARE_SOURCES "
-                        "exclusion" % path)
+                        "exclusion" % (HOST_SOURCE_LIST, path))
     for path in sorted(excluded - expected):
-        problems.append("host/CMakeLists.txt leaves %s out of the host build, "
+        problems.append("%s leaves %s out of the host build, "
                         "but it is not an ESP32 implementation of an interface. "
                         "If the host really replaces it, name it in "
                         "REPLACED_OUTRIGHT in this checker with the file that "
-                        "does" % path)
+                        "does" % (HOST_SOURCE_LIST, path))
 
 
 def macro_values(path):

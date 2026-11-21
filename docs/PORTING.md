@@ -296,7 +296,8 @@ A board that boots is not a board that ships. In the same commit:
 A new *board* needs nothing here. A new *platform* builds the same `src/`,
 unchanged, and answers what differs through the platform interfaces, one
 implementation each: `PanelSize` (`src/hal/PanelSize.h`), `PowerProbe`,
-`SystemSuspend`, `SleepPower` and `PanelArt` (`src/ui/PanelArt.h`). The Linux
+`SystemSuspend`, `SleepPower`, `PanelArt` (`src/ui/PanelArt.h`) and `DevicePose`
+(`src/hal/DevicePose.h`, which way up a device with a motion sensor is held). The Linux
 platform in `host/` is the worked example, and [host/CLAUDE.md](../host/CLAUDE.md)
 its rulebook. `tools/check_platforms.py` checks that every interface the ESP32
 boards implement has a host implementation, and that nothing under `src/`

@@ -17,6 +17,13 @@
 #include <cstring>
 #include <mutex>
 #include <random>
+#include <string>
+
+#if GUME_HOST_SANDBOXED_KEY
+#include <unistd.h>
+
+#include "HostPlatform.h"
+#endif
 
 namespace {
 
@@ -110,6 +117,37 @@ Bytes deviceMaterial(const char*& source) {
             return v;
         }
     }
+#if GUME_HOST_SANDBOXED_KEY
+    /* Android (host/android): an app can read no processor serial, but its
+     * own storage is readable by nothing else -- the package is not
+     * debuggable and keeps no backup, so not even adb reaches it. A random
+     * key made there once binds the seal to this installation: nvs.txt
+     * copied off the device without it opens nothing. What protects both
+     * files is the sandbox, and the log says so. */
+    {
+        static std::string path;
+        path = HostPlatform::dataDir() + "/secret-key";
+        Bytes key = readFile(path.c_str(), 32);
+        if (key.size() != 32) {
+            key.resize(32);
+            std::random_device rd;
+            for (uint8_t& b : key) b = static_cast<uint8_t>(rd());
+            if (FILE* f = std::fopen(path.c_str(), "wb")) {
+                const bool ok = std::fwrite(key.data(), 1, key.size(), f) == key.size();
+                std::fflush(f);
+                ::fsync(::fileno(f));
+                std::fclose(f);
+                if (!ok) key.clear();
+            } else {
+                key.clear();
+            }
+        }
+        if (meaningful(key)) {
+            source = "the app's private storage (bound to this installation)";
+            return key;
+        }
+    }
+#endif
 #if !GUME_HOST_STRICT_SECRETS
     Bytes id = readFile("/etc/machine-id", 64);
     if (meaningful(id)) {

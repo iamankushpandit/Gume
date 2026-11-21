@@ -28,14 +28,15 @@
 #include "HostSplash.h"
 
 #include <Arduino.h>
-#include <SDL.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <Fonts/Font16.h>
@@ -449,6 +450,28 @@ const Base& base(int w, int h) {
 }   // namespace
 
 namespace HostSplash {
+namespace {
+
+/* Milliseconds on a monotonic clock. The splash times itself before the
+ * firmware's millis() has anything to measure from, and it needs no window
+ * library to do it, so every host build -- with SDL or without -- runs it. */
+uint32_t nowMs() {
+    using namespace std::chrono;
+    return static_cast<uint32_t>(
+        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+}
+
+void put16(std::vector<uint8_t>& out, uint32_t v) {
+    out.push_back(static_cast<uint8_t>(v));
+    out.push_back(static_cast<uint8_t>(v >> 8));
+}
+
+void put32(std::vector<uint8_t>& out, uint32_t v) {
+    put16(out, v & 0xFFFF);
+    put16(out, v >> 16);
+}
+
+}   // namespace
 
 std::vector<float> markPart(MarkPart part, int height, int& width) {
     const Mark& m = mark();
@@ -558,16 +581,16 @@ void runBootPhase() {
      * showed to this picture has no step in it. */
     constexpr float GLOW_MID = 0.75f, GLOW_SWING = 0.40f, GLOW_PERIOD_MS = 1600.0f;
     const float phase0 = std::asin((1.0f - GLOW_MID) / GLOW_SWING);
-    const uint32_t t0 = SDL_GetTicks();
+    const uint32_t t0 = nowMs();
     for (;;) {
-        const uint32_t t = SDL_GetTicks() - t0;
+        const uint32_t t = nowMs() - t0;
         const float s = std::min(1.0f, static_cast<float>(t) / FILL_MS);
         const float eased = s * s * (3.0f - 2.0f * s);
         const float glow = GLOW_MID + GLOW_SWING * std::sin(phase0 + 2.0f * static_cast<float>(M_PI) * t / GLOW_PERIOD_MS);
         render(rgb.data(), w, h, start + (1.0f - start) * eased, glow);
         if (!HostPlatform::presentImage(rgb.data(), w, h)) return;
         if (t >= FILL_MS + HOLD_MS) break;
-        SDL_Delay(16);
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
     float ready = uptime;
@@ -576,7 +599,7 @@ void runBootPhase() {
         std::fclose(f);
     }
     std::printf("[splash] boot phase %u ms, uptime %.1f s (bar opened at %d%%)\n",
-                static_cast<unsigned>(SDL_GetTicks() - t0), ready,
+                static_cast<unsigned>(nowMs() - t0), ready,
                 static_cast<int>(start * 100.0f + 0.5f));
     /* Only a real boot is a measurement. A program started on a machine that
      * has been up for hours says nothing about how long booting takes. */
@@ -590,11 +613,44 @@ void runBootPhase() {
 bool writeBmp(const char* path, int w, int h, float progress, float glow) {
     std::vector<uint8_t> rgb(static_cast<size_t>(w) * h * 3);
     render(rgb.data(), w, h, progress, glow);
-    SDL_Surface* s = SDL_CreateRGBSurfaceWithFormatFrom(rgb.data(), w, h, 24, w * 3, SDL_PIXELFORMAT_RGB24);
-    if (!s) return false;
-    const bool ok = SDL_SaveBMP(s, path) == 0;
-    SDL_FreeSurface(s);
-    return ok;
+    /* A 24-bit BMP: the 14-byte file header, a 40-byte BITMAPINFOHEADER, then
+     * the rows bottom-up in BGR order, each padded to four bytes. What a
+     * handheld's boot loader takes, and what SDL_SaveBMP wrote before the
+     * splash stopped needing SDL. */
+    if (w <= 0 || h <= 0) return false;
+    const uint32_t rowBytes = (static_cast<uint32_t>(w) * 3 + 3) & ~3u;
+    const uint32_t pixelBytes = rowBytes * static_cast<uint32_t>(h);
+    std::vector<uint8_t> out;
+    out.reserve(54 + pixelBytes);
+    out.push_back('B');
+    out.push_back('M');
+    put32(out, 54 + pixelBytes);   // file size
+    put32(out, 0);                 // reserved
+    put32(out, 54);                // offset of the pixels
+    put32(out, 40);                // BITMAPINFOHEADER
+    put32(out, static_cast<uint32_t>(w));
+    put32(out, static_cast<uint32_t>(h));   // positive: bottom-up
+    put16(out, 1);                 // planes
+    put16(out, 24);                // bits a pixel
+    put32(out, 0);                 // BI_RGB, uncompressed
+    put32(out, pixelBytes);
+    put32(out, 2835);              // 72 dpi, as pixels a metre
+    put32(out, 2835);
+    put32(out, 0);                 // palette colours
+    put32(out, 0);                 // important colours
+    for (int y = h - 1; y >= 0; --y) {
+        const uint8_t* row = rgb.data() + static_cast<size_t>(y) * w * 3;
+        for (int x = 0; x < w; ++x) {
+            out.push_back(row[x * 3 + 2]);
+            out.push_back(row[x * 3 + 1]);
+            out.push_back(row[x * 3 + 0]);
+        }
+        for (uint32_t pad = static_cast<uint32_t>(w) * 3; pad < rowBytes; ++pad) out.push_back(0);
+    }
+    FILE* f = std::fopen(path, "wb");
+    if (!f) return false;
+    const bool ok = std::fwrite(out.data(), 1, out.size(), f) == out.size();
+    return std::fclose(f) == 0 && ok;
 }
 
 }   // namespace HostSplash

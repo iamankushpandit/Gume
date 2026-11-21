@@ -585,6 +585,11 @@ private:
      * it is honest for the rest too: the scope every screen reads its data
      * from has changed. */
     bool adminEndedByIdle_ = false;
+    /* Auto-rotate (AppRuntimePose.cpp): the layout and half-turn the device's
+     * pose last gave, so a change of pose turns the screen once. 0xFF until a
+     * pose has been seen. */
+    uint8_t poseTurn_ = 0xFF;
+    void followPose();
     bool lockHolding_ = false;
     bool lockFullPaint_ = true;
     int16_t lockPaintedPct_ = -1;

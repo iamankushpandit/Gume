@@ -18,6 +18,53 @@ its update check reads the manifest's newest release as every board's does.
 It drops `-D GUME_EXPERIMENTAL=1`, which made it read only its own line. The
 `experimental` kind stays, for the next board that needs one.
 
+**Braino runs on the Meta Portal+ (experimental).** `host/android/` builds
+the same host program -- `src/` unchanged -- into an APK whose only code is
+`libbraino.so`, run by the system's own `NativeActivity`, and whose manifest
+makes it the device's home screen. The Portal's bootloader takes only
+Meta-signed images, so an APK is the one way on; as the home activity it is
+still what the device boots into. The panel lays out at 480x270 (UI scale 4
+on 1920x1080), audio is AAudio, Bluetooth reports no controller because
+Android gives an app none, and libcurl is built HTTP-only, so the update
+check (HTTPS) does not run there. The Wi-Fi network and the admin PIN are
+sealed with a key kept in the app's private storage, since an app can read
+no processor serial. Built with `host/android/build.ps1`; see
+`host/android/CLAUDE.md`.
+
+The firmware's own source list is now `host/cmake/BrainoSources.cmake`,
+shared by every host build, and the boot splash no longer needs SDL.
+
+**Auto-rotate, where the device knows which way up it is.** A new
+platform interface, `DevicePose`, says how a device with a motion sensor is
+being held. The ESP32 boards have none and are unchanged. Where there is one
+-- the Meta Portal+ -- Settings' orientation button gains a fifth position,
+**Auto**, which is the default: the layout and the half turn follow the
+device, so the launcher and the system screens stand up in portrait and
+everything turns over with a half turn. Games stay landscape in portrait. A
+pose counts once it has held for half a second. `Board.cpp`'s layout and flip
+accessors moved to `BoardDisplay.cpp` first, the file having passed 600
+lines.
+
+**Settings, Wi-Fi and System Info are the admin's alone.** A player who is
+not the admin no longer sees them: no tile in the launcher, and no gear in the
+launcher's header, the top bar or the d-pad's selector. Signing in as the
+admin brings them back. Every route into one of them now comes through
+`launch()`, which refuses it for anyone else, and waking from an idle that
+ended an admin session goes Home instead of back into one of them. Until now
+Settings was readable by every player and writable only by the admin; that
+was a deliberate choice, and the owner has reversed it (`docs/IDEAS.md`
+9.2). Mute stays open to everyone.
+
+**The launcher header packs itself.** Its badges were placed at fixed
+offsets sized for a battery, a Bluetooth rune and a gear, so a board without
+a battery, a radio switched off or a player who is not the admin left holes
+across the row. The status group -- the clock with its sync check and the
+gear on top, the rune, padlock, speaker, Wi-Fi and battery beneath -- is now
+packed from the right edge out of only what is there, the same in both
+orientations, and the hairline that divides it from the mark and the
+player's name is drawn in portrait as well as landscape. The top bar closes
+up where the gear was, too.
+
 ## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page

@@ -28,18 +28,43 @@ Rect topBarLockRect(int16_t screenW);
 /** Where the top bar's title may start: clear of Home and the padlock. */
 int16_t topBarTitleLeft(int16_t screenW);
 
-/* Where the launcher draws its own Lock button. The launcher has no top bar,
- * so it needs its own slot: just left of the status badges on the bottom row
- * in Wide, and the badge row's right-hand end in Tall. */
+/* THE LAUNCHER HEADER'S STATUS GROUP, the same shape in both orientations: a
+ * top row of the clock, its sync check and the gear, and under it a badge row
+ * of the Bluetooth rune, the padlock, the speaker, Wi-Fi and the battery. It
+ * is packed from the right edge out of only what is there -- no gear for a
+ * player who is not the admin (Ui::settingsShown()), no battery on a board
+ * with no battery sense, no rune while the beacon is off -- so a missing
+ * thing leaves no hole. A hairline (headerDivider*) stands at the group's
+ * left edge in both orientations, and the player's name runs up to it.
+ *
+ * The padlock and the speaker are the only things in the group anyone taps
+ * besides the gear. While the gear is drawn they keep clear of its corner, so
+ * a tap on the gear's lower edge cannot mute the console; without it they
+ * close up too. They move only when the gear comes or goes -- a change of
+ * player, which repaints the header -- never under a finger. The drawing,
+ * every hit test and the d-pad's selector read these same functions. */
 Rect lockRect(Board::LayoutMode mode, int16_t screenW);
 int16_t headerHeight(Board::LayoutMode mode);
 Rect gearRect(Board::LayoutMode mode, int16_t screenW);
 Rect profileRect(Board::LayoutMode mode, int16_t screenW);
-/* Landscape only: the hairline between the mark, name and copyright and the
- * header's clock, gear and badges -- its x, and the rows it spans. */
-int16_t headerDividerX(int16_t screenW);
-int16_t headerDividerTop();
-int16_t headerDividerBottom(int16_t screenW);
+/* The two rows' centre lines. */
+int16_t statusTopCy(Board::LayoutMode mode);
+int16_t statusBadgeCy(Board::LayoutMode mode);
+/* The clock's right edge (it is drawn MR_DATUM, so a longer time grows
+ * leftwards, away from its check) and the sync check's centre beside it. */
+int16_t clockRight(Board::LayoutMode mode, int16_t screenW);
+int16_t syncCx(Board::LayoutMode mode, int16_t screenW);
+/* The badge row's passive glyphs: Wi-Fi's centre, the battery badge's left
+ * edge (it is drawn left-aligned there, so a narrower reading gives its room
+ * back at the panel's edge rather than opening a gap), and the rune's centre. */
+int16_t wifiCx(Board::LayoutMode mode, int16_t screenW);
+int16_t batteryLeft(Board::LayoutMode mode, int16_t screenW);
+int16_t bleCx(Board::LayoutMode mode, int16_t screenW);
+/* The hairline between the mark, name and copyright and the status group --
+ * its x, and the rows it spans -- in both orientations. */
+int16_t headerDividerX(Board::LayoutMode mode, int16_t screenW);
+int16_t headerDividerTop(Board::LayoutMode mode);
+int16_t headerDividerBottom(Board::LayoutMode mode);
 /* The launcher's tile grid, measured against the live panel.
  *
  * screenW/screenH are required rather than defaulted. Everything else on this

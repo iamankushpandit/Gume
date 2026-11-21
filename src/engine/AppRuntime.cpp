@@ -25,6 +25,22 @@
 // Home, Lock and the gear all come from LauncherLayout, so a hit target and
 // the glyph Ui paints into it cannot drift apart.
 
+namespace {
+
+/* The question Ui asks before it draws the gear (Ui::setSettingsShownQuery()):
+ * may the player holding the device open Settings? The registry answers it,
+ * so the gear and launch() follow the one rule. The settings entry is found
+ * once; the answer is asked live, so a profile switch is never a frame late. */
+Board* s_settingsBoard = nullptr;
+const AppDefinition* s_settingsApp = nullptr;
+
+bool settingsOpenToPlayer() {
+    return s_settingsBoard == nullptr || s_settingsApp == nullptr ||
+           s_settingsApp->availableTo(*s_settingsBoard);
+}
+
+}   // namespace
+
 /* Hand every screen the same starting state for text.
  *
  * TftRenderer remembers the glyph size it was last given, which is what lets
@@ -72,6 +88,9 @@ Ui::Renderer& BrainoApp::display() {
 
 void BrainoApp::begin() {
     board_.begin();
+    s_settingsBoard = &board_;
+    s_settingsApp = &appById("settings");
+    Ui::setSettingsShownQuery(settingsOpenToPlayer);
     /* Before anything asks which games a player sees: the old per-index
      * visibility keys are read against the game at each index today. Board
      * cannot know the catalogue, so the runtime hands it over. */
@@ -152,6 +171,7 @@ void BrainoApp::begin() {
 
 void BrainoApp::loop() {
     Watchdog::feed();
+    followPose();   // auto-rotate: AppRuntimePose.cpp
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
     const FrameKeys keys = pollKeys();
@@ -382,8 +402,10 @@ void BrainoApp::loop() {
             dismissNotice(nowMs);
             swallowTouch_ = true;
             selectorLetGo();
-        } else if (activeGame_ != &launcher_ &&
+        } else if (activeGame_ != &launcher_ && Ui::settingsShown() &&
             touch.justPressed && settingsButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+            /* Only where the gear is drawn: for anyone but the admin the slot
+             * is empty, and a press there belongs to the screen. */
             openSettings();
         } else if (activeGame_ != &launcher_ &&
                    touch.justPressed && homeButton.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {

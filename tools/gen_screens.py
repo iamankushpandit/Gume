@@ -1721,49 +1721,66 @@ def on_fill_soft(fill):
     return soft if (hi + 0.05) / (lo + 0.05) >= 4.5 else ink
 
 
-def launcher_header(d, w, tall, name="Ava", beacon=False):
+def launcher_header(d, w, tall, name="Ava", beacon=False, admin=False, battery=True):
     """The launcher's header, from LauncherLayout's own numbers.
 
-    The mark and the copyright are fixed. The player's name has the mark's row
-    to itself in landscape and the second row in portrait; the clock keeps its
-    sync check; the gear is the top bar's, 18px and 8px in from the right; and
-    the badge row runs Bluetooth (only while the beacon is on), padlock,
-    speaker, Wi-Fi, battery, right-aligned under the gear.
+    The mark and the copyright are fixed: on one row in portrait, with a rule
+    under it, and stacked in landscape. Everything the header reports is a
+    status group packed from the right edge out of only what is there, the
+    same shape in both orientations: the clock with its sync check and, for
+    the admin, the gear on the top row; the Bluetooth rune (only while the
+    beacon is on), padlock, speaker, Wi-Fi and battery on the badge row. A
+    hairline stands at the group's left edge in both orientations, and the
+    player's name runs up to it.
+
+    Ava is a player, so by default there is no gear. While it is drawn, the
+    padlock and speaker keep two touch slops clear of its corner -- which on
+    a board with a battery (the mock-ups' E32R28T-1) costs nothing.
     """
-    lock_x = w - 110                      # lockRect(): CONTROL_FROM_RIGHT
-    gear = (w - 8 - CONTROL_H, 32 if tall else 6, CONTROL_H, CONTROL_H)
+    EDGE, GAP, WIFI_HALF, BATTERY_SLOT, CLOCK_RESERVE, HIT_SLOP = 8, 6, 8, 36, 50, 8
+    sync_half = BADGE_H // 2 + 1
+    top_y, badge_y = (32, 51) if tall else (6, 25)
+    top_cy, badge_cy = top_y + CONTROL_H // 2, badge_y + CONTROL_H // 2
+    gear = (w - EDGE - CONTROL_H, top_y, CONTROL_H, CONTROL_H)
+    batt_left = w - EDGE - BATTERY_SLOT
+    wifi_cx = (batt_left - GAP if battery else w - EDGE) - WIFI_HALF
+    controls_right = wifi_cx - WIFI_HALF - GAP
+    if admin:
+        controls_right = min(controls_right, gear[0] - 2 * HIT_SLOP)
+    speaker_x = controls_right - CONTROL_H
+    lock_x = speaker_x - 4 - CONTROL_H
+    ble_cx = lock_x - GAP - 5
+    sync_cx = (gear[0] - GAP if admin else w - EDGE) - sync_half
+    clock_right = sync_cx - sync_half - 5
+    badge_left = ble_cx - 5 if beacon else lock_x
+    divider_x = min(clock_right - CLOCK_RESERVE, badge_left) - GAP
     t = "12:41A"
-    batt_w = battery_width(72)
+
     _draw_logo(d, 10 + _logo_mask("WORD")[3], 16, TEXT, "WORD")
     if tall:
         d.text((w - 8 - d.textlength(COPYRIGHT_SHORT, font=F1), 13), COPYRIGHT_SHORT,
                font=F1, fill=MUTED)
         d.line([(8, 30), (w - 8, 30)], fill=shade(SURFACE, 150))
-        d.text((8, 33), name, font=F2, fill=TEXT)
-        row = 60
-        d.text((8, 53), t, font=F2, fill=TEXT)
-        sync_badge(d, int(8 + d.textlength(t, font=F2) + 12), row)
+        name_x = 8
     else:
         d.text((10, 34), COPYRIGHT_SHORT, font=F1, fill=MUTED)
-        # headerDividerX(): 4px before the Bluetooth rune's box (lock_x - 13),
-        # from the mark's row (y=6) to the foot of the badge row (25 + 18).
-        divider_x = lock_x - 13 - 4
         name_x = 10 + _logo_mask("WORD")[0] + 10
-        name_font = F2 if d.textlength(name, font=F2) <= divider_x - 4 - name_x else F1
-        d.text((name_x, 7), name, font=name_font, fill=TEXT)
-        d.line([(divider_x, 6), (divider_x, 25 + CONTROL_H - 1)], fill=OUTLINE)
-        row = 34
-        sync_cx = gear[0] - 6 - 7
-        sync_badge(d, sync_cx, 15)
-        d.text((sync_cx - 12 - d.textlength(t, font=F2), 7), t, font=F2, fill=TEXT)
-    gear_icon(d, gear, TEXT)
-    right = gear[0] + gear[2]
-    wifi_badge(d, right - batt_w - 14, row)
-    battery_badge(d, right - batt_w // 2, row)
-    lock_icon(d, (lock_x, row - 9, CONTROL_H, CONTROL_H))
-    speaker_icon(d, (lock_x + 22, row - 9, CONTROL_H, CONTROL_H), False, TEXT)
+    name_font = F2 if d.textlength(name, font=F2) <= divider_x - 4 - name_x else F1
+    d.text((name_x, top_y + 1), name, font=name_font, fill=TEXT)
+    d.line([(divider_x, top_y), (divider_x, badge_y + CONTROL_H - 1)], fill=OUTLINE)
+
+    sync_badge(d, sync_cx, top_cy)
+    d.text((clock_right - d.textlength(t, font=F2), top_cy - 8), t, font=F2, fill=TEXT)
+    if admin:
+        gear_icon(d, gear, TEXT)
     if beacon:
-        ble_badge(d, lock_x - 9, row)
+        ble_badge(d, ble_cx, badge_cy)
+    lock_icon(d, (lock_x, badge_y, CONTROL_H, CONTROL_H))
+    speaker_icon(d, (speaker_x, badge_y, CONTROL_H, CONTROL_H), False, TEXT)
+    wifi_badge(d, wifi_cx, badge_cy)
+    if battery:
+        batt_w = battery_width(72)
+        battery_badge(d, batt_left + batt_w // 2, badge_cy)
 
 
 def launcher_wide():

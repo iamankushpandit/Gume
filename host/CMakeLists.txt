@@ -30,106 +30,17 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
-
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 find_package(Threads REQUIRED)
 
-include(FetchContent)
-# SOURCE_SUBDIR points at nothing on purpose: these are Arduino libraries,
-# not CMake projects, and only their sources are wanted.
-FetchContent_Declare(tft_espi
-  GIT_REPOSITORY https://github.com/Bodmer/TFT_eSPI.git
-  GIT_TAG V2.5.43
-  GIT_SHALLOW TRUE
-  SOURCE_SUBDIR none)
-FetchContent_Declare(arduinojson
-  GIT_REPOSITORY https://github.com/bblanchon/ArduinoJson.git
-  GIT_TAG v7.4.3
-  GIT_SHALLOW TRUE
-  SOURCE_SUBDIR none)
-FetchContent_Declare(map_n_flag
-  GIT_REPOSITORY https://github.com/iamankushpandit/map-n-flag.git
-  GIT_TAG 3c412cb5cea4dcc5c696abd7a4db78470a97fbd1
-  SOURCE_SUBDIR none)
-FetchContent_MakeAvailable(tft_espi arduinojson map_n_flag)
-
-# The firmware, minus what the host replaces: the hardware
-# watchdog, the codec/DAC backend and each ESP32 implementation of a platform
-# interface -- the power probe, suspend and the panel's size (see
-# host/src/Host*.cpp) -- and every
-# standalone bench probe, which has its own setup() and loop().
-file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
-  "${REPO_ROOT}/src/engine/*.cpp"
-  "${REPO_ROOT}/src/games/*.cpp"
-  "${REPO_ROOT}/src/ui/*.cpp"
-  "${REPO_ROOT}/src/hal/*.cpp")
-list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX
-  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32|PanelSizeEsp32|SleepPowerEsp32)\.cpp$")
-list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX "/src/ui/PanelArtEsp32\\.cpp$")
-list(APPEND FIRMWARE_SOURCES
-  "${REPO_ROOT}/src/main.cpp"
-  "${REPO_ROOT}/src/BuildStamp.cpp")
-
-file(GLOB HOST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-file(GLOB_RECURSE MAP_N_FLAG_SOURCES CONFIGURE_DEPENDS
-  "${map_n_flag_SOURCE_DIR}/src/*.cpp" "${map_n_flag_SOURCE_DIR}/src/*.c")
-list(FILTER MAP_N_FLAG_SOURCES EXCLUDE REGEX "[Ll]vgl")
-
-set(STAMP_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-file(MAKE_DIRECTORY "${STAMP_DIR}")
-add_custom_target(build_stamp ALL
-  COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${REPO_ROOT}
-          -DOUTPUT=${STAMP_DIR}/GumeBuildStamp.h
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildStamp.cmake
-  BYPRODUCTS ${STAMP_DIR}/GumeBuildStamp.h
-  COMMENT "Build stamp")
-
-add_custom_command(
-  OUTPUT ${STAMP_DIR}/BrainoMarkSvg.h
-  COMMAND ${CMAKE_COMMAND} -DSVG=${REPO_ROOT}/tools/braino-badge.svg
-          -DOUTPUT=${STAMP_DIR}/BrainoMarkSvg.h
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedMark.cmake
-  DEPENDS ${REPO_ROOT}/tools/braino-badge.svg ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedMark.cmake
-  COMMENT "Embedding the Braino mark")
-add_custom_target(embed_mark DEPENDS ${STAMP_DIR}/BrainoMarkSvg.h)
-
-# The typeface the host draws text in (host/fonts/README.md), compiled in so
-# no device needs a font directory. Rasterised by host/third_party/stb.
-add_custom_command(
-  OUTPUT ${STAMP_DIR}/BrainoFontTtf.h
-  COMMAND ${CMAKE_COMMAND} -DFONT=${CMAKE_CURRENT_SOURCE_DIR}/fonts/FreeSans-Latin.ttf
-          -DOUTPUT=${STAMP_DIR}/BrainoFontTtf.h
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFont.cmake
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/fonts/FreeSans-Latin.ttf
-          ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedFont.cmake
-  COMMENT "Embedding the font")
-add_custom_target(embed_font DEPENDS ${STAMP_DIR}/BrainoFontTtf.h)
+# The pinned libraries, the firmware's sources, the generated headers and the
+# include roots -- shared with host/android/ (cmake/BrainoSources.cmake).
+include(cmake/BrainoSources.cmake)
 
 add_executable(braino ${FIRMWARE_SOURCES} ${HOST_SOURCES} ${MAP_N_FLAG_SOURCES})
-add_dependencies(braino build_stamp embed_mark embed_font)
-
-# host/ first, so boards/host.h and the shims win; then the firmware's own
-# include roots, as PlatformIO lays them out.
-target_include_directories(braino PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/shim"
-  "${STAMP_DIR}"
-  "${REPO_ROOT}/include"
-  "${REPO_ROOT}/src"
-  "${REPO_ROOT}/src/hal"
-  "${tft_espi_SOURCE_DIR}"
-  "${arduinojson_SOURCE_DIR}/src"
-  "${map_n_flag_SOURCE_DIR}/src")
-
-target_compile_definitions(braino PRIVATE
-  GUME_BOARD_HEADER="boards/host.h"
-  BOARD_NAME="Host-SDL"
-  LOAD_GLCD=1
-  LOAD_FONT2=1
-  LOAD_FONT4=1)
+braino_firmware_target(braino "Host-SDL")
 
 # A handheld reads its battery through Linux's power-supply driver; a desktop
 # build reports none (see boards/host.h). Cross-compiled builds are handhelds.

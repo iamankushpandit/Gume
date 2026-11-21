@@ -63,6 +63,11 @@ struct AppDefinition {
     bool defaultVisible() const;
     bool hasCapability(uint32_t capability) const;
     bool isCatalogApp() const;
+    /** Opened only while the admin profile is active (APP_CAP_ADMIN_ONLY). */
+    bool adminOnly() const;
+    /** Whether the active player may open this app at all. False hides it
+     *  from the launcher and makes launch() refuse it. */
+    bool availableTo(Board& board) const;
     bool visible(Board& board) const;
     Game& game(GameInstances& games) const;
 };

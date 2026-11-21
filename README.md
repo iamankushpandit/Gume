@@ -8,7 +8,7 @@
 [![Platforms](https://img.shields.io/badge/runs%20on-ESP32%20boards%20%7C%20Attaky%20Cyber%20Deck%20Plus%20%7C%20Anbernic%20RG40XX%20V-e25822)](#pick-your-device)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
-[![Flash](https://img.shields.io/badge/flash-86.0%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
+[![Flash](https://img.shields.io/badge/flash-86.1%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
@@ -52,8 +52,8 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,706,157 / 3,145,728 bytes of the app partition (**86.0%**) |
-| RAM | 95,108 / 327,680 bytes (**29.0%**) |
+| Flash | 2,707,169 / 3,145,728 bytes of the app partition (**86.1%**) |
+| RAM | 95,124 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
 Contribution workflow lives in [CONTRIBUTING.md](CONTRIBUTING.md), alongside
@@ -831,6 +831,17 @@ an enclosure that holds the board the other way up. A case decides which way
 up a board sits, and there are far more cases for these boards than this
 project will ever draw. Touch follows the screen in all four.
 
+**A device that knows which way up it is held has a fifth: Auto.** None of
+the ESP32 boards has a motion sensor, so they never offer it. The Meta Portal+
+does -- its stand pivots the screen -- and there Auto is the default: the
+launcher and the system screens stand up when the device is turned to
+portrait, and everything turns over with a half turn, exactly as if the
+matching one of the four had been chosen. Games stay landscape in portrait,
+as they do on every board. A device carried across a room does not turn at
+every step: a pose counts once it has held for half a second, and a device
+lying flat keeps the last one. Choosing any of the four turns Auto off and
+fixes the screen there.
+
 To turn the screen for a case:
 
 1. Choose the admin profile and open **Settings** (the gear).
@@ -855,9 +866,10 @@ factory reset; over a cable it is `set flip on` on the serial console.
 
 **Admin** holds the PIN that guards the admin profile. See below.
 
-Like everything else in Settings, the sound controls are **readable by anyone
-and changeable only by the admin** — the speaker belongs to whoever is in the
-room, so volume is a device setting rather than a per-player one.
+Like everything else in Settings, the sound controls are **the admin's** —
+the speaker belongs to whoever is in the room, so volume is a device setting
+rather than a per-player one. Mute, beside the padlock on every screen, is
+the exception: anyone can silence the console.
 
 ### The admin profile
 
@@ -894,13 +906,15 @@ player's scores and mastery data permanently. Any player could previously delete
 a sibling in two taps. Renaming is deliberately left open — it is harmless, and
 a player wanting their own name spelled properly is not a threat.
 
-**Settings is not behind the PIN.** Anyone can open it and read every page —
-there is nothing secret there, and a player being unable to see why the screen
-dims is worse than one who can look. What a non-admin cannot do is *change*
-anything: every control renders greyed, and every one of them is inert. The
-greying and the refusal are separate things, and it is the refusal that
-enforces it — the controls were grey and fully live for a while, which is
-exactly the bug this arrangement is written down to prevent.
+**Settings is the admin's.** A player who is not the admin does not see
+Settings, Wi-Fi or System Info at all: no tile for them in the launcher, and
+no gear in the launcher's header or the top bar. The console is handed to a
+player as a set of games, and the controls that change the device are not
+part of that set. Signing in as the admin — Profiles, then the PIN — brings
+all three back; leaving the admin profile takes them away again, and so does
+the device going idle, which ends an admin session — a screen that was open
+for the admin is not where the next player wakes up. Profiles stays visible to
+everyone, because it is how the admin gets back in.
 
 The device also refuses to **boot** into the admin profile: if admin was active
 at power-off, the next boot drops to Guest. The picker's *Done* button goes home
@@ -1388,9 +1402,8 @@ number; it cannot point you somewhere else.
 The beacon is **off by default** and opt-in from *Settings -> Device -> Beacon*. When it is
 on, the launcher header shows a Bluetooth badge -- drawn **only** while the radio
 is genuinely advertising, so it is never a question of whether an icon looks
-greyed out. It is placed per layout: landscape puts it on the clock's line,
-positioned off the measured width of the clock string, because the badge row
-there has about 8px of slack; portrait simply extends the badge row.
+greyed out. It sits outermost on the header's badge row, before the padlock,
+in both orientations, and the row closes up when it is off.
 
 With Nearby off, what goes on air is a device name and a hardware id. That is
 all:
@@ -1762,6 +1775,7 @@ src/
     AppRuntimeSelector.cpp  the d-pad's selector, on a board with keys
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimePose.cpp  auto-rotate: the screen turns when the device does
     AppRuntimeKeep.cpp  the game a player left, kept until switch-off
     CarryOnScreen.cpp  the Carry on? / New game question on the way back in
     AppRuntimeNotify.cpp  the notice strip: battery, update, nearby
@@ -1826,6 +1840,8 @@ src/
     PowerProbeEsp32.cpp what an ESP32 board can measure of it
     PanelSize.h         how big the panel is: every platform's own answer
     PanelSizeEsp32.cpp  a board's: the profile's panel
+    DevicePose.h        which way up the device is held, where a sensor knows
+    DevicePoseEsp32.cpp a board's: no sensor, so no Auto
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     SleepPowerEsp32.cpp what sleep switches off: a slower clock, the station
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles
@@ -1867,10 +1883,14 @@ host/
   src/                  window, input, NVS file, audio, emulated touch,
                         Wi-Fi through the system's network manager, the
                         boot splash
-  cmake/                the aarch64 cross toolchain, the build stamp
+  cmake/                the aarch64 cross toolchain, the build stamp,
+                        the firmware source list every host build shares
   consoles/             one profile per handheld: the controls on its case,
                         found at boot from the kernel's device tree
   muos/                 the RG40XXV launcher and the card packer
+  android/              the same build as an Android APK that is the
+                        device's home screen (the Meta Portal+;
+                        experimental), packed without Gradle or Java
   rg40xxv/              the RG40XX V's Braino-only card image (Buildroot):
                         mainline Linux with ROCKNIX's H700 support, U-Boot,
                         Braino drawing through DRM, nothing else
