@@ -52,6 +52,10 @@ ALLOWED_MACS = {
     "aa:bb:cc:00:00:01", "aa:bb:cc:00:00:02", "aa:bb:cc:dd:ee:ff",
     "00:00:00:00:00:00", "ff:ff:ff:ff:ff:ff", "de:ad:be:ef:00:00",
     "01:23:45:67:89:ab", "12:34:56:78:9a:bc",
+    # Android's WifiInfo.DEFAULT_MAC_ADDRESS: what every app is told in place
+    # of a BSSID it may not see. The same on every device, so it names
+    # nothing; host/android/src/HostWifiOsAndroid.cpp tests for it.
+    "02:00:00:00:00:00",
 }
 
 # Files that necessarily contain the PATTERN in order to describe or test it.
