@@ -599,9 +599,11 @@ void drawTopBar(Board& board, const String& title) {
      * for without wanting to leave the game -- quiet, or put it down. */
     drawSpeakerIcon(tft, LauncherLayout::topBarSpeakerRect(w),
                     !board.soundEnabled(), COLOR_BAR_TEXT);
-    /* Settings is the admin's; for anyone else its slot stays empty rather
-     * than the cluster closing up, so nothing moves when the admin signs in. */
-    if (settingsShown()) drawGearIcon(tft, LauncherLayout::topBarSettingsRect(w), COLOR_BAR_TEXT);
+    /* Settings is the admin's. For anyone else there is no gear, and the
+     * cluster below closes up to the edge rather than leaving its place empty.
+     * Nothing in the cluster is a control, so nothing moves under a finger. */
+    const bool gear = settingsShown();
+    if (gear) drawGearIcon(tft, LauncherLayout::topBarSettingsRect(w), COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     /* The right-hand cluster is laid out from the gear leftwards off MEASURED
@@ -612,10 +614,12 @@ void drawTopBar(Board& board, const String& title) {
     /* Derived from the gear rather than stated, so the two cannot drift: the
      * gear shrank to Ui::CONTROL_H and moved right, and every one of those
      * pixels is worth having on a bar this full. */
-    const int16_t battRight =
-        static_cast<int16_t>(LauncherLayout::topBarSettingsRect(w).x - 6);
+    const int16_t battRight = gear
+        ? static_cast<int16_t>(LauncherLayout::topBarSettingsRect(w).x - 6)
+        : static_cast<int16_t>(w - 8);
     const int16_t battCx = static_cast<int16_t>(battRight - battW / 2);
-    const int16_t wifiCx = static_cast<int16_t>(battRight - battW - 6 - 8);
+    /* Wi-Fi a badge gap before the battery, or against the edge without one. */
+    const int16_t wifiCx = static_cast<int16_t>(battRight - (battW > 0 ? battW + 6 : 0) - 8);
     const int16_t syncCx = static_cast<int16_t>(wifiCx - 8 - 6 - 6);
     const int16_t clockRight = static_cast<int16_t>(syncCx - 6 - 6);
 

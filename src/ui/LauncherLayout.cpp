@@ -10,6 +10,7 @@
 #include "ui/LauncherLayout.h"
 
 #include "BoardConfig.h"
+#include "hal/BleBeacon.h"
 
 namespace {
 
@@ -72,46 +73,113 @@ int16_t topBarTitleLeft(int16_t screenW) {
     return static_cast<int16_t>(speaker.x + speaker.w + 4);
 }
 
-/* THE LAUNCHER HEADER, both orientations. The mark and the copyright are
- * fixed; everything else is placed here, so the drawing and every hit test
- * read the same rectangles.
+/* THE LAUNCHER HEADER'S STATUS GROUP, both orientations -- see the header
+ * for the whole rule. The mark and the copyright are fixed; everything the
+ * header reports is placed here, packed from the right edge out of only what
+ * is there, so the drawing and every hit test read the same numbers.
  *
- * The status row is ordered by how often each thing is there: Wi-Fi and the
- * battery at the right-hand end, then the speaker and the padlock, and the
- * Bluetooth rune -- drawn only while the beacon is on -- at the far left of
- * the group, where its absence leaves a gap nobody notices instead of moving
- * the rest. The sync check sits with the clock it describes, as it does in
- * the top bar; on its own it means nothing.
+ * Top row: the clock and its sync check, which belong together and stay
+ * together, then the gear for the admin. Without the gear they close up to
+ * the edge.
  *
- * The gear is the top bar's: Ui::CONTROL_H, 8px in from the right edge. It was
- * 26px here and 18px in every app, so the same control looked like two.
+ * Badge row, from the right: the battery (a slot as wide as its widest
+ * reading, "100" on the charger, and only on a board that can sense one),
+ * Wi-Fi, then the two controls -- speaker and padlock -- and the Bluetooth
+ * rune outermost while the beacon is on. The beacon never moves the controls:
+ * the rune is outside them.
  *
- * And it is kept away from the padlock and the speaker. The runtime takes
- * their taps before the launcher sees the gear's, so with the speaker under
- * the gear, a tap on the gear's lower edge would have muted the console. Wi-Fi
- * and the battery sit between them, nearly 40px of glyphs nobody taps.
- *
- * The padlock's x leaves room for the widest battery badge ("100", 28px) and
- * Wi-Fi after the speaker; a narrower badge only widens the gap. */
+ * While the gear is drawn, the controls stay clear of its corner. The runtime
+ * takes padlock and speaker presses before the launcher sees the gear's, all
+ * with TOUCH_HIT_SLOP, so the speaker's reach ends two slops short of the
+ * gear's left edge: on a board whose battery and Wi-Fi already fill that span
+ * it costs nothing, and on one with no battery it is the one gap in the row,
+ * there so a press on the gear can never mute the console. With no gear there
+ * is nothing to keep clear of, and the row closes up. The controls move only
+ * when the gear comes or goes -- a change of player, which repaints the whole
+ * header -- never while anyone is pressing them. */
 namespace {
-constexpr int16_t CONTROL_FROM_RIGHT = 110;   // padlock's left edge, from screenW
+constexpr int16_t EDGE = 8;                   // in from the right edge, like the gear everywhere
+constexpr int16_t GAP = 6;                    // between badges
+constexpr int16_t WIFI_HALF = 8;              // the fan is 16px across
+constexpr int16_t BATTERY_SLOT = 36;          // the widest badge: "100" with the bolt
+constexpr int16_t SYNC_HALF = Ui::BADGE_H / 2 + 1;
+/* The clock grows leftwards from clockRight(); the hairline is placed clear
+ * of the widest time font 2 draws ("12:59P"), so a minute never moves it. */
+constexpr int16_t CLOCK_RESERVE = 50;
 constexpr int16_t WIDE_TOP_Y = 6;             // the top row, centred on y=15
 constexpr int16_t WIDE_BOTTOM_Y = 25;         // the badge row, centred on y=34
 constexpr int16_t TALL_NAME_Y = 32;           // the name row, centred on y=41
 constexpr int16_t TALL_BADGE_Y = 51;          // the badge row, centred on y=60
+
+bool tallMode(Board::LayoutMode mode) { return mode == Board::LayoutMode::Vertical; }
+int16_t topY(Board::LayoutMode mode) { return tallMode(mode) ? TALL_NAME_Y : WIDE_TOP_Y; }
+int16_t badgeY(Board::LayoutMode mode) { return tallMode(mode) ? TALL_BADGE_Y : WIDE_BOTTOM_Y; }
+
+/* The badge row's right-hand passive glyphs, then where the controls end. */
+int16_t batterySlotLeft(int16_t screenW) {
+    return static_cast<int16_t>(screenW - EDGE - BATTERY_SLOT);
+}
+int16_t wifiCentre(int16_t screenW) {
+    const int16_t right = BOARD.hasBatterySense()
+        ? static_cast<int16_t>(batterySlotLeft(screenW) - GAP)
+        : static_cast<int16_t>(screenW - EDGE);
+    return static_cast<int16_t>(right - WIFI_HALF);
+}
+int16_t controlsRight(int16_t screenW) {
+    const int16_t afterWifi = static_cast<int16_t>(wifiCentre(screenW) - WIFI_HALF - GAP);
+    if (!Ui::settingsShown()) return afterWifi;   // no gear: nothing to keep clear of
+    const int16_t gearX = static_cast<int16_t>(screenW - EDGE - Ui::CONTROL_H);
+    const int16_t clearOfGear = static_cast<int16_t>(gearX - 2 * TOUCH_HIT_SLOP);
+    return afterWifi < clearOfGear ? afterWifi : clearOfGear;
+}
 }   // namespace
 
-Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
-    const bool tall = mode == Board::LayoutMode::Vertical;
-    return Rect{static_cast<int16_t>(screenW - CONTROL_FROM_RIGHT), tall ? TALL_BADGE_Y : WIDE_BOTTOM_Y,
+int16_t statusTopCy(Board::LayoutMode mode) {
+    return static_cast<int16_t>(topY(mode) + Ui::CONTROL_H / 2);
+}
+
+int16_t statusBadgeCy(Board::LayoutMode mode) {
+    return static_cast<int16_t>(badgeY(mode) + Ui::CONTROL_H / 2);
+}
+
+Rect gearRect(Board::LayoutMode mode, int16_t screenW) {
+    return Rect{static_cast<int16_t>(screenW - EDGE - Ui::CONTROL_H), topY(mode),
                 Ui::CONTROL_H, Ui::CONTROL_H};
 }
 
-/* Mute, on the launcher's own header, which draws no top bar: beside the
- * padlock, as it is in the top bar, in both orientations. */
+int16_t syncCx(Board::LayoutMode mode, int16_t screenW) {
+    const int16_t right = Ui::settingsShown()
+        ? static_cast<int16_t>(gearRect(mode, screenW).x - GAP)
+        : static_cast<int16_t>(screenW - EDGE);
+    return static_cast<int16_t>(right - SYNC_HALF);
+}
+
+int16_t clockRight(Board::LayoutMode mode, int16_t screenW) {
+    return static_cast<int16_t>(syncCx(mode, screenW) - SYNC_HALF - 5);
+}
+
+/* Mute, on the launcher's own header, which draws no top bar: at the right of
+ * the two controls, the padlock before it, as in the top bar. */
 Rect speakerRect(Board::LayoutMode mode, int16_t screenW) {
-    const Rect lock = lockRect(mode, screenW);
-    return Rect{static_cast<int16_t>(lock.x + lock.w + 4), lock.y, Ui::CONTROL_H, Ui::CONTROL_H};
+    return Rect{static_cast<int16_t>(controlsRight(screenW) - Ui::CONTROL_H), badgeY(mode),
+                Ui::CONTROL_H, Ui::CONTROL_H};
+}
+
+Rect lockRect(Board::LayoutMode mode, int16_t screenW) {
+    const int16_t right = Board::hasSound()
+        ? static_cast<int16_t>(speakerRect(mode, screenW).x - 4)
+        : controlsRight(screenW);
+    return Rect{static_cast<int16_t>(right - Ui::CONTROL_H), badgeY(mode), Ui::CONTROL_H,
+                Ui::CONTROL_H};
+}
+
+int16_t wifiCx(Board::LayoutMode, int16_t screenW) { return wifiCentre(screenW); }
+
+int16_t batteryLeft(Board::LayoutMode, int16_t screenW) { return batterySlotLeft(screenW); }
+
+/* The rune's 9px box, a badge gap before the padlock. */
+int16_t bleCx(Board::LayoutMode mode, int16_t screenW) {
+    return static_cast<int16_t>(lockRect(mode, screenW).x - GAP - 5);
 }
 
 /* Speaker against the right edge, 8px in like the gear everywhere else, and
@@ -135,53 +203,44 @@ int16_t headerHeight(Board::LayoutMode mode) {
                                                : LAUNCHER_HEADER_H_WIDE;
 }
 
-Rect gearRect(Board::LayoutMode mode, int16_t screenW) {
-    const bool tall = mode == Board::LayoutMode::Vertical;
-    return Rect{static_cast<int16_t>(screenW - 8 - Ui::CONTROL_H), tall ? TALL_NAME_Y : WIDE_TOP_Y,
-                Ui::CONTROL_H, Ui::CONTROL_H};
-}
-
 /* The player's name: plain text, and the touch target that opens the picker.
+ * It runs from its start up to the hairline, 4px short of it -- in landscape
+ * beside the mark on the top row, in portrait on the second row from the left
+ * edge. The hairline is the status group's left edge, so the name gets back
+ * whatever the group does not need: a player who is not the admin has no gear,
+ * and a board with no battery has no battery badge.
  *
- * LANDSCAPE it is on the top row beside the mark, not after the copyright.
- * After the copyright it began at x=132 and every control added to the badge
- * row took pixels from it, until its right limit was screenW-164 -- 24px on a
- * 320px panel -- and a floor of 52 then pushed it past that limit, over the
- * hairline and under the padlock. Beside the mark it runs to the header's
- * hairline (headerDividerX()), 4px short of it: 62px at 320, which holds a
- * full PROFILE_NAME_MAX name at font 1 (6px a character, 54px for nine) and a
- * shorter one at font 2, which the launcher uses when it fits.
- *
- * PORTRAIT it has the second row to itself up to the gear. */
+ * LANDSCAPE it is beside the mark, not after the copyright: after it, every
+ * control added to the badge row took pixels from the name, until it was 24px
+ * on a 320px panel. Beside the mark it holds a full PROFILE_NAME_MAX name at
+ * font 1 (54px for nine characters) and a shorter one at font 2, which the
+ * launcher uses when it fits. */
 Rect profileRect(Board::LayoutMode mode, int16_t screenW) {
-    const Rect gear = gearRect(mode, screenW);
-    if (mode == Board::LayoutMode::Vertical) {
-        return Rect{8, static_cast<int16_t>(TALL_NAME_Y - 1),
-                    static_cast<int16_t>(gear.x - 8 - 8), 20};
-    }
-    const int16_t x = static_cast<int16_t>(10 + Ui::logoWidth(Ui::Logo::Word) + 10);
-    const int16_t rightLimit = static_cast<int16_t>(headerDividerX(screenW) - 4);
-    return Rect{x, static_cast<int16_t>(WIDE_TOP_Y - 1), static_cast<int16_t>(rightLimit - x), 20};
+    const int16_t rightLimit = static_cast<int16_t>(headerDividerX(mode, screenW) - 4);
+    const int16_t x = tallMode(mode)
+        ? static_cast<int16_t>(8)
+        : static_cast<int16_t>(10 + Ui::logoWidth(Ui::Logo::Word) + 10);
+    return Rect{x, static_cast<int16_t>(topY(mode) - 1), static_cast<int16_t>(rightLimit - x), 20};
 }
 
-/* LANDSCAPE: the hairline that sets the mark, the name and the copyright
- * apart from everything the header reports -- the clock and its check, the
- * gear, and the badge row. Its x is the right-hand group's own left edge: the
- * Bluetooth rune, outermost in the badge row, is a 9px box from lockRect().x -
- * 13 (drawBleBadge() centres it 9px left of the padlock), and the hairline
- * stands 4px before it, so it clears the group on both rows whether the beacon
- * is on or not. The clock on the top row is further right still (never left
- * of screenW-99). At 320 that is x=193; the copyright ends near x=124. */
-int16_t headerDividerX(int16_t screenW) {
-    const Rect lock = lockRect(Board::LayoutMode::Horizontal, screenW);
-    return static_cast<int16_t>(lock.x - 13 - 4);
+/* The hairline that sets the mark, the name and the copyright apart from
+ * everything the header reports, in both orientations. Its x is the status
+ * group's own left edge, a gap before whichever reaches further left: the
+ * clock (at its widest) on the top row, or the badge row's outermost glyph --
+ * the rune while the beacon is on, else the padlock. */
+int16_t headerDividerX(Board::LayoutMode mode, int16_t screenW) {
+    const int16_t topLeft = static_cast<int16_t>(clockRight(mode, screenW) - CLOCK_RESERVE);
+    const int16_t badgeLeft = BleBeacon::active()
+        ? static_cast<int16_t>(bleCx(mode, screenW) - 5)
+        : lockRect(mode, screenW).x;
+    return static_cast<int16_t>((topLeft < badgeLeft ? topLeft : badgeLeft) - GAP);
 }
 
-/* From the top of the mark's row to the foot of the badge row. */
-int16_t headerDividerTop() { return WIDE_TOP_Y; }
-int16_t headerDividerBottom(int16_t screenW) {
-    const Rect lock = lockRect(Board::LayoutMode::Horizontal, screenW);
-    return static_cast<int16_t>(lock.y + lock.h);
+/* From the top of the status group's top row to the foot of its badge row. */
+int16_t headerDividerTop(Board::LayoutMode mode) { return topY(mode); }
+
+int16_t headerDividerBottom(Board::LayoutMode mode) {
+    return static_cast<int16_t>(badgeY(mode) + Ui::CONTROL_H);
 }
 
 Rect tileRect(uint8_t slot, Board::LayoutMode mode, int16_t screenW, int16_t screenH) {

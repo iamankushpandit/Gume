@@ -1402,9 +1402,8 @@ number; it cannot point you somewhere else.
 The beacon is **off by default** and opt-in from *Settings -> Device -> Beacon*. When it is
 on, the launcher header shows a Bluetooth badge -- drawn **only** while the radio
 is genuinely advertising, so it is never a question of whether an icon looks
-greyed out. It is placed per layout: landscape puts it on the clock's line,
-positioned off the measured width of the clock string, because the badge row
-there has about 8px of slack; portrait simply extends the badge row.
+greyed out. It sits outermost on the header's badge row, before the padlock,
+in both orientations, and the row closes up when it is off.
 
 With Nearby off, what goes on air is a device name and a hardware id. That is
 all:

@@ -55,6 +55,16 @@ Settings was readable by every player and writable only by the admin; that
 was a deliberate choice, and the owner has reversed it (`docs/IDEAS.md`
 9.2). Mute stays open to everyone.
 
+**The launcher header packs itself.** Its badges were placed at fixed
+offsets sized for a battery, a Bluetooth rune and a gear, so a board without
+a battery, a radio switched off or a player who is not the admin left holes
+across the row. The status group -- the clock with its sync check and the
+gear on top, the rune, padlock, speaker, Wi-Fi and battery beneath -- is now
+packed from the right edge out of only what is there, the same in both
+orientations, and the hairline that divides it from the mark and the
+player's name is drawn in portrait as well as landscape. The top bar closes
+up where the gear was, too.
+
 ## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page

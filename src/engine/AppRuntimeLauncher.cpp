@@ -43,15 +43,52 @@ void drawProfileName(Ui::Renderer& tft, const char* name, const Rect& r) {
     tft.drawString(text, r.x, static_cast<int16_t>(r.y + r.h / 2), font);
 }
 
-/* The always-there half of the badge row, right-aligned to `right` on the row
- * centred at `cy`: the battery at the end and Wi-Fi before it, with the
- * spacing the top bar uses. The battery badge is absent on a board with no
- * battery sense, so this is measured, never assumed. */
-void drawWifiAndBattery(Ui::Renderer& tft, Board& board, int16_t right, int16_t cy) {
+/* The header's status group, in both orientations, from LauncherLayout's one
+ * packing of it: the clock with its sync check (and the gear, for the admin)
+ * on the top row; the rune, padlock, speaker, Wi-Fi and battery on the badge
+ * row; and the hairline at the group's left edge. Only what is there is
+ * drawn, and LauncherLayout has already closed up the space of what is not.
+ * The clock's place is kept for renderClock()'s minute repaint. */
+void drawStatusGroup(Ui::Renderer& tft, Board& board, Board::LayoutMode mode, int16_t lW,
+                     int16_t& clockX, int16_t& clockY, int16_t& clockW) {
+    const int16_t topCy = LauncherLayout::statusTopCy(mode);
+    const int16_t badgeCy = LauncherLayout::statusBadgeCy(mode);
+
+    Ui::drawSyncBadge(tft, LauncherLayout::syncCx(mode, lW), topCy, Clock::synced(), Ui::surface());
+    tft.setTextColor(Ui::text(), Ui::surface());
+    tft.setTextDatum(MR_DATUM);
+    clockX = LauncherLayout::clockRight(mode, lW);
+    clockY = topCy;
+    clockW = tft.textWidth(Clock::timeText(), 2);
+    tft.drawString(Clock::timeText(), clockX, topCy, 2);
+    if (Ui::settingsShown()) Ui::drawGearIcon(tft, LauncherLayout::gearRect(mode, lW), Ui::text());
+
+    if (BleBeacon::active()) {
+        Ui::drawBleBadge(tft, LauncherLayout::bleCx(mode, lW), badgeCy, Ui::surface());
+    }
+    /* Padlock and speaker: drawn here, but their taps are taken by the runtime
+     * before update() ever sees them. The speaker is absent on a board with
+     * none, where it would be a control for nothing. */
+    Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(), Ui::surface());
+    if (Board::hasSound()) {
+        Ui::drawSpeakerIcon(tft, LauncherLayout::speakerRect(mode, lW), !board.soundEnabled(),
+                            Ui::text());
+    }
+    Ui::drawWifiBadge(tft, LauncherLayout::wifiCx(mode, lW), badgeCy, Ui::surface());
+    /* Left-aligned in its slot: a narrower reading gives its room back at the
+     * panel's edge, not as a gap beside Wi-Fi. Width 0 -- no battery sense, or
+     * no usable reading -- draws nothing. */
     const int8_t battPct = board.getBatteryPercent();
     const int16_t battW = Ui::batteryBadgeWidth(tft, battPct);
-    Ui::drawWifiBadge(tft, static_cast<int16_t>(right - battW - 6 - 8), cy, Ui::surface());
-    Ui::drawBatteryBadge(tft, static_cast<int16_t>(right - battW / 2), cy, battPct, Ui::surface());
+    if (battW > 0) {
+        Ui::drawBatteryBadge(tft, static_cast<int16_t>(LauncherLayout::batteryLeft(mode, lW) + battW / 2),
+                             badgeCy, battPct, Ui::surface());
+    }
+
+    const int16_t dividerTop = LauncherLayout::headerDividerTop(mode);
+    tft.drawFastVLine(LauncherLayout::headerDividerX(mode, lW), dividerTop,
+                      static_cast<int16_t>(LauncherLayout::headerDividerBottom(mode) - dividerTop),
+                      Ui::outline());
 }
 }
 
@@ -211,7 +248,6 @@ void LauncherApp::drawHeader(GameHost& host) {
     const Board::LayoutMode mode = board.layoutMode();
     const bool tall = (mode == Board::LayoutMode::Vertical);
     const int16_t headerH = LauncherLayout::headerHeight(mode);
-    const Rect gearBtn = LauncherLayout::gearRect(mode, lW);
     const Rect profileBtn = LauncherLayout::profileRect(mode, lW);
 
     tft.fillRect(0, 0, lW, headerH, Ui::surface());
@@ -250,25 +286,9 @@ void LauncherApp::drawHeader(GameHost& host) {
         tft.setTextColor(Ui::text(), Ui::surface());
         drawProfileName(tft, board.profileName(board.activeProfile()).c_str(), profileBtn);
 
-        /* The badge row: the clock and its sync check on the left, the rest
-         * right-aligned under the gear, Bluetooth outermost (see lockRect()). */
-        const int16_t rowY = 60;
-        tft.setTextDatum(ML_DATUM);
-        tft.drawString(Clock::timeText(), 8, rowY, 2);
-        clockScreenW_ = lW;
-        clockX_ = 8;
-        clockY_ = rowY;
-        clockW_ = tft.textWidth(Clock::timeText(), 2);
-        clockDatum_ = ML_DATUM;
-        Ui::drawSyncBadge(tft, static_cast<int16_t>(8 + tft.textWidth(Clock::timeText(), 2) + 12),
-                          rowY, Clock::synced(), Ui::surface());
-        drawWifiAndBattery(tft, board, static_cast<int16_t>(gearBtn.x + gearBtn.w), rowY);
-        if (BleBeacon::active()) {
-            Ui::drawBleBadge(tft, static_cast<int16_t>(LauncherLayout::lockRect(mode, lW).x - 9), rowY,
-                             Ui::surface());
-        }
+        /* The rule under the mark's row; the status group and its hairline
+         * take the two rows beneath it, as they take the two in landscape. */
         tft.drawFastHLine(8, 30, static_cast<int16_t>(lW - 16), Ui::shade(Ui::surface(), 150));
-
     } else {
         /* The same mark in landscape, where the copyright sits on its own row
          * underneath. The player's name shares the mark's row (see
@@ -282,48 +302,10 @@ void LauncherApp::drawHeader(GameHost& host) {
         tft.setTextColor(Ui::text(), Ui::surface());
         drawProfileName(tft, board.profileName(board.activeProfile()).c_str(), profileBtn);
 
-        const int16_t topY = static_cast<int16_t>(gearBtn.y + gearBtn.h / 2);
-        const int16_t syncCx = static_cast<int16_t>(gearBtn.x - 6 - 7);
-        Ui::drawSyncBadge(tft, syncCx, topY, Clock::synced(), Ui::surface());
-        tft.setTextColor(Ui::text(), Ui::surface());
-        tft.setTextDatum(MR_DATUM);
-        tft.drawString(Clock::timeText(), static_cast<int16_t>(syncCx - 7 - 5), topY, 2);
-        clockScreenW_ = lW;
-        clockX_ = static_cast<int16_t>(syncCx - 7 - 5);
-        clockY_ = topY;
-        clockW_ = tft.textWidth(Clock::timeText(), 2);
-        clockDatum_ = MR_DATUM;
-
-        /* The badge row, right-aligned under the gear: Wi-Fi and the battery
-         * at the end, the speaker and padlock before them, and Bluetooth --
-         * there only while the beacon is on -- outermost. */
-        const Rect lock = LauncherLayout::lockRect(mode, lW);
-        const int16_t rowY = static_cast<int16_t>(lock.y + lock.h / 2);
-        drawWifiAndBattery(tft, board, static_cast<int16_t>(gearBtn.x + gearBtn.w), rowY);
-        if (BleBeacon::active()) {
-            Ui::drawBleBadge(tft, static_cast<int16_t>(lock.x - 9), rowY, Ui::surface());
-        }
-        /* The hairline that sets the mark, the name and the copyright apart
-         * from the status group (LauncherLayout::headerDividerX()). */
-        const int16_t dividerTop = LauncherLayout::headerDividerTop();
-        tft.drawFastVLine(LauncherLayout::headerDividerX(lW), dividerTop,
-                          static_cast<int16_t>(LauncherLayout::headerDividerBottom(lW) - dividerTop),
-                          Ui::outline());
     }
-    /* The gear only for the admin (Ui::settingsShown()); the clock and badges
-     * are placed off its slot either way, so nothing moves when it appears. */
-    if (Ui::settingsShown()) Ui::drawGearIcon(tft, gearBtn, Ui::text());
-    /* The launcher draws no top bar, so it carries its own Lock button. The
-     * tap is consumed by the runtime before update() ever sees it, which is
-     * why nothing here hit-tests it. */
-    Ui::drawLockIcon(tft, LauncherLayout::lockRect(mode, lW), Ui::text(),
-                     Ui::surface());
-    /* Same story as Lock: drawn here, consumed by the runtime. Absent on a
-     * board with no speaker, where it would be a control for nothing. */
-    if (Board::hasSound()) {
-        Ui::drawSpeakerIcon(tft, LauncherLayout::speakerRect(mode, lW),
-                            !board.soundEnabled(), Ui::text());
-    }
+    drawStatusGroup(tft, board, mode, lW, clockX_, clockY_, clockW_);
+    clockScreenW_ = lW;
+    clockDatum_ = MR_DATUM;
 }
 
 bool LauncherApp::renderChrome(GameHost& host) {
