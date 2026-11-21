@@ -104,4 +104,11 @@ Invoke-Step "sign" {
 
 if ($Install) {
     Invoke-Step "install" { & adb install -r $apk }
+    # Android 9 shows an app Wi-Fi names and scan results only behind the
+    # location permission, which an app is otherwise asked for in a dialog
+    # Braino has no Java to show. Braino never asks where the device is; see
+    # HostWifiOsAndroid.cpp.
+    Invoke-Step "grant the Wi-Fi names permission" {
+        & adb shell pm grant io.github.iamankushpandit.braino android.permission.ACCESS_FINE_LOCATION
+    }
 }

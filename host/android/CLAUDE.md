@@ -40,6 +40,7 @@ these from `host/src/`:
 | `HostI2s.cpp` (SDL audio queue) | `src/HostI2sAAudio.cpp` | AAudio, with the same ~96 ms of buffer as the codec board's DMA ring |
 | `HostMain.cpp`'s `main()` | `src/AndroidMain.cpp`'s `android_main()` | A NativeActivity has no `main()`; it calls the same `hostMain()` |
 | `HostDrm.cpp` | not built | The window is the panel here |
+| `HostWifiOs.cpp` (NetworkManager / wpa_supplicant) | `src/HostWifiOsAndroid.cpp` | Android owns the radio: `WifiManager` over JNI |
 | `HostDevicePose.cpp` (no sensor, or `BRAINO_POSE`) | `src/HostDevicePoseAndroid.cpp` | The accelerometer says which way up the Portal is held |
 
 Everything else in `host/src/` and `host/shim/` is the desktop's own file.
@@ -87,8 +88,20 @@ system never finishes the activity on it.
 - **Bluetooth: unavailable, and says so.** `HostNimBLE.cpp` opens a raw HCI
   socket, which Android refuses an app. The beacon and Nearby report no
   controller rather than pretending.
-- **Wi-Fi is the system's.** The Portal joins networks in its own setup;
-  `HostWifiOs.cpp` finds neither NetworkManager nor wpa_supplicant here.
+- **Wi-Fi is Android's, asked through `WifiManager`.**
+  `src/HostWifiOsAndroid.cpp` replaces `HostWifiOs.cpp` and answers the same
+  contract over JNI: the link (name, signal, address, gateway) refreshed once
+  a second on its own thread, a scan when the Wi-Fi app asks, and a join of
+  the network the owner types there. Nothing is originated: Android already
+  holds the link, and traffic still leaves only by the firmware's own flows.
+- **The location permission, and why.** Android 9 shows an app the name of
+  the network it is on, and what a scan found, only if it holds
+  `ACCESS_FINE_LOCATION` and location is on. Braino never asks where the
+  device is; the permission is what Android puts in front of Wi-Fi names.
+  An app normally asks for it in a dialog, and Braino has no Java to show
+  one, so `build.ps1 -Install` grants it (`adb shell pm grant`). Without it
+  the link still works and the clock still syncs; the network's name reads
+  empty and a scan finds nothing.
 - **HTTP through libcurl, built here, HTTP only.** Android ships no libcurl,
   so `CMakeLists.txt` builds a pinned one with every optional feature off.
   `HostNet.cpp` is unchanged. The time zone lookup is plain HTTP and works;

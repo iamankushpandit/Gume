@@ -27,6 +27,14 @@
          ip-api.com time zone lookup, and the update check. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- The Wi-Fi app: read the link, scan, and join the network the owner
+         types (HostWifiOsAndroid.cpp). Android 9 shows an app Wi-Fi names
+         only behind the location permission; Braino never asks where the
+         device is. build.ps1 -Install grants it. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:label="Braino!"
         android:icon="@android:drawable/sym_def_app_icon"
