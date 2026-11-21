@@ -42,7 +42,8 @@ on:
         default: true
 
 permissions:
-  contents: write        # creating a release and uploading assets
+  contents: write        # creating a release and uploading assets, and the card's tag
+  actions: write         # starting card-image.yml on that tag
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
@@ -221,6 +222,8 @@ jobs:
             echo
             echo "Easiest route is the [web installer](https://iamankushpandit.github.io/Gume/), which flashes over Web Serial from a Chromium browser and needs nothing downloaded from here."
             echo
+            echo "The Anbernic RG40XX V's card image for this version is its own release, [card-rg40xxv-$tag](https://github.com/${{ github.repository }}/releases/tag/card-rg40xxv-$tag), with the commands to write a card on the site's [Install tab](https://iamankushpandit.github.io/Gume/#flash-handheld). The Attaky Cyber Deck Plus installs from [Attaky's firmware store](https://fwstore.attaky.com/en/)."
+            echo
             echo "The binaries below are for flashing by hand. \`FLASHING.txt\` has the commands, the offsets and a note on what an \`erase_flash\` costs you; \`SHA256SUMS.txt\` verifies a download. Each environment ships as a single \`-merged.bin\` to write at \`0x0\`, and as the four separate parts."
             echo
             echo "Built from \`$tag\`, commit \`$(git rev-parse --short=7 HEAD)\`. Every image reports that on About's **This build** page."
@@ -238,3 +241,29 @@ jobs:
               dist/*.bin dist/SHA256SUMS.txt dist/FLASHING.txt
           fi
           echo "Published: $(gh release view "$tag" --json url --jq .url)"
+
+      # Every release has a card for the RG40XX V, and this is what makes that
+      # true rather than remembered: 5.14.0 shipped without one because the
+      # card was a tag somebody had to push by hand. The card tag goes on the
+      # same commit, and card-image.yml is started on it explicitly, because a
+      # tag pushed with this workflow's token does not start a workflow by
+      # itself. card-image.yml publishes it as card-rg40xxv-v<version>, never
+      # marked latest. A draft release makes no card.
+      - name: Start the RG40XX V card for this version
+        if: github.event.inputs.draft != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          card="card-rg40xxv-${{ steps.which.outputs.tag }}"
+          sha="$(git rev-parse HEAD)"
+          if gh release view "$card" >/dev/null 2>&1; then
+            echo "$card is already published."
+            exit 0
+          fi
+          if ! gh api "repos/${{ github.repository }}/git/ref/tags/$card" >/dev/null 2>&1; then
+            gh api "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/$card" -f sha="$sha" >/dev/null
+            echo "Tagged $card at $sha."
+          fi
+          gh workflow run card-image.yml --repo "${{ github.repository }}" --ref "$card"
+          echo "Started card-image.yml on $card; it publishes the card release when the image is built."

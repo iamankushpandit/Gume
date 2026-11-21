@@ -1,0 +1,26 @@
+{
+  "description": "Open-source learning console for young players: 40 games on ESP32 touchscreen boards, the Attaky Cyber Deck Plus and the Anbernic RG40XX V handheld. Nearby two-player over BLE, browser installer, no accounts, no telemetry. https://hackaday.io/project/206948-braino-a-40-game-learning-console-on-a-cyd",
+  "homepage": "https://iamankushpandit.github.io/Gume/",
+  "topics": [
+    "anbernic",
+    "arduino",
+    "attaky",
+    "ble",
+    "buildroot",
+    "cheap-yellow-display",
+    "cyd",
+    "educational-games",
+    "embedded",
+    "esp32",
+    "firmware",
+    "handheld",
+    "handwriting",
+    "learning-games",
+    "linux",
+    "platformio",
+    "retro-handheld",
+    "rg40xxv",
+    "stem-education",
+    "web-serial"
+  ]
+}

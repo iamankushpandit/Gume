@@ -491,10 +491,21 @@ def chess(selected=(3, 0), targets=None, moves=(), status=("White", "to move")):
     d.rectangle([bx, by, bx + side - 1, by + side - 1], outline=OUTLINE)
 
     # The panel: what each side has lost, the status, and the one button.
+    # The losses are whatever is missing from the board, never typed in: a
+    # fixed list once showed five captured pieces beside a full board.
+    full = {"PAWN": 8, "KNIGHT": 2, "BISHOP": 2, "ROOK": 2, "QUEEN": 1, "KING": 1}
+
+    def lost_by(white):
+        out = []
+        for name, n in full.items():
+            left = sum(1 for nm, w in board.values() if nm == name and w == white)
+            out += [(name, white)] * (n - left)
+        return out
+
     tcell = 20
     for i, (ty, lost) in enumerate((
-            (by, [("PAWN", True), ("PAWN", True), ("KNIGHT", True)]),
-            (by + each + gap, [("PAWN", False), ("BISHOP", False)]))):
+            (by, lost_by(True)),
+            (by + each + gap, lost_by(False)))):
         # Backed by the shade its pieces are NOT, exactly as ChessGame does:
         # White's losses on the dark square colour, Black's on the light one.
         strip = (120, 96, 72) if i == 0 else (222, 210, 180)
