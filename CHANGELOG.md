@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.14.0-SNAPSHOT — Unreleased
+## 5.15.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
@@ -31,6 +31,8 @@ modularity rule allows.
 `Board::compareVersions()` sorts a pre-release before the release of the same
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
+
+## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page
 3, Cinnamon's highlighted pad left the bottom of its white ring on the tile
@@ -1011,44 +1013,6 @@ project is built with AI tools, which the website already made, is now in
 `NOTICE.md` ("How this is built") and the README as well, and the website
 says it in plainer words.
 
-**The screen turns to all four positions.** *Settings → Device* offered
-Landscape and Portrait, which are the two positions with the USB socket where
-the board profile puts it. An enclosure that holds the board the other way up
-had no answer, and there are many such enclosures for these boards (asked for
-in [issue 191](https://github.com/iamankushpandit/Gume/issues/191)). The same
-button now steps through four -- Landscape, Portrait, Landscape 180, Portrait
-180 -- split left and right like the theme button beside it, so one tap too
-many is one tap to undo.
-
-Portrait still applies to the menus only, because every game is drawn for
-landscape. The half turn applies to everything, games included: landscape
-turned over is still landscape. Touch needed no change -- `pollTouch()` has
-mapped all four rotations since the first board, and two of them had simply
-never been asked for.
-
-It is one new global setting beside the layout, off by default, so a console
-that upgrades sits exactly as it did. `set flip on|off` sets it from the
-serial console, the boot banner prints `flip=`, and System Info's Layout row
-names the position. Nothing about it is transmitted. The touch calibration
-wizard is unchanged and still draws in its own fixed rotation.
-
-**Percent stops announcing the answer.** In the round that asks a player to
-shade the circle, the OK button turned green the moment the shaded amount
-matched the target -- before anybody had pressed it -- so the round could be
-finished by tapping + until a button lit up, and nothing was being asked
-([issue 183](https://github.com/iamankushpandit/Gume/issues/183)). OK is now
-one colour whatever the circle shows. Pressing it on the wrong amount turns it
-red for half a second; before, a wrong press there changed nothing on the panel
-at all. The minus and the tick on that round's buttons were characters the
-panel's font does not carry, so they are now `-` and `OK`.
-
-The same game gave the answer away in two more places, and both are closed.
-The round that asks "25% of 40 = ?" printed 10 in the middle of the circle,
-beside the four buttons asking for it; the circle now carries only its shading.
-And in both multiple-choice rounds a wrong tap flashed the *correct* button --
-in red, so it told the answer and mislabelled it at once. The button that was
-pressed is the one that flashes now.
-
 **Go's info box says the whole message.** On the 9x9 board the box under
 Captured showed one line of about fifteen characters and dropped the rest with
 no sign, so "Tap groups that cannot live" read "Tap groups that" and "Waiting
@@ -1322,6 +1286,46 @@ builds of the Core, silent and without SD. Media I/O cannot be recognised, so
 finding neither brings both up as before. A new `ExpandProbeProfile` says what to look
 for; every other board fills it with nothing and pays nothing. It adds 1.5 s
 to the Core's boot. Not yet run on a device.
+
+## 5.12.4 — 2026-10-12
+
+**The screen turns to all four positions.** *Settings → Device* offered
+Landscape and Portrait, which are the two positions with the USB socket where
+the board profile puts it. An enclosure that holds the board the other way up
+had no answer, and there are many such enclosures for these boards (asked for
+in [issue 191](https://github.com/iamankushpandit/Gume/issues/191)). The same
+button now steps through four -- Landscape, Portrait, Landscape 180, Portrait
+180 -- split left and right like the theme button beside it, so one tap too
+many is one tap to undo.
+
+Portrait still applies to the menus only, because every game is drawn for
+landscape. The half turn applies to everything, games included: landscape
+turned over is still landscape. Touch needed no change -- `pollTouch()` has
+mapped all four rotations since the first board, and two of them had simply
+never been asked for.
+
+It is one new global setting beside the layout, off by default, so a console
+that upgrades sits exactly as it did. `set flip on|off` sets it from the
+serial console, the boot banner prints `flip=`, and System Info's Layout row
+names the position. Nothing about it is transmitted. The touch calibration
+wizard is unchanged and still draws in its own fixed rotation.
+
+**Percent stops announcing the answer.** In the round that asks a player to
+shade the circle, the OK button turned green the moment the shaded amount
+matched the target -- before anybody had pressed it -- so the round could be
+finished by tapping + until a button lit up, and nothing was being asked
+([issue 183](https://github.com/iamankushpandit/Gume/issues/183)). OK is now
+one colour whatever the circle shows. Pressing it on the wrong amount turns it
+red for half a second; before, a wrong press there changed nothing on the panel
+at all. The minus and the tick on that round's buttons were characters the
+panel's font does not carry, so they are now `-` and `OK`.
+
+The same game gave the answer away in two more places, and both are closed.
+The round that asks "25% of 40 = ?" printed 10 in the middle of the circle,
+beside the four buttons asking for it; the circle now carries only its shading.
+And in both multiple-choice rounds a wrong tap flashed the *correct* button --
+in red, so it told the answer and mislabelled it at once. The button that was
+pressed is the one that flashes now.
 
 ## 5.12.3 — 2026-09-15
 

@@ -105,7 +105,10 @@ section in `platformio.ini` — and no file under `src/` names a GPIO. The
 mechanics, the bring-up checks and what a port has to land with are in
 [docs/PORTING.md](docs/PORTING.md): the profile and the PlatformIO env, then
 bring-up on the hardware, then a page in `docs/boards/` saying what was
-checked and how. The known problems on that page are not optional.
+checked and how. The known problems on that page are not optional. When the
+maintainer wants a build flashable from the browser before it ships, its CI run
+goes into `site/experimental.json` and the site's Experimental page offers it;
+see `CLAUDE.md`.
 
 **Cases.** [`cases/`](cases/README.md) holds a printable enclosure per board,
 in a folder named after the `BOARD_NAME` the firmware reports. A case is
