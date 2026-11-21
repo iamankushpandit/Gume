@@ -16,7 +16,7 @@
 # One of the three libraries host/CMakeLists.txt would otherwise clone at
 # configure time, at the version it pins. As a package it is fetched,
 # hash-checked and listed in legal-info under its own licence.
-BRAINO_MAP_N_FLAG_VERSION = 3c412cb5cea4dcc5c696abd7a4db78470a97fbd1
+BRAINO_MAP_N_FLAG_VERSION = 6f516cbfcb87ccd2cacacae5329ffe185ace00ab
 BRAINO_MAP_N_FLAG_SITE = $(call github,iamankushpandit,map-n-flag,$(BRAINO_MAP_N_FLAG_VERSION))
 BRAINO_MAP_N_FLAG_LICENSE = MIT
 BRAINO_MAP_N_FLAG_LICENSE_FILES = LICENSE

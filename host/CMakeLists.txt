@@ -52,7 +52,7 @@ FetchContent_Declare(arduinojson
   SOURCE_SUBDIR none)
 FetchContent_Declare(map_n_flag
   GIT_REPOSITORY https://github.com/iamankushpandit/map-n-flag.git
-  GIT_TAG 3c412cb5cea4dcc5c696abd7a4db78470a97fbd1
+  GIT_TAG 6f516cbfcb87ccd2cacacae5329ffe185ace00ab
   SOURCE_SUBDIR none)
 FetchContent_MakeAvailable(tft_espi arduinojson map_n_flag)
 

@@ -53,6 +53,7 @@ enum class LauncherIcon : uint8_t {
     Go,
     Space,
     Roman,
+    Signs,
     Profiles,
     Scores,
     Settings,

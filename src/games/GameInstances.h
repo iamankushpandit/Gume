@@ -44,6 +44,7 @@
 #include "games/SequenceGame.h"
 #include "games/SettingsApp.h"
 #include "games/ShapeColorGame.h"
+#include "games/SignGame.h"
 #include "games/SlidingPuzzleGame.h"
 #include "games/SortGame.h"
 #include "games/SpaceGame.h"
@@ -100,6 +101,7 @@ struct GameInstances {
     GoGame go;
     SpaceGame space;
     RomanGame roman;
+    SignGame signs;
     ProfileApp profile;
     ScoresApp scores;
     AboutApp about;
