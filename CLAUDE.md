@@ -531,7 +531,7 @@ What follows from the classification:
   SDL build beside them waits for source to change.
 - **The RG40XX V's card image is `card-image.yml`, not a check.** It builds
   on a pull request or push that touches what the image is built from, on a
-  `card-rg40xxv-*` tag (which publishes it as a pre-release), and once a week
+  `card-rg40xxv-*` tag, and once a week
   in full from source, ignoring the stored OS base, so a vanished upstream
   tarball is found on a Monday rather than on the day an OS change needs it.
   It is not part of `verify`: it takes an hour when the OS changed, and it
@@ -1826,8 +1826,9 @@ site/                     index.template.html — the GitHub Pages landing page;
                           builds the RG40XX V's card image and its source
                           bundle -- Braino alone, on an OS base a full build
                           on dev or main stored, unless the OS changed --
-                          and a card-rg40xxv-* tag publishes both as a
-                          pre-release; it also runs in full once a week
+                          and card-rg40xxv-v<version>, which release.yml
+                          tags beside every release, publishes both as
+                          that version's card; it also runs in full once a week
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
                           IDEAS.md (every idea and future plan -- a
                           backlog, nothing in it agreed unless it says so),
@@ -1864,6 +1865,17 @@ git tag -a v5.0.1 -m "Braino! 5.0.1" && git push origin v5.0.1
 plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
 `FLASHING.txt`. The diagnostics are deliberately not attached; they are built
 from source by whoever is holding the board.
+
+**The release is not done until the RG40XX V's card is published beside
+it.** The same workflow tags `card-rg40xxv-v<version>` on the same commit and
+starts `card-image.yml` on it, which publishes the image, `write-card.ps1`,
+the checksums and the corresponding source as a release of its own, never
+marked latest. The site's Install tab links to that tag by name
+(`gen_site.py`'s `card_tag()`), so a version with no card is a dead link on
+the page. 5.14.0 shipped without one because the card was a second tag
+somebody had to remember to push; check the card release exists before
+calling a release finished. Any other `card-rg40xxv-*` tag publishes a test
+build as a pre-release.
 
 Before tagging, on `main`:
 
