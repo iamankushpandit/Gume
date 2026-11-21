@@ -43,7 +43,7 @@
 /* One version for every platform. It stays a plain literal here because
  * tools read it here; what an image reports adds the device after a "+"
  * (include/FirmwareVersion.h), and a published version never carries one. */
-#define BRAINO_VERSION          "5.14.0-SNAPSHOT"
+#define BRAINO_VERSION          "5.15.0-SNAPSHOT"
 #define BRAINO_PRODUCT_NAME     "Braino!"
 /** The brand that publishes the console, and the owner of the marks. */
 #define BRAINO_COMPANY          "GoodTime Micro Company"

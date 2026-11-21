@@ -24,10 +24,11 @@ name: Card image
 #
 # Every run uploads two artifacts: the image as testers get it, and the
 # source bundle that has to go beside it. Pushing a tag named
-# card-rg40xxv-<anything> builds that commit and publishes both as a GitHub
-# pre-release, which is what the site's Experimental page links to: a
-# pre-release asset needs no GitHub sign-in to download and does not expire,
-# where an artifact needs both.
+# card-rg40xxv-v<version> beside a v<version> tag builds that commit and
+# publishes both as that version's card release, which is what the site's
+# Install tab links to (any other card-rg40xxv-* tag publishes a test build as
+# a pre-release): a release asset needs no GitHub sign-in to download and does
+# not expire, where an artifact needs both.
 #
 # Why the sources are published with the image at all: Linux, U-Boot and
 # busybox are GPL-2.0, and the GPL asks that whoever offers the binary offer
@@ -379,30 +380,57 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           pattern: braino-rg40xxv*
           merge-multiple: true
 
-      # A pre-release, so it is never offered as the newest Braino:
-      # tools/fetch_release_firmware.py skips pre-releases, and release.yml
-      # answers only to v* tags.
-      - name: Publish as a pre-release
+      # card-rg40xxv-v<version> is the card for that release: it is pushed on
+      # the same commit as the v<version> tag (CLAUDE.md, "Cutting a release"),
+      # and the site links to it by that name. It is published as a full
+      # release but never marked latest, so the newest Braino on the releases
+      # page stays the ESP32 release with the same number; and
+      # tools/fetch_release_firmware.py skips it, because the tag is not a
+      # bare version. Any other card-rg40xxv-* tag is a test build, published
+      # as a pre-release.
+      - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           ls -l dist
+          tag="$GITHUB_REF_NAME"
+          version="$(grep -oP 'BRAINO_VERSION\s+"\K[^"]+' include/AppVersion.h)"
+          site="https://iamankushpandit.github.io/Gume/#flash-handheld"
+          if [ "$tag" = "card-rg40xxv-v$version" ]; then
+            case "$version" in *SNAPSHOT*|*+*)
+              echo "::error::$tag would publish $version, which is not a release"; exit 1;;
+            esac
+            kind=(--latest=false)
+            title="Braino $version for the Anbernic RG40XX V"
+            intro="Braino $version for the Anbernic RG40XX V, built by CI from \`$(git rev-parse --short=7 HEAD)\`: the same release as [v$version]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/v$version), on a card."
+          else
+            case "$tag" in card-rg40xxv-v*)
+              echo "::error::$tag names a version, but this commit is $version"; exit 1;;
+            esac
+            kind=(--prerelease)
+            title="Braino for the Anbernic RG40XX V (test build, $tag)"
+            intro="A test build of the Anbernic RG40XX V card, built by CI from \`$(git rev-parse --short=7 HEAD)\`. For the released card, see the newest card-rg40xxv-v release."
+          fi
           cat >notes.md <<EOF
-          An experimental card image that makes the Anbernic RG40XX V a Braino console, built by CI from ${GITHUB_SHA}.
+          $intro
 
-          - \`braino-rg40xxv.img.gz\`: the card image. Write it to a microSD card; it replaces everything on the card.
-          - \`write-card.ps1\`: writes it from Windows without Windows touching the card afterwards. Linux and macOS: see host/rg40xxv/README.md.
+          You need a microSD card of 1 GB or more. Writing the image replaces everything on the card.
+
+          - \`braino-rg40xxv.img.gz\`: the card image.
+          - \`write-card.ps1\`: writes it from Windows without Windows touching the card afterwards.
           - \`braino-rg40xxv.sha256\`: the checksums of the image, packed and unpacked.
           - \`braino-rg40xxv-sources.tar\`: the corresponding source of everything on the card, and the licences.
 
-          What to try and what to report: https://iamankushpandit.github.io/Gume/experimental-h700-rg40xxv.html
+          Step-by-step commands for Windows, Linux and macOS, ready to paste: $site
           EOF
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
-            --title "Braino for the Anbernic RG40XX V (experimental, $GITHUB_REF_NAME)" \
-            --notes-file notes.md dist/*
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag "${kind[@]}" \
+            --title "$title" --notes-file notes.md dist/*

@@ -17,8 +17,8 @@ for. It is not acceptable for `main`.
 -->
 
 - [ ] `pio run` succeeds
-- [ ] `python tools/check_docs.py`, `check_boards.py`, `check_catalog.py` and `check_frame_rules.py` are clean
-- [ ] Flashed and used on hardware
+- [ ] Every `python tools/check_*.py` is clean, and `python tools/run_host_tests.py` if `src/` changed
+- [ ] Used on the device it changes: an ESP32 board, the Attaky Cyber Deck Plus or the Anbernic RG40XX V
 - [ ] Both orientations checked (system/UI screens only — they must read `tft.width()`/`height()`, never `SCREEN_WIDTH`/`SCREEN_HEIGHT`)
 
 **Size figures** (from your own `pio run`, if the firmware changed):

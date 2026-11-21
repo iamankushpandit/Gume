@@ -14,10 +14,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Flash is the binding constraint here — over 80% of the 3 MB app partition
-        is already used, and artwork and data tables dominate. That is not a
-        reason not to propose something; it is the thing your proposal will be
-        weighed against, so it is better said up front.
+        Every game runs on every device Braino runs on: the ESP32 boards, the
+        Attaky Cyber Deck Plus and the Anbernic RG40XX V. On the ESP32 boards
+        flash is the binding constraint -- over 80% of the 3 MB app partition is
+        already used, and artwork and data tables dominate. That is not a reason
+        not to propose something; it is what your proposal will be weighed
+        against, so it is better said up front.
 
   - type: textarea
     id: idea
@@ -28,11 +30,11 @@ body:
       required: true
 
   - type: input
-    id: age
+    id: knows
     attributes:
-      label: Who is it for
-      description: Roughly what age, and what they need to already know.
-      placeholder: 6-9, needs to be able to count to 20
+      label: What a player needs to know first
+      description: What a player has to be able to do already to start it.
+      placeholder: Can count to 20
 
   - type: dropdown
     id: kind
@@ -51,14 +53,14 @@ body:
     attributes:
       label: Does it transmit, store, or share anything?
       description: >-
-        **Read this even if the answer is obviously no.** Exactly three things
-        leave the device — an NTP query, one `ip-api.com` timezone lookup, and
-        the opt-in BLE beacon — and
+        **Read this even if the answer is obviously no.** Exactly four things
+        leave the device -- an NTP query, one `ip-api.com` timezone lookup, the
+        opt-in BLE beacon, and the daily check for a newer version -- and
         [that list is closed](../../CONTRIBUTING.md#no-data-collection). A
-        proposal that adds a fourth needs agreement in this issue before any
+        proposal that adds a fifth needs agreement in this issue before any
         code exists, because it changes what the product promises rather than
         adding a feature to be judged on merit. Scores and profiles staying in
-        the device's own NVS is not transmitting.
+        the console's own storage is not transmitting.
       placeholder: >-
         No — scores only, through the normal scoped storage API.
     validations:
