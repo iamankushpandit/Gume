@@ -98,4 +98,8 @@ target_compile_definitions(braino PRIVATE
 target_compile_options(braino PRIVATE -Wall)
 # NativeActivity finds the entry point by name; keep it through the link.
 target_link_options(braino PRIVATE "-u" "ANativeActivity_onCreate")
+# Android's seccomp filter kills an app that calls these, and Braino would
+# restart into the same call forever; src/HostSandboxAndroid.cpp answers them
+# as a desktop does instead (-1, EPERM). See that file.
+target_link_options(braino PRIVATE "-Wl,--wrap=settimeofday" "-Wl,--wrap=mount")
 target_link_libraries(braino PRIVATE native_app_glue CURL::libcurl android log aaudio m)

@@ -78,15 +78,17 @@ const char* name(DevicePose::Pose p) {
 
 /* Which edge is lowest now, or Unknown when none clearly is. Which quarter
  * turn is Portrait rather than Portrait 180 is the firmware's: Portrait is
- * the rotation BOARD.panel.portraitRotation draws, and it reads upright with
- * the device's left edge down (gravity along -x, the sensor reading x > 0). */
+ * the rotation BOARD.panel.portraitRotation draws, and on the Portal+ it
+ * reads upright with the device's right edge down -- the sensor reading
+ * x < 0. Measured on the device: the first build had the sign the other way
+ * and stood the launcher up on its head. */
 DevicePose::Pose lowestEdge() {
     const float ax = std::fabs(gx), ay = std::fabs(gy);
     if (ay >= LEAN && ay > ax + MARGIN) {
         return gy > 0 ? DevicePose::Pose::Landscape : DevicePose::Pose::LandscapeFlipped;
     }
     if (ax >= LEAN && ax > ay + MARGIN) {
-        return gx > 0 ? DevicePose::Pose::Portrait : DevicePose::Pose::PortraitFlipped;
+        return gx < 0 ? DevicePose::Pose::Portrait : DevicePose::Pose::PortraitFlipped;
     }
     return DevicePose::Pose::Unknown;
 }

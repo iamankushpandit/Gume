@@ -74,8 +74,25 @@ The sensor's queue is attached to `android_main()`'s looper, so its events
 are read in `HostAndroid::pump()` on the firmware's own thread. A pose counts
 once one edge has been lowest for half a second; flat on a table, the last
 pose stands. Each change is logged with the gravity that decided it --
-`[pose] portrait (gravity x=9.6 y=0.4)` -- which is how to check that a
+`[pose] portrait (gravity x=-9.6 y=0.4)` -- which is how to check that a
 quarter turn one way is Portrait and the other Portrait 180.
+
+## The sandbox kills, it does not refuse
+
+Android runs every app under a seccomp filter, and a system call it forbids
+is answered with SIGSYS: the process dies. Braino is the home activity, so
+Android restarts it at once into the same call -- a loop of boot greetings.
+Two calls on that list are made here: `settimeofday()`, by the firmware's NTP
+sync once a saved network lets it run, and `mount()`, by `HostSleep.cpp` when
+the panel sleeps. `src/HostSandboxAndroid.cpp` answers both as a desktop
+answers a program that is not root -- -1 and `EPERM` -- through
+`-Wl,--wrap=` in `CMakeLists.txt`, so neither reaches the kernel. Android
+keeps the Portal's clock synced itself, and that is the clock the firmware
+reads.
+
+**A crash loop on the device is the first thing to look for here.**
+`adb logcat -b crash` names the call -- "seccomp prevented call to
+disallowed arm64 system call N" -- and the fix goes beside these two.
 
 ## Input
 
