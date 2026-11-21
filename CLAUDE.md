@@ -121,6 +121,8 @@ rule; the last group is the part only reading catches.
 | Every theme's colour pairs meet the contrast floors | `check_contrast.py` |
 | No `new`/`malloc`, no `String` per frame, no `delay()` under `src/` (a ratchet: counts may only fall) | `check_frame_rules.py` |
 | No MAC address or public IP anywhere in the repository | `check_identifiers.py` |
+| Every platform the tree supports is named in the README's opening, the site and the repository's About box; the live About box matches `.github/about.json`; no topic names an age group; every published release has its RG40XX V card release | `check_about.py` |
+| `main` takes pull requests from `dev`, `release/<version>` or `hotfix/<topic>` only | `ci.yml`, step "main takes pull requests from..." |
 | Every file carries its licence notice | `check_licenses.py` |
 | Only the four outbound flows; the update request is anonymous; Linux adds nothing underneath; the router is told one fixed name; no rulebook miscounts the flows | `check_privacy.py` |
 | No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/CMakeLists.txt` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
@@ -128,7 +130,7 @@ rule; the last group is the part only reading catches.
 | Every host test states its build line, builds and passes | `run_host_tests.py` |
 | The pin tables and diagrams in `docs/boards/` match the profiles | `gen_board_docs.py --check` |
 | Every environment says whether it is product, experimental or diagnostic | `envs.py` |
-| No animation shows the number 13 | `gen_gameplay.py` refuses to write one |
+| No animation shows the number 13, in its text or its timing (a hold, the frame count, the loop length) | `gen_gameplay.py` and `gen_site_anims.py` refuse to write one; `check_animations.py` reads every tracked GIF back |
 
 **Written only -- no machine can tell:** commit trailers and branch names; an
 SSID, a hostname, a PIN or a player's name in a diff; whether a full repaint
@@ -531,7 +533,7 @@ What follows from the classification:
   SDL build beside them waits for source to change.
 - **The RG40XX V's card image is `card-image.yml`, not a check.** It builds
   on a pull request or push that touches what the image is built from, on a
-  `card-rg40xxv-*` tag (which publishes it as a pre-release), and once a week
+  `card-rg40xxv-*` tag, and once a week
   in full from source, ignoring the stored OS base, so a vanished upstream
   tarball is found on a Monday rather than on the day an OS change needs it.
   It is not part of `verify`: it takes an hour when the OS changed, and it
@@ -1826,8 +1828,9 @@ site/                     index.template.html — the GitHub Pages landing page;
                           builds the RG40XX V's card image and its source
                           bundle -- Braino alone, on an OS base a full build
                           on dev or main stored, unless the OS changed --
-                          and a card-rg40xxv-* tag publishes both as a
-                          pre-release; it also runs in full once a week
+                          and card-rg40xxv-v<version>, which release.yml
+                          tags beside every release, publishes both as
+                          that version's card; it also runs in full once a week
 docs/                     SD_CONTENT_SPEC.md, PORTING.md, screens/,
                           IDEAS.md (every idea and future plan -- a
                           backlog, nothing in it agreed unless it says so),
@@ -1865,7 +1868,30 @@ plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
 `FLASHING.txt`. The diagnostics are deliberately not attached; they are built
 from source by whoever is holding the board.
 
+**The release is not done until the RG40XX V's card is published beside
+it.** The same workflow tags `card-rg40xxv-v<version>` on the same commit and
+starts `card-image.yml` on it, which publishes the image, `write-card.ps1`,
+the checksums and the corresponding source as a release of its own, never
+marked latest. The site's Install tab links to that tag by name
+(`gen_site.py`'s `card_tag()`), so a version with no card is a dead link on
+the page. 5.14.0 shipped without one because the card was a second tag
+somebody had to remember to push; check the card release exists before
+calling a release finished. Any other `card-rg40xxv-*` tag publishes a test
+build as a pre-release.
+
 Before tagging, on `main`:
+
+0. **Everything the release is meant to carry is in it, including work that
+   was never committed.** List every linked session and every worktree
+   (`git worktree list`), and read each one's last report and `git status`.
+   Look in `braino-work/` and any local preview for drafts too. Each piece is
+   brought in or named to the maintainer -- never noted and left. 5.14.0 was
+   tagged with the owner's chosen multi-platform site sitting uncommitted in a
+   detached checkout, and the old ESP32-only site, README opening and
+   repository description went out with the release. Then look at what a
+   visitor reads first, which is not the firmware: the site as Pages will
+   build it, the README's opening and the About box. `check_about.py` catches
+   a platform missing from them; only reading catches the rest.
 
 1. `include/AppVersion.h` carries the real version -- **not** a `-SNAPSHOT`.
    The workflow refuses to publish one, because `dev` carries a snapshot

@@ -43,7 +43,7 @@ existing choices across, and the console's `game` no longer answers
 **Every build says which device it is for, after one version.** About,
 System Info, the `[boot]` line and `identify` now show the version with the
 device after a `+` -- `5.14.0+e32r28t1`, `5.14.0+fnk0104b`, `5.14.0+h700` on
-the handheld card image, `5.14.0+host` on a PC -- so a screenshot or a pasted
+the handheld card image -- so a screenshot or a pasted
 log says which build it is without a second question. Every platform carries
 the same version under the same `v*` tag; the separate release line one board
 had, with its own version, tags and changelog heading, is gone. The part after
@@ -118,12 +118,11 @@ brings it back, and the jack is read at boot too. Volume and Mute are the
 same on both, because one line output feeds both and Braino sets its level
 before the codec. Neither has been tried on a console yet.
 
-**The PC build and the RG40XX V draw at the screen's own resolution, with
-smooth text.** They drew a 320x240 picture and stretched it to the panel, so
+**The RG40XX V draws at the screen's own resolution, with smooth text.**
+It drew a 320x240 picture and stretched it to the panel, so
 a 640x480 console showed every line and letter as a block of four pixels.
 The size is now found when Braino starts -- the display mode on the
-handheld, the desktop's in fullscreen, 640x480 in a window, or
-`BRAINO_PANEL=WxH` -- and every pixel is drawn at it. The menus are laid out
+handheld, or `BRAINO_PANEL=WxH` -- and every pixel is drawn at it. The menus are laid out
 over a whole-number UI scale, 2 on the RG40XX V, so the top bar, the player
 buttons and the tiles keep the proportions they have on the 2.8-inch board;
 `BRAINO_UI_SCALE=1` lays them out on the full resolution instead. All text
@@ -638,7 +637,7 @@ take an ending that arrives after a move they never heard, and Sea Battle
 refuses a shot sent out of turn. A console you are playing no longer raises
 "is playing" notices over the board -- one sat on Sea Battle's End game --
 and the waiting card's *Keep waiting* is no longer cut short. Walked on two
-and three PC consoles through the loopback radio; not yet on two real radios.
+and three consoles of the Linux test build through the loopback radio; not yet on two real radios.
 
 **Leaving a nearby game no longer ends it.** Going Home in the middle of a
 game of Chess, Go, Backgammon, Sea Battle or Ludo played across consoles
@@ -685,7 +684,7 @@ made from, and uploads it with its source bundle: Buildroot's `legal-info`,
 the source, patches and licence of everything on the card, as the GPL asks of
 whoever offers the binary. Pushing a `card-rg40xxv-*` tag publishes both as a
 GitHub pre-release, which needs no sign-in to download and does not expire.
-`ci.yml` gained a `host` job that builds Braino for a PC and runs the console
+`ci.yml` gained a `host` job that builds the Linux test build and runs the console
 profile tests, and `verify` waits for it.
 
 **The RG40XX V's card can be written safely from Windows.**
@@ -745,7 +744,7 @@ nothing wired to it would send the crosshair wandering; the log says which
 profile was used and which controls have no job. The image build refuses a
 device tree that no profile answers to. The README now says which games need
 a stick and why -- their boards are drawn as one picture, with no button for
-the selector to stop at -- and that is left as it is. Tested on a PC for every
+the selector to stop at -- and that is left as it is. Tested on the Linux test build for every
 combination of controls (`test/host/host_controls_test.cpp`); not yet run on
 the console.
 
@@ -837,7 +836,7 @@ It also reads the power chip at most once a second, where the battery code
 asked it seven or eight times a second over a bus already busy with it, and
 the firmware's audio task now sleeps until a sound is armed instead of waking
 every 25ms -- which helps the ESP32 boards with an amplifier switch as well.
-On the PC build, idle on the launcher, Braino's wakeups fell from about 330 a
+On the Linux test build, idle on the launcher, Braino's wakeups fell from about 330 a
 second to about 90 and its frames from 58 a second to none. Over 3.6 hours on
 the handheld, asleep now costs about 9% an hour.
 
@@ -865,8 +864,9 @@ processes hold a network socket) and whether the GPU is powered, since a clock
 of 360 MHz with the screen off turned out to be the bottom of its range rather
 than a load.
 
-**Braino runs on a PC.** `host/` builds the firmware as a desktop program
-with SDL2, in Linux or WSL, with no edits to `src/`: the launcher, all 40 games
+**The firmware builds for Linux, unchanged.** `host/` builds it with SDL2,
+with no edits to `src/`, as a test bench for developers -- it is not a
+release, and nothing publishes it -- the launcher, all 40 games
 and every system screen run from the same code as on a board. Small stand-ins
 for the ESP32 libraries replace the hardware. Touch reaches the firmware
 through an emulated FT6336U, so `BoardTouch.cpp` runs its capacitive path
@@ -883,9 +883,8 @@ firmware's own beacon and scanner run on a NimBLE stand-in over Linux's raw
 HCI socket, advertising from a random static address rather than the chip's.
 `BRAINO_SHOTS` and `BRAINO_TAPS` save screenshots and replay taps, so a
 screen can be checked without anyone at the window. Unlike
-`tools/gen_screens.py`, those pictures are the firmware's own drawing. This is
-the first step towards a port to Linux handhelds such as the Anbernic
-RG40XXV. `tools/check_licenses.py` now also requires the notice in CMake files.
+`tools/gen_screens.py`, those pictures are the firmware's own drawing. It is what
+the Anbernic RG40XX V runs. `tools/check_licenses.py` now also requires the notice in CMake files.
 
 **The Anbernic RG40XXV boots into Braino.** The host build cross-compiles for
 aarch64 (clang against a glibc 2.31 sysroot), and `host/muos/` packs it for

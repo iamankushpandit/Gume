@@ -119,7 +119,7 @@ VARIANTS = (
         "env": "app",
         "label": "Braino! (the games)",
         "name": "Braino!",
-        "note": "The full console: {count} games, profiles, scores, settings, "
+        "note": "The full console: every game, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon.",
     },
     {
@@ -127,14 +127,14 @@ VARIANTS = (
         "label": "Braino! (the games) -- ESP32-2432S028 dual-USB, inverted panel",
         "name": "Braino!",
         "note": "For a dual-USB 2.8 inch CYD whose colours look wrong under the "
-                "other builds: {count} games, profiles, scores, settings, Wi-Fi "
+                "other builds: every game, profiles, scores, settings, Wi-Fi "
                 "clock and the BLE beacon. No sound -- its touch clock is a DAC pad.",
     },
     {
         "env": "app_e32r32p",
         "label": "Braino! (the games) -- E32R32P (3.2 inch ST7789P3)",
         "name": "Braino!",
-        "note": "The full console on the 3.2 inch LCDWIKI board: {count} games, profiles, "
+        "note": "The full console on the 3.2 inch LCDWIKI board: every game, profiles, "
                 "scores, settings, Wi-Fi clock and the BLE beacon. Touch shares the display "
                 "bus on this board, and the panel is BGR -- flashing it with a 2.8 inch "
                 "firmware gives wrong colours and dead touch.",
@@ -143,7 +143,7 @@ VARIANTS = (
         "env": "app_e32r40t",
         "label": "Braino! (the games) -- E32R40T (4 inch ST7796)",
         "name": "Braino!",
-        "note": "The full console on a 4 inch screen: {count} games, profiles, scores, settings, "
+        "note": "The full console on a 4 inch screen: every game, profiles, scores, settings, "
                 "Wi-Fi clock and the BLE beacon. The bigger panel is the point -- games are "
                 "scaled up with larger text, for players who want a plainer, easier screen to "
                 "read. This board has no SD, status LED, sound or battery gauge yet.",
@@ -152,20 +152,19 @@ VARIANTS = (
         "env": "app_fnk0104b",
         "label": "Braino! (the games) -- Freenove FNK0104B (ESP32-S3, capacitive touch)",
         "name": "Braino!",
-        "note": "The full console for the Freenove 2.8 inch ESP32-S3 display: {count} games, profiles, scores, settings, "
-                "Wi-Fi clock and the BLE beacon. This board has no SD, no status LED and no sound yet -- "
+        "note": "The full console for the Freenove 2.8 inch ESP32-S3 display: every game, profiles, scores, settings, "
+                "Wi-Fi clock and the BLE beacon. Sound works; the SD slot and the status LED do not yet -- "
                 "everything else works. See the README for what is missing and why.",
     },
     {
         "env": "app_attaky_core",
         "label": "Braino! (the games) -- Attaky Core (ESP32-S3, capacitive touch)",
         "name": "Braino!",
-        "note": "The full console for the Attaky Core, as built into the Cyber Deck Plus: {count} games, "
-                "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch, the Core's D-pad "
-                "on the home screen, and the keyboard in every text field; the gamepad is not read "
-                "yet, and there is no status LED yet. The battery badge reads the "
-                "Power module's fuel gauge. "
-                "Needs the Media I/O module for the SD slot and the speaker.",
+        "note": "The full console for the Attaky Core, as built into the Cyber Deck Plus: every game, "
+                "profiles, scores, settings, Wi-Fi clock and the BLE beacon. Touch, the gamepad on every "
+                "screen, and the keyboard in every text field; the battery badge reads the Power module. "
+                "The same image runs on Attaky's other Core builds; the SD slot and the speaker need "
+                "the Media I/O module.",
     },
 )
 
@@ -217,7 +216,7 @@ BOARD_DETAILS = {
         "shop": "Hosyond 4-inch ESP32 display",
         "extra": "The biggest screen, 480 by 320; speaker socket",
         # The one board the Get started tab recommends.
-        "recommend": "The biggest screen of the five: 480 by 320, exactly twice the pixels of the 2.8-inch boards, so it is the easiest to read and to tap.",
+        "recommend": "The biggest screen: 480 by 320, exactly twice the pixels of the 2.8-inch boards, so it is the easiest to read and to tap.",
         # What the maintainer pairs it with. Kept beside the recommendation so
         # that recommending a different board cannot leave this one's kit behind.
         "kit": [
@@ -250,7 +249,7 @@ BOARD_DETAILS = {
         # until it is. A plain link, no affiliate code.
         "buy": "https://shop.attaky.com/products/attaky-cyber-deck-plus",
         "shop": "Attaky Cyber Deck Plus",
-        "extra": "A handheld in a case, battery included; keyboard and gamepad (not used by Braino yet)",
+        "extra": "A handheld in a case, battery included; a gamepad, and a keyboard that types names and the Wi-Fi password",
     },
 }
 
@@ -399,6 +398,16 @@ def find(pattern, text, what, flags=0):
 def version():
     return find(r'BRAINO_VERSION\s+"([^"]+)"',
                 read("include", "AppVersion.h"), "the version").group(1)
+
+
+def card_tag(version):
+    """The tag of the RG40XX V card release for this version.
+
+    The card is built by card-image.yml, which publishes on a card-rg40xxv-*
+    tag; one is pushed beside each v* tag so the page can link to the image
+    for the version it offers rather than to whatever release is newest.
+    """
+    return "card-rg40xxv-v" + version
 
 
 def boards():
@@ -681,7 +690,7 @@ def render_buy_pick(boards):
         '      <h3>%s</h3>\n'
         '      <p>%s</p>\n'
         '      <p class="pick">In the installer: <b>%s</b></p>\n'
-        '      <a class="btn btn-solid" href="%s" rel="nofollow noopener">See it on Amazon</a>\n'
+        '      <a class="btn btn-solid" href="%s" rel="nofollow noopener">See the board</a>\n'
         '%s'
         '    </div>\n'
         '  </div>' % (f["size"], escape(b["shop"]), escape(b["recommend"]),
@@ -761,6 +770,17 @@ def available_assets():
         name for name in os.listdir(ASSET_DIR)
         if os.path.isfile(os.path.join(ASSET_DIR, name))
     }
+
+
+def apply_anbernic(page, on):
+    """The Anbernic RG40XX V content sits behind a flag, off by default.
+    <!--ANB-->...<!--/ANB--> is kept only with the flag; <!--NOANB-->...
+    <!--/NOANB--> only without it. The launch video is not behind it."""
+    if on:
+        page = re.sub(r"<!--/?NOANB-->", "", page)
+        return re.sub(r"<!--/?ANB-->", "", page)
+    page = re.sub(r"<!--ANB-->.*?<!--/ANB-->", "", page, flags=re.S)
+    return re.sub(r"<!--/?NOANB-->", "", page)
 
 
 def validate_assets(template):
@@ -914,6 +934,11 @@ def featured_card(entry):
 
 def render_featured_cards(entries):
     return "\n".join(featured_card(e) for e in entries)
+
+
+# The pieces Home shows under "Picked up by": the articles and videos with
+# the widest reach. Every entry is on featured.html; this is only the strip.
+HOME_FEATURED = ("hackaday", "geekygadgets", "hacktuber", "fabscene", "dailydev", "cydhub")
 
 
 def render_featured_teaser(entries):
@@ -1235,6 +1260,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=os.path.join(ROOT, "site", "_build"),
                         help="output directory (default: site/_build)")
+    parser.add_argument("--anbernic", action="store_true",
+                        help="include the Anbernic RG40XX V sections (off by default)")
     parser.add_argument("--repo", default="https://github.com/iamankushpandit/Gume",
                         help="repository URL used in the footer links")
     args = parser.parse_args()
@@ -1350,9 +1377,14 @@ def main():
 
     page = read("site", "index.template.html")
     validate_assets(page)
+    raw_assets = referenced_assets(page)
+    page = apply_anbernic(page, args.anbernic)
+    hidden_assets = raw_assets - referenced_assets(page)
     for key, value in (
         ("{{VERSION}}", release),
-        ("{{GAME_COUNT}}", str(len(catalog))),
+        # The RG40XX V card is its own release, tagged beside every v* tag
+        # (CLAUDE.md, "Cutting a release"); the page links straight to it.
+        ("{{CARD_TAG}}", card_tag(release)),
         ("{{FLASH}}", escape(flash)),
         ("{{RAM}}", escape(ram)),
         ("{{BOARD_OPTIONS}}", board_options),
@@ -1363,7 +1395,8 @@ def main():
         ("{{BUY_PICK}}", buy_pick),
         ("{{BUY_TABLE}}", buy_table),
         ("{{BUILDS_JSON}}", json.dumps(builds, indent=2)),
-        ("{{FEATURED_TEASER}}", render_featured_teaser(featured)),
+        ("{{FEATURED_TEASER}}", render_featured_teaser(
+            [e for e in featured if e["id"] in HOME_FEATURED])),
         ("{{BUILT}}", datetime.date.today().isoformat()),
         ("{{REPO}}", args.repo),
     ):
@@ -1429,6 +1462,8 @@ def main():
     # they are published from here so that nothing on the page has to
     # reach outside the Pages origin for an image.
     shutil.copytree(ASSET_DIR, os.path.join(out, "assets"))
+    for name in sorted(hidden_assets):
+        os.remove(os.path.join(out, "assets", name))
     # Jekyll would otherwise skip anything starting with an underscore.
     open(os.path.join(out, ".nojekyll"), "w").close()
 

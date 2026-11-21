@@ -247,16 +247,20 @@ hash moves, no base matches, and the run builds everything; on `dev` or
 The run's summary says which it did and why: "Braino on a stored OS base" with
 the base's run and age, or "Full build" with the reason.
 
-To publish an image for testers, tag the commit and push the tag:
+Every Braino release has a card. `release.yml` tags
+`card-rg40xxv-v<version>` on the release's commit and starts this workflow on
+it, which publishes the image, `write-card.ps1`, the checksums and the
+sources as that version's card release -- a full release, never marked latest,
+so the newest Braino on the releases page stays the one with the ESP32
+images. The site's Install tab links to it by that tag. If that step ever
+failed, start it again by hand on the same commit:
 
 ```sh
-git tag card-rg40xxv-2026-11-12 && git push origin card-rg40xxv-2026-11-12
+git tag card-rg40xxv-v5.14.0 v5.14.0^{} && git push origin card-rg40xxv-v5.14.0
 ```
 
-That builds the tagged commit and publishes both artifacts as a GitHub
-pre-release, which the site's Experimental page links to. It is a
-pre-release so that nothing takes it for the newest Braino: the old-release
-installer skips pre-releases, and `release.yml` answers only to `v*` tags.
+To publish a test image, push any other `card-rg40xxv-*` tag; that publishes a
+pre-release, which nothing takes for the newest Braino.
 
 ## Writing a card
 

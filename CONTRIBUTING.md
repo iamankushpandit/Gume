@@ -131,7 +131,7 @@ deleted, and changes reach them through a pull request whose CI has passed.
 
 | Branch | What it holds | How work lands |
 |---|---|---|
-| `main` | Released firmware — what the web installer flashes | Pull request from `dev`, after the build has been tested on hardware |
+| `main` | Released firmware — what the web installer flashes | Pull request from `dev`, after the build has been tested on hardware; or from `release/<version>` or an agreed `hotfix/<topic>`. CI refuses any other branch |
 | `dev` | Integration branch, and the base for everything below | Pull request from a topic branch or a fork |
 | `feat/*`, `fix/*`, `docs/*` | One concern each, short-lived | Rebased on `dev` and opened as a pull request |
 
