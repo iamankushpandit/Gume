@@ -40,6 +40,8 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
+import gif_timing
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "site", "assets")
 
@@ -1105,9 +1107,11 @@ def write(name, frames):
     palette = strip.quantize(colors=128, method=Image.Quantize.MEDIANCUT)
     gif = [f.quantize(palette=palette, dither=Image.Dither.NONE) for f in frames]
     durations = [round(1000 / FPS)] * (len(gif) - 1) + [HOLD_MS]
+    gif, durations = gif_timing.prepare(gif, durations)
     gif_path = os.path.join(OUT, "%s.gif" % name)
     gif[0].save(gif_path, save_all=True, append_images=gif[1:], loop=0,
                 duration=durations, disposal=1, optimize=False)
+    gif_timing.check(gif_path)
     png_path = os.path.join(OUT, "%s.png" % name)
     frames[-1].quantize(colors=128).save(png_path, optimize=True)
     return os.path.getsize(gif_path), os.path.getsize(png_path)
