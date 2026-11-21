@@ -50,10 +50,11 @@ games look right on it.
 A board that clears all four but should not be offered yet is built as
 `custom_env_kind = experimental`: CI builds it and attaches the image to the
 run, and nothing public carries it (see "An experimental board is built and
-never published" in the root `CLAUDE.md`). The Attaky Core is the one today,
-and the worked example for keys, a clip-on keyboard, an I2S amplifier and
-modules that come off -- its standing rules are in
-[src/hal/CLAUDE.md](../src/hal/CLAUDE.md#the-attaky-core-experimental-standing-rules).
+never published" in the root `CLAUDE.md`). The Attaky Core started that
+way and is a product now. It is the worked example for keys, a clip-on
+keyboard, an I2S amplifier and modules that come off -- its standing rules
+are in
+[src/hal/CLAUDE.md](../src/hal/CLAUDE.md#the-attaky-core-standing-rules).
 
 ## Second: a supported board is one people can flash
 

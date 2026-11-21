@@ -239,8 +239,9 @@ learn every target from one place.
 
 ### 2.7 The Attaky Core before it is offered
 
-**What.** The Attaky Core is an *experimental* environment: CI builds it, and
-nothing public carries it. Before it moves to *product*:
+**Status: the move is done.** The Attaky Core became a *product* in 5.15.0,
+by the maintainer's decision: its firmware is on Attaky's firmware store. The
+device checks below are still worth making, and none of them blocks it:
 
 - flash the consolidated build and check on the device: the round-key symbols
   on quiz answers from the first question; that the selector never matches a
@@ -645,7 +646,7 @@ is optional, and the table is about those.
 | E32R32P (3.2-inch) | The same 240x320 as the 2.8-inch on a bigger panel: every letter physically larger. Sound. | No case. Volume ceiling inherited rather than tuned by ear. |
 | E32R28T-1 (2.8-inch, reference) | The board everything is tested on, with the only printable case, an SD slot and sound since 5.10.0. | Smallest panel of the resistive boards. |
 | ESP32-2432S028, dual-USB | Only if you already have one. | No battery hardware: run it from USB power. No case. |
-| Attaky Core | Experimental, not offered. | -- |
+| Attaky Core | The Cyber Deck Plus: keys, a clip-on keyboard and gamepad, swappable modules. Also on Attaky's firmware store. | 2.0-inch panel; no battery gauge yet. |
 
 **Generate the fact columns, hand-write only the judgement.** Audio backend,
 SD, resolution, touch, flash and whether `cases/<name>/` exists come from the
