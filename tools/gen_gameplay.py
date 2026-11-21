@@ -40,6 +40,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 import gen_screens as gs
+import gif_timing
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "gameplay"
@@ -626,9 +627,11 @@ def write(name, frames):
         strip.paste(im, (0, im.height * i))
     palette = strip.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
     gif = [im.quantize(palette=palette, dither=Image.Dither.NONE) for im in big]
+    gif, holds = gif_timing.prepare(gif, [ms for _, ms in frames])
     path = OUT / ("%s.gif" % name)
     gif[0].save(path, save_all=True, append_images=gif[1:], loop=0,
-                duration=[ms for _, ms in frames], disposal=1, optimize=False)
+                duration=holds, disposal=1, optimize=False)
+    gif_timing.check(path)
     return path.stat().st_size
 
 
