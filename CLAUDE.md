@@ -487,6 +487,13 @@ What follows from the classification:
   contract or `src/hal/`, and no board at all for documentation, `tools/`,
   `host/` or `test/`. `envs.py --for-changes` is the one answer;
   `--reaches-host` gives the same answer for the PC build.
+- **Every product and experimental build is attached to the run**, packed by
+  `pack_release.py --only <env>` exactly as a release would pack it -- four
+  parts, one merged image, FLASHING.txt -- and kept for 30 days. That is how
+  a build reaches the owner of a board nobody here has, before it is
+  released; issue 200's board was the first. `envs.py --matrix` carries
+  each environment's `kind` so the step runs for those only: a probe is
+  built to prove it still compiles, and nobody flashes one from a download.
 - **Each environment builds in its own job, in parallel.** `ci.yml` is four
   jobs: `plan` runs every repository check, asks `envs.py` what to build and
   installs all the toolchains once into the one cache it alone saves; `build`

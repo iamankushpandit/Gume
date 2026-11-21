@@ -1,4 +1,4 @@
-# Case — ESP32-2432S028Rv3
+# Case — ESP32-2432S028-st7789
 
 This board is one of the 2.8-inch family, and they share an outline, so the
 case for it is the one in **[../E32R28T-1/](../E32R28T-1/)** — a complete

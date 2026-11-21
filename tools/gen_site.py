@@ -131,6 +131,14 @@ VARIANTS = (
                 "clock and the BLE beacon. No sound -- its touch clock is a DAC pad.",
     },
     {
+        "env": "app_esp32_2432s028_st7789",
+        "label": "Braino! (the games) -- ESP32-2432S028 dual-USB, ST7789 panel",
+        "name": "Braino!",
+        "note": "For a dual-USB 2.8 inch CYD (the CYD2USB) that draws washed-out "
+                "colours under the inverted-panel build: {count} games, profiles, "
+                "scores, settings, Wi-Fi clock and the BLE beacon.",
+    },
+    {
         "env": "app_e32r32p",
         "label": "Braino! (the games) -- E32R32P (3.2 inch ST7789P3)",
         "name": "Braino!",
@@ -196,6 +204,15 @@ BOARD_DETAILS = {
         # link: no affiliate code, and the page says it is not sponsored.
         "buy": "https://www.amazon.com/dp/B0FCY1GNXT",
         "shop": "ESP32-2432S028R, the classic CYD (two-pack)",
+        "extra": "No battery socket, runs on USB power; speaker socket",
+    },
+    "esp32_2432s028_st7789": {
+        "label": "2.8-inch, resistive touch, USB-C plus micro-USB, no battery (USB power) -- ESP32-2432S028 CYD, ST7789 panel (ST7789 + XPT2046)",
+        "chip": "ESP32",
+        # The listing the reporter of issue 200 named for the ST7789 glass. A
+        # plain link: no affiliate code, and the page says it is not sponsored.
+        "buy": "https://www.amazon.com/dp/B0CKYVPWX9",
+        "shop": "ESP32-2432S028 dual-USB, ST7789 panel (the CYD2USB)",
         "extra": "No battery socket, runs on USB power; speaker socket",
     },
     "e32r32p": {
