@@ -1848,7 +1848,8 @@ host/                     src/ built unchanged as an SDL desktop program:
                           splash), sound/ (every cue rendered to WAV,
                           through the firmware's own synthesiser),
                           cmake/ (aarch64 toolchain, the shared
-                          source list), muos/ (the
+                          source list), android/ (the Portal+ APK:
+                          the same build as a home-screen app), muos/ (the
                           RG40XXV launcher and card packer), rg40xxv/ (the
                           RG40XX V's Braino-only Buildroot image: build.sh,
                           configs/, board/, package/, and rocknix/ --

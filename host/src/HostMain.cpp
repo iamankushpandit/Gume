@@ -48,7 +48,7 @@ bool sha256SelfTest() {
 
 }   // namespace
 
-int main(int argc, char** argv) {
+int hostMain(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     if (!sha256SelfTest()) {
         std::fprintf(stderr, "[host] SHA-256 self-test failed\n");
@@ -81,6 +81,12 @@ int main(int argc, char** argv) {
     }
     hostExit(0);
 }
+
+/* A NativeActivity has no main(): android_main() calls hostMain() (see
+ * HostMain.h). Everywhere else the program starts here. */
+#if !defined(__ANDROID__)
+int main(int argc, char** argv) { return hostMain(argc, argv); }
+#endif
 
 void hostExit(int code) {
     /* Takes the beacon off the air and joins the HCI reader. A reader still

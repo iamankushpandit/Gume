@@ -27,6 +27,9 @@ two ever differ, `CLAUDE.md` is right and this file is the defect.
 - [`src/ui/CLAUDE.md`](src/ui/CLAUDE.md) -- theming and drawing helpers
 - [`host/CLAUDE.md`](host/CLAUDE.md) -- the **Linux platform**: the same `src/`
   as a PC program and as the Anbernic RG40XX V's whole-device image
+- [`host/android/CLAUDE.md`](host/android/CLAUDE.md) -- the same host build
+  as an Android APK that is the device's home screen (the Meta Portal+;
+  experimental)
 - [`docs/PORTING.md`](docs/PORTING.md) -- adding an ESP32 board, or a platform
 
 ## Three kinds of platform
@@ -35,7 +38,7 @@ two ever differ, `CLAUDE.md` is right and this file is the defect.
 |---|---|
 | ESP32 boards (the published product) | `src/hal/CLAUDE.md`, `docs/PORTING.md`, `docs/boards/` |
 | Attaky Core (ESP32-S3, the Cyber Deck Plus; a product) | `src/hal/CLAUDE.md`, `docs/boards/Attaky-Core.md` |
-| Linux: PC build and RG40XX V image | `host/CLAUDE.md` |
+| Linux: PC build and RG40XX V image (and, experimentally, the same host build on Android: the Portal+) | `host/CLAUDE.md`, `host/android/CLAUDE.md` |
 
 One `src/` builds for all three. **`host/` adapts to `src/`, never the
 reverse**: no platform `#if` under `src/`; a difference is an interface with

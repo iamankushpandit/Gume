@@ -1872,6 +1872,9 @@ host/
   consoles/             one profile per handheld: the controls on its case,
                         found at boot from the kernel's device tree
   muos/                 the RG40XXV launcher and the card packer
+  android/              the same build as an Android APK that is the
+                        device's home screen (the Meta Portal+;
+                        experimental), packed without Gradle or Java
   rg40xxv/              the RG40XX V's Braino-only card image (Buildroot):
                         mainline Linux with ROCKNIX's H700 support, U-Boot,
                         Braino drawing through DRM, nothing else

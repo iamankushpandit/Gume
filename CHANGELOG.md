@@ -18,6 +18,22 @@ its update check reads the manifest's newest release as every board's does.
 It drops `-D GUME_EXPERIMENTAL=1`, which made it read only its own line. The
 `experimental` kind stays, for the next board that needs one.
 
+**Braino runs on the Meta Portal+ (experimental).** `host/android/` builds
+the same host program -- `src/` unchanged -- into an APK whose only code is
+`libbraino.so`, run by the system's own `NativeActivity`, and whose manifest
+makes it the device's home screen. The Portal's bootloader takes only
+Meta-signed images, so an APK is the one way on; as the home activity it is
+still what the device boots into. The panel lays out at 480x270 (UI scale 4
+on 1920x1080), audio is AAudio, Bluetooth reports no controller because
+Android gives an app none, and libcurl is built HTTP-only, so the update
+check (HTTPS) does not run there. The Wi-Fi network and the admin PIN are
+sealed with a key kept in the app's private storage, since an app can read
+no processor serial. Built with `host/android/build.ps1`; see
+`host/android/CLAUDE.md`.
+
+The firmware's own source list is now `host/cmake/BrainoSources.cmake`,
+shared by every host build, and the boot splash no longer needs SDL.
+
 ## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page
