@@ -5,7 +5,7 @@
 [![Flash in browser](https://img.shields.io/badge/flash%20in%20browser-Web%20Serial-6f42c1)](https://iamankushpandit.github.io/Gume/)
 [![Version](https://img.shields.io/badge/version-5.15.0--SNAPSHOT-9a6700)](CHANGELOG.md)
 [![Games](https://img.shields.io/badge/games-40-2d7d9a)](#the-games)
-[![Platform](https://img.shields.io/badge/platform-ESP32--32E-e25822)](#build-and-flash)
+[![Platforms](https://img.shields.io/badge/runs%20on-ESP32%20boards%20%7C%20Attaky%20Cyber%20Deck%20Plus%20%7C%20Anbernic%20RG40XX%20V-e25822)](#pick-your-device)
 [![Framework](https://img.shields.io/badge/framework-Arduino%20%7C%20PlatformIO-orange)](https://platformio.org/)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599c)](platformio.ini)
 [![Flash](https://img.shields.io/badge/flash-86.0%25%20of%203%20MB%20app%20partition-yellow)](#build-and-flash)
@@ -24,15 +24,25 @@
 **Discussion is open on Reddit:** [r/gume_braino](https://www.reddit.com/r/gume_braino/) —
 questions, ideas and feedback, in public, where the next person finds them.
 
-A 40-game educational console for young players, running on an **ESP32-32E
-board** (E32R28T-1 — ILI9341 320×240 resistive
-touchscreen, 4 MB flash, no PSRAM).
+A 40-game learning console for young players. Hand it over and it boots into
+learning games and nothing else. The same firmware runs on three kinds of
+device:
+
+## Pick your device
+
+| Device | What it is | How to get Braino on it |
+|---|---|---|
+| **ESP32 touchscreen boards** | The Cheap Yellow Display family and its relatives, 2.8 to 4 inch, resistive or capacitive touch | [Install from the browser](https://iamankushpandit.github.io/Gume/), no toolchain. See [Which board do you have?](#which-board-do-you-have) |
+| **Attaky Cyber Deck Plus** | Attaky's handheld deck on the ESP32-S3 Attaky Core, with a keyboard and a gamepad | [Attaky's firmware store](https://fwstore.attaky.com/en/). See [the Attaky Core](docs/boards/Attaky-Core.md) |
+| **Anbernic RG40XX V** | A handheld games console; Braino replaces its whole system | A card image that boots straight into Braino, from [the releases page](https://github.com/iamankushpandit/Gume/releases). See [the RG40XX V card](host/rg40xxv/README.md) |
 
 Everything is baked into the firmware: **no SD card, no accounts, no telemetry,
 no data collection.** Two radios exist and both are narrow by design:
 
-- **Wi-Fi** is used for exactly one thing — fetching the time from an NTP
-  server (plus a one-off public-IP lookup to guess the time zone).
+- **Wi-Fi** makes three requests, and none is about the player: the time
+  from an NTP server, a one-off public-IP lookup to guess the time zone, and a
+  daily check for a newer Braino that says nothing about the device. See
+  [The update check](#the-update-check).
 - **Bluetooth LE** is **off by default**. Turned on, it broadcasts a device
   name (`Braino-<id>`) and a hardware id. Turn on **Nearby** as well and it also
   broadcasts which game is open and the best score for it — anonymously, with no
@@ -110,13 +120,12 @@ genuinely valuable — please
 can, say how you'd fix it. Hardware assumptions that were never measured are
 the most valuable of all.
 
-**Something that needs no hardware at all.** There are no host-side tests
-yet, and a good deal of this firmware is pure logic that never touches a
-board — progress tracking, scoped storage, question selection, touch
-rotation. Rendering already goes through an interface, so a recording
-backend is possible without a panel. That is
-[issue #44](https://github.com/iamankushpandit/Gume/issues/44), and the rest of what this firmware does not
-do yet is [on the tracker](https://github.com/iamankushpandit/Gume/issues) beside it.
+**Something that needs no hardware at all.** The firmware also builds and
+runs on a PC (see [Run it on a PC](#run-it-on-a-pc)), and the pure logic --
+courses, chess, Go, Backgammon, Ludo, the synthesiser, the radio payload and
+more -- has host tests in [`test/host/`](test/host/) that CI runs on every pull
+request. More of them are always welcome. The rest of what this firmware does
+not do yet is [on the tracker](https://github.com/iamankushpandit/Gume/issues).
 
 **Ideas, written down.** Every idea and future plan discussed for Braino --
 agreed or not -- is in [docs/IDEAS.md](docs/IDEAS.md), a backlog rather than
@@ -155,7 +164,7 @@ it. Tell them apart by screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
-| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
+| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus -- installed from [Attaky's firmware store](https://fwstore.attaky.com/en/), not this installer | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to
 recognise it, what has been checked on it, its sources, and a pin table and
@@ -1271,12 +1280,13 @@ next boot.
 
 No accounts, analytics, telemetry, or personal-data collection. The optional
 Wi-Fi and Bluetooth LE features make only the limited exchanges described
-below, and each one is listed. Scores and mastery data live in the ESP32's own
-flash and never leave it.
+below, and each one is listed. Scores and mastery data live in the console's own
+storage and never leave it.
 
-Wi-Fi connects only to reach an NTP server, plus one lookup to `ip-api.com` to
-guess the time zone on first connect (the picker overrides it, and you can skip
-Wi-Fi entirely). After the first clock set, automatic NTP resync is configurable
+Wi-Fi connects only to reach an NTP server, to make one lookup to `ip-api.com`
+to guess the time zone on first connect (the picker overrides it), and to make
+the daily [update check](#the-update-check), which says nothing about the
+device. You can skip Wi-Fi entirely. After the first clock set, automatic NTP resync is configurable
 from 1 to 24 hours and defaults to 6 hours.
 
 The battery diagnostic (*System Info -> Batt*) is held in memory and starts over
@@ -1606,7 +1616,7 @@ timezone lookup and the update check behave as they do on a board. Nearby
 play works over Bluetooth wherever Linux has a Bluetooth controller; see
 [the PC build](#the-pc-build) under Privacy.
 
-The same build cross-compiles for the **Anbernic RG40XXV** running muOS, where
+The same build cross-compiles for the **Anbernic RG40XXV**, where
 it turns the console into a Braino appliance: it boots straight into Braino
 behind a Braino splash. The D-pad moves a selector from button to button and
 square to square, and the stick moves a crosshair anywhere on the screen. A is the
