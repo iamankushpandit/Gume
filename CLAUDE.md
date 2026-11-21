@@ -130,7 +130,7 @@ rule; the last group is the part only reading catches.
 | Every host test states its build line, builds and passes | `run_host_tests.py` |
 | The pin tables and diagrams in `docs/boards/` match the profiles | `gen_board_docs.py --check` |
 | Every environment says whether it is product, experimental or diagnostic | `envs.py` |
-| No animation shows the number 13 | `gen_gameplay.py` refuses to write one |
+| No animation shows the number 13, in its text or its timing (a hold, the frame count, the loop length) | `gen_gameplay.py` and `gen_site_anims.py` refuse to write one; `check_animations.py` reads every tracked GIF back |
 
 **Written only -- no machine can tell:** commit trailers and branch names; an
 SSID, a hostname, a PIN or a player's name in a diff; whether a full repaint
