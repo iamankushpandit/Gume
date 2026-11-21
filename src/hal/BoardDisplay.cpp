@@ -108,3 +108,34 @@ bool Board::drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_
     bmp.close();
     return true;
 }
+
+/* The layout and the half-turn: how the panel is read. With the display's
+ * other settings, kept here rather than in Board.cpp. */
+Board::LayoutMode Board::layoutMode() {
+    if (!layoutCached_) {
+        cachedLayout_ = prefs_.getUChar("layoutMode", static_cast<uint8_t>(LayoutMode::Horizontal));
+        layoutCached_ = true;
+    }
+    return cachedLayout_ == static_cast<uint8_t>(LayoutMode::Vertical) ? LayoutMode::Vertical
+                                                                      : LayoutMode::Horizontal;
+}
+
+void Board::setLayoutMode(LayoutMode mode) {
+    prefs_.putUChar("layoutMode", static_cast<uint8_t>(mode));
+    cachedLayout_ = static_cast<uint8_t>(mode);
+    layoutCached_ = true;
+}
+
+bool Board::screenFlipped() {
+    if (!flipCached_) {
+        cachedFlip_ = prefs_.getBool("screenFlip", false);
+        flipCached_ = true;
+    }
+    return cachedFlip_;
+}
+
+void Board::setScreenFlipped(bool flipped) {
+    prefs_.putBool("screenFlip", flipped);
+    cachedFlip_ = flipped;
+    flipCached_ = true;
+}
