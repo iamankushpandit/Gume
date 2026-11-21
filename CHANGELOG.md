@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.14.0-SNAPSHOT — Unreleased
+## 5.15.0-SNAPSHOT — Unreleased
 
 In development on `dev`. Nothing here has shipped; the version carries the
 `-SNAPSHOT` suffix so a board on a desk cannot be mistaken for a release, and
@@ -9,6 +9,8 @@ In development on `dev`. Nothing here has shipped; the version carries the
 `Board::compareVersions()` sorts a pre-release before the release of the same
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
+
+## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page
 3, Cinnamon's highlighted pad left the bottom of its white ring on the tile
