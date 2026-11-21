@@ -45,6 +45,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -85,27 +86,70 @@ def readme_opening():
     return text[:end]
 
 
-def live_about():
-    """The repository's About box as GitHub has it, or None if unreadable."""
+def api(path):
+    """GET a GitHub API path: the decoded JSON, False on a 404, None if no
+    token or gh login is available to ask with."""
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if token:
         req = urllib.request.Request(
-            "https://api.github.com/repos/" + REPO,
+            "https://api.github.com/" + path,
             headers={"Authorization": "Bearer " + token,
                      "Accept": "application/vnd.github+json"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = json.load(r)
-    elif shutil.which("gh"):
-        out = subprocess.run(["gh", "api", "repos/" + REPO],
-                             capture_output=True, text=True)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False
+            raise
+    if shutil.which("gh"):
+        out = subprocess.run(["gh", "api", path], capture_output=True, text=True)
         if out.returncode != 0:
+            if "404" in out.stderr or "Not Found" in out.stdout + out.stderr:
+                return False
             return None
-        data = json.loads(out.stdout)
-    else:
+        return json.loads(out.stdout)
+    return None
+
+
+def live_about():
+    """The repository's About box as GitHub has it, or None if unreadable."""
+    data = api("repos/" + REPO)
+    if not data:
         return None
     return {"description": data.get("description") or "",
             "homepage": data.get("homepage") or "",
             "topics": sorted(data.get("topics") or [])}
+
+
+def card_problems():
+    """Every published release has its RG40XX V card.
+
+    5.14.0 was published with no card, while the site promised one, because
+    the card was a second tag somebody had to remember. release.yml now makes
+    it; this is the check that it did. The site links to card-rg40xxv-v<the
+    version on main>, so a release with no card is a dead link on the page.
+    """
+    version = re.search(r'BRAINO_VERSION\s+"([^"]+)"',
+                        read(os.path.join("include", "AppVersion.h"))).group(1)
+    if "-" in version:
+        version = None  # a snapshot: check the newest published release instead
+    latest = api("repos/%s/releases/latest" % REPO)
+    if latest is None:
+        return None
+    wanted = set()
+    if latest:
+        wanted.add(latest["tag_name"].lstrip("v"))
+    if version and api("repos/%s/releases/tags/v%s" % (REPO, version)):
+        wanted.add(version)
+    out = []
+    for v in sorted(wanted):
+        if not api("repos/%s/releases/tags/card-rg40xxv-v%s" % (REPO, v)):
+            out.append("release v%s is published but card-rg40xxv-v%s is not -- "
+                       "the RG40XX V has no card for it and the site's Install "
+                       "tab links to nothing; start card-image.yml on that tag "
+                       "(host/rg40xxv/README.md, \"In CI\")" % (v, v))
+    return out
 
 
 def main():
@@ -147,6 +191,15 @@ def main():
                 "live topic not in the file)" % (
                     REPO, json.dumps(about["description"]), about["homepage"],
                     " ".join("--add-topic " + t for t in about["topics"])))
+
+    try:
+        cards = card_problems()
+    except Exception as e:  # network trouble is not a pass
+        cards = ["could not read the releases: %s" % e]
+    if cards is None:
+        print("check_about: no token or gh login -- card releases not checked")
+    else:
+        problems.extend(cards)
 
     if problems:
         for p in problems:

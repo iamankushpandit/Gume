@@ -121,7 +121,7 @@ rule; the last group is the part only reading catches.
 | Every theme's colour pairs meet the contrast floors | `check_contrast.py` |
 | No `new`/`malloc`, no `String` per frame, no `delay()` under `src/` (a ratchet: counts may only fall) | `check_frame_rules.py` |
 | No MAC address or public IP anywhere in the repository | `check_identifiers.py` |
-| Every platform the tree supports is named in the README's opening, the site and the repository's About box; the live About box matches `.github/about.json`; no topic names an age group | `check_about.py` |
+| Every platform the tree supports is named in the README's opening, the site and the repository's About box; the live About box matches `.github/about.json`; no topic names an age group; every published release has its RG40XX V card release | `check_about.py` |
 | `main` takes pull requests from `dev`, `release/<version>` or `hotfix/<topic>` only | `ci.yml`, step "main takes pull requests from..." |
 | Every file carries its licence notice | `check_licenses.py` |
 | Only the four outbound flows; the update request is anonymous; Linux adds nothing underneath; the router is told one fixed name; no rulebook miscounts the flows | `check_privacy.py` |
