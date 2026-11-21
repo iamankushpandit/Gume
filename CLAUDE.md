@@ -817,7 +817,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 Flash is global and nearly the binding constraint (2,706,733 / 3,145,728 bytes,
 **86.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
-at 95,108 / 327,680 (29.0%) -- higher than it was, deliberately: RowList traded
+at 95,124 / 327,680 (29.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their
 profile-move buffers static. On this device that is a good
 trade every time. Two agents can each add artwork that fits locally and together overflow it. Read the size line from `pio run` and report it when you add data tables or images.
@@ -1138,14 +1138,20 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   right after `begin()` with each index's key, because the board cannot know
   the catalogue. **Renaming a game's id resets its visibility for every
   player**, as it resets their level in it.
-- **Settings is readable by everyone and writable only by the admin.** There is
-  no lock screen on it. The enforcement is a single `if (!isAdmin(board))`
-  early return in `SettingsApp::update()`, sitting *below* tab switching so a
-  non-admin can still page through and read. The greyed-out controls are a
-  drawing decision and enforce nothing on their own: for a while every greyed
-  row was still live and a player could toggle the lot. If you add a control,
-  it is covered by that early return automatically — do not add a path above
-  it.
+- **Settings, Wi-Fi and System Info are the admin's alone.** They carry
+  `APP_CAP_ADMIN_ONLY`, and `AppDefinition::availableTo()` is the one rule
+  that reads it. For anyone but the admin they have no launcher tile; the gear
+  is neither drawn nor pressable in the launcher header, the top bar or the
+  d-pad selector (`Ui::settingsShown()`, a question the runtime registers at
+  boot so it is asked live as each header draws, never a frame stale after a
+  profile switch); and `BrainoApp::launch()` refuses them by any other route.
+  Waking from an idle that ended an admin session goes Home rather than back
+  into one of them (`resumeUnderlyingScreen()`). **Add a way into an
+  admin-only app and it must come through `launch()`** -- that is what holds
+  if the tile and the gear were the only things hidden. Profiles stays open to
+  everyone: it is the way to become admin. `SettingsApp::update()` still
+  returns early for a non-admin, a second lock behind the first; a control
+  added below that return is covered by it automatically.
 - **Boot must not leave the admin profile active.** `BrainoApp::begin()`
   drops to Guest if it finds admin selected. The picker's Done button goes home
   with whatever is already active, so a remembered admin selection is a PIN

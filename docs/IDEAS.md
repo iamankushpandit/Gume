@@ -815,9 +815,10 @@ a few lines of rules is a splash worth its moment.
   only Mute silences it. A global device setting with a RAM mirror like the
   others; a few bytes.
 - **Hide the Settings gear from players who are not admin.** Deferred on
-  2026-09-07 and never revisited. Today Settings is readable by everyone and
-  writable only by the admin, on purpose; hiding it would change that promise,
-  so it is the owner's call.
+  2026-09-07; **the owner decided it on 2026-11-20 and it is done in 5.15.0**:
+  Settings, Wi-Fi and System Info are admin-only (`APP_CAP_ADMIN_ONLY`), with
+  no tile and no gear for anyone else. See "Settings, Wi-Fi and System Info
+  are the admin's alone" in `CLAUDE.md`.
 
 **Status: idea.**
 

@@ -176,7 +176,7 @@ int BrainoApp::selectorTargets(Focus::Target* out, int max) {
         add(LauncherLayout::profileRect(mode, w), Focus::Ring::Under);
         add(LauncherLayout::lockRect(mode, w));
         if (Board::hasSound()) add(LauncherLayout::speakerRect(mode, w));
-        add(LauncherLayout::gearRect(mode, w));
+        if (Ui::settingsShown()) add(LauncherLayout::gearRect(mode, w));   // the admin's only
         return n;
     }
     Rect lock{}, speaker{};
@@ -189,13 +189,14 @@ int BrainoApp::selectorTargets(Focus::Target* out, int max) {
     add(LauncherLayout::topBarHomeRect(), Focus::Ring::Inset);
     add(LauncherLayout::topBarLockRect(w));
     if (Board::hasSound()) add(LauncherLayout::topBarSpeakerRect(w));
-    add(LauncherLayout::topBarSettingsRect(w));
+    if (Ui::settingsShown()) add(LauncherLayout::topBarSettingsRect(w));   // the admin's only
     return n;
 }
 
-/* Settings, where the screen shows its gear: the Tab job's fallback. */
+/* Settings, where the screen shows its gear: the Tab job's fallback. No gear
+ * for anyone but the admin, so nothing to fall back to. */
 bool BrainoApp::selectorSettingsRect(Rect& out) {
-    if (activeGame_ == nullptr) return false;
+    if (activeGame_ == nullptr || !Ui::settingsShown()) return false;
     const int16_t w = static_cast<int16_t>(renderer_.width());
     if (activeGame_ == &launcher_) {
         out = LauncherLayout::gearRect(board_.layoutMode(), w);

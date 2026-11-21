@@ -1721,7 +1721,7 @@ def on_fill_soft(fill):
     return soft if (hi + 0.05) / (lo + 0.05) >= 4.5 else ink
 
 
-def launcher_header(d, w, tall, name="Ava", beacon=False):
+def launcher_header(d, w, tall, name="Ava", beacon=False, admin=False):
     """The launcher's header, from LauncherLayout's own numbers.
 
     The mark and the copyright are fixed. The player's name has the mark's row
@@ -1729,6 +1729,10 @@ def launcher_header(d, w, tall, name="Ava", beacon=False):
     sync check; the gear is the top bar's, 18px and 8px in from the right; and
     the badge row runs Bluetooth (only while the beacon is on), padlock,
     speaker, Wi-Fi, battery, right-aligned under the gear.
+
+    The gear itself is drawn only for the admin (Ui::settingsShown()): Settings
+    is admin-only, and Ava is a player, so by default its slot is empty --
+    everything else is placed off that slot either way, as on the device.
     """
     lock_x = w - 110                      # lockRect(): CONTROL_FROM_RIGHT
     gear = (w - 8 - CONTROL_H, 32 if tall else 6, CONTROL_H, CONTROL_H)
@@ -1756,7 +1760,8 @@ def launcher_header(d, w, tall, name="Ava", beacon=False):
         sync_cx = gear[0] - 6 - 7
         sync_badge(d, sync_cx, 15)
         d.text((sync_cx - 12 - d.textlength(t, font=F2), 7), t, font=F2, fill=TEXT)
-    gear_icon(d, gear, TEXT)
+    if admin:
+        gear_icon(d, gear, TEXT)
     right = gear[0] + gear[2]
     wifi_badge(d, right - batt_w - 14, row)
     battery_badge(d, right - batt_w // 2, row)

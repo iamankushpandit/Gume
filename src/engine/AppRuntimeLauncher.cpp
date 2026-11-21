@@ -83,6 +83,16 @@ void BrainoApp::openApp(const AppDefinition& app) {
 }
 
 void BrainoApp::launch(const AppDefinition& app) {
+    /* Every way into an app comes through here -- a tile, the gear, a button
+     * on another screen, the d-pad's selector, a return from the lock -- so
+     * this is the one place an admin-only app is refused to anyone else.
+     * Hiding the tile and the gear is what the player sees; this is what
+     * holds if some route was missed. Nothing changes: the screen that was
+     * up stays up. */
+    if (!app.availableTo(board_)) {
+        Serial.printf("[apps] '%s' is the admin's: not opened for this player\n", app.id());
+        return;
+    }
     leaveActiveGame();
 
     /* A game this player left with something in it is still in memory:
@@ -135,7 +145,7 @@ void LauncherApp::update(GameHost& host, const TouchPoint& touch) {
     }
 
     const Rect gearBtn = LauncherLayout::gearRect(mode, lW);
-    if (gearBtn.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
+    if (Ui::settingsShown() && gearBtn.contains(touch.x, touch.y, TOUCH_HIT_SLOP)) {
         host.openSettings();
         return;
     }
@@ -300,7 +310,9 @@ void LauncherApp::drawHeader(GameHost& host) {
                           static_cast<int16_t>(LauncherLayout::headerDividerBottom(lW) - dividerTop),
                           Ui::outline());
     }
-    Ui::drawGearIcon(tft, gearBtn, Ui::text());
+    /* The gear only for the admin (Ui::settingsShown()); the clock and badges
+     * are placed off its slot either way, so nothing moves when it appears. */
+    if (Ui::settingsShown()) Ui::drawGearIcon(tft, gearBtn, Ui::text());
     /* The launcher draws no top bar, so it carries its own Lock button. The
      * tap is consumed by the runtime before update() ever sees it, which is
      * why nothing here hit-tests it. */

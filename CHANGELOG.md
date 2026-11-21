@@ -45,6 +45,16 @@ pose counts once it has held for half a second. `Board.cpp`'s layout and flip
 accessors moved to `BoardDisplay.cpp` first, the file having passed 600
 lines.
 
+**Settings, Wi-Fi and System Info are the admin's alone.** A player who is
+not the admin no longer sees them: no tile in the launcher, and no gear in the
+launcher's header, the top bar or the d-pad's selector. Signing in as the
+admin brings them back. Every route into one of them now comes through
+`launch()`, which refuses it for anyone else, and waking from an idle that
+ended an admin session goes Home instead of back into one of them. Until now
+Settings was readable by every player and writable only by the admin; that
+was a deliberate choice, and the owner has reversed it (`docs/IDEAS.md`
+9.2). Mute stays open to everyone.
+
 ## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page

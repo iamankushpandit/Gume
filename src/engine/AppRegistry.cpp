@@ -134,13 +134,14 @@ const AppDefinition APP_REGISTRY[APP_REGISTRY_COUNT] = {
     systemApp("scores", "Scores", "best & worst", LauncherIcon::Scores, scores,
               APP_CAP_SCORES),
     systemApp("settings", "Settings", "device prefs", LauncherIcon::Settings, settings,
-              APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS | APP_CAP_FACTORY_RESET),
+              APP_CAP_DEVICE_STATUS | APP_CAP_DEVICE_SETTINGS | APP_CAP_FACTORY_RESET |
+              APP_CAP_ADMIN_ONLY),
     systemApp("wifi", "Wi-Fi", "network & time", LauncherIcon::WiFi, wifi,
-              APP_CAP_DEVICE_STATUS | APP_CAP_NETWORK),
+              APP_CAP_DEVICE_STATUS | APP_CAP_NETWORK | APP_CAP_ADMIN_ONLY),
     systemApp("profiles", "Profiles", "switch player", LauncherIcon::Profiles, profiles,
               APP_CAP_PROFILES, true),
     systemApp("systeminfo", "System Info", "device status", LauncherIcon::SystemInfo, systemInfo,
-              APP_CAP_DEVICE_STATUS | APP_CAP_DIAGNOSTICS, true),
+              APP_CAP_DEVICE_STATUS | APP_CAP_DIAGNOSTICS | APP_CAP_ADMIN_ONLY, true),
     systemApp("about", "About", "company info", LauncherIcon::About, about,
               APP_CAP_DEVICE_STATUS),
     systemApp("nearby", "Nearby", "who else is here", LauncherIcon::Nearby, nearby,
@@ -194,7 +195,18 @@ bool AppDefinition::isCatalogApp() const {
     return metadata != nullptr;
 }
 
+bool AppDefinition::adminOnly() const {
+    return (capabilities & APP_CAP_ADMIN_ONLY) != 0;
+}
+
+/* Both reads are RAM mirrors in Board, so this is cheap enough for the
+ * runtime to ask every frame (it does, for the gear: Ui::setSettingsShown). */
+bool AppDefinition::availableTo(Board& board) const {
+    return !adminOnly() || board.isAdminProfile(board.activeProfile());
+}
+
 bool AppDefinition::visible(Board& board) const {
+    if (!availableTo(board)) return false;
     return alwaysVisible ||
            (metadata != nullptr && board.gameVisible(visibilityKey(), defaultVisible()));
 }

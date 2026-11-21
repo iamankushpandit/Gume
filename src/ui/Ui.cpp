@@ -577,6 +577,12 @@ struct TopBarClock {
 };
 static TopBarClock s_topBarClock;
 
+static SettingsShownQuery s_settingsShown = nullptr;
+
+void setSettingsShownQuery(SettingsShownQuery query) { s_settingsShown = query; }
+
+bool settingsShown() { return s_settingsShown == nullptr || s_settingsShown(); }
+
 void drawTopBar(Board& board, const String& title) {
     TftRenderer tft(board.display());
     const int16_t w = static_cast<int16_t>(tft.width());
@@ -593,7 +599,9 @@ void drawTopBar(Board& board, const String& title) {
      * for without wanting to leave the game -- quiet, or put it down. */
     drawSpeakerIcon(tft, LauncherLayout::topBarSpeakerRect(w),
                     !board.soundEnabled(), COLOR_BAR_TEXT);
-    drawGearIcon(tft, LauncherLayout::topBarSettingsRect(w), COLOR_BAR_TEXT);
+    /* Settings is the admin's; for anyone else its slot stays empty rather
+     * than the cluster closing up, so nothing moves when the admin signs in. */
+    if (settingsShown()) drawGearIcon(tft, LauncherLayout::topBarSettingsRect(w), COLOR_BAR_TEXT);
     tft.setTextColor(COLOR_BAR_TEXT, COLOR_BAR);
     tft.setTextDatum(ML_DATUM);
     /* The right-hand cluster is laid out from the gear leftwards off MEASURED

@@ -866,9 +866,10 @@ factory reset; over a cable it is `set flip on` on the serial console.
 
 **Admin** holds the PIN that guards the admin profile. See below.
 
-Like everything else in Settings, the sound controls are **readable by anyone
-and changeable only by the admin** — the speaker belongs to whoever is in the
-room, so volume is a device setting rather than a per-player one.
+Like everything else in Settings, the sound controls are **the admin's** —
+the speaker belongs to whoever is in the room, so volume is a device setting
+rather than a per-player one. Mute, beside the padlock on every screen, is
+the exception: anyone can silence the console.
 
 ### The admin profile
 
@@ -905,13 +906,15 @@ player's scores and mastery data permanently. Any player could previously delete
 a sibling in two taps. Renaming is deliberately left open — it is harmless, and
 a player wanting their own name spelled properly is not a threat.
 
-**Settings is not behind the PIN.** Anyone can open it and read every page —
-there is nothing secret there, and a player being unable to see why the screen
-dims is worse than one who can look. What a non-admin cannot do is *change*
-anything: every control renders greyed, and every one of them is inert. The
-greying and the refusal are separate things, and it is the refusal that
-enforces it — the controls were grey and fully live for a while, which is
-exactly the bug this arrangement is written down to prevent.
+**Settings is the admin's.** A player who is not the admin does not see
+Settings, Wi-Fi or System Info at all: no tile for them in the launcher, and
+no gear in the launcher's header or the top bar. The console is handed to a
+player as a set of games, and the controls that change the device are not
+part of that set. Signing in as the admin — Profiles, then the PIN — brings
+all three back; leaving the admin profile takes them away again, and so does
+the device going idle, which ends an admin session — a screen that was open
+for the admin is not where the next player wakes up. Profiles stays visible to
+everyone, because it is how the admin gets back in.
 
 The device also refuses to **boot** into the admin profile: if admin was active
 at power-off, the next boot drops to Guest. The picker's *Done* button goes home

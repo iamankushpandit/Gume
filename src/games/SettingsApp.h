@@ -45,9 +45,10 @@ private:
     enum class Tab : uint8_t { Device, Power, Sound, Admin };
     static constexpr uint8_t TAB_COUNT = 4;
 
-    /* Settings is readable by everyone and writable only by the admin, so
-     * there is no lock screen here -- the PIN pad exists purely to set a new
-     * PIN, which is entered twice. */
+    /* Only the admin reaches Settings at all (APP_CAP_ADMIN_ONLY), and the PIN
+     * is asked on the way into the admin profile, so there is no lock screen
+     * here -- the PIN pad exists purely to set a new PIN, which is entered
+     * twice. */
     enum class PinTask : uint8_t { None, SetNew, ConfirmNew };
 
     /* One accessor, four tabs: the strip is an even division of the width, so

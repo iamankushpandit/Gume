@@ -187,8 +187,8 @@ Rect BrainoApp::activeSpeakerRect() {
 
 /* MUTE IS NOT ADMIN-ONLY, and that is deliberate.
  *
- * Every other route to this setting is: Settings is readable by everyone and
- * writable only by the admin. But the reason sound is a device setting rather
+ * Every other route to this setting is: Settings is the admin's alone
+ * (APP_CAP_ADMIN_ONLY). But the reason sound is a device setting rather
  * than a per-profile one is already written down -- "the speaker belongs to
  * whoever is in the room" -- and the room is exactly who needs this. A parent
  * on a phone call, a young player on a bus, a sibling asleep: none of them has the

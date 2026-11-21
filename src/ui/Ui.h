@@ -51,6 +51,14 @@ uint16_t warning();
  * white: on the themes whose accent is light, white on it cannot be read. */
 uint16_t accent();
 void clear(Ui::Renderer& tft);
+/* Whether the gear -- the way into Settings -- is drawn and pressable: only
+ * while the active player may open Settings (it is admin-only). Ui does not
+ * know the app registry, so the runtime registers the question once at boot
+ * and every top bar and the launcher header ask it as they draw, which keeps
+ * the answer live across a profile switch. Unregistered, the gear shows. */
+using SettingsShownQuery = bool (*)();
+void setSettingsShownQuery(SettingsShownQuery query);
+bool settingsShown();
 void drawTopBar(Board& board, const String& title);
 /* The top bar's clock alone, for the minute: the new time over the old one,
  * nothing cleared. False when it cannot be done alone -- the time's width
