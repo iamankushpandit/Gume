@@ -125,7 +125,7 @@ rule; the last group is the part only reading catches.
 | `main` takes pull requests from `dev`, `release/<version>` or `hotfix/<topic>` only | `ci.yml`, step "main takes pull requests from..." |
 | Every file carries its licence notice | `check_licenses.py` |
 | Only the four outbound flows; the update request is anonymous; Linux adds nothing underneath; the router is told one fixed name; no rulebook miscounts the flows | `check_privacy.py` |
-| No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/CMakeLists.txt` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
+| No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/cmake/BrainoSources.cmake` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
 | No image but the Attaky Core's carries an Attaky-only symbol | `check_platforms.py --elf .pio/build`, after a build |
 | Every host test states its build line, builds and passes | `run_host_tests.py` |
 | The pin tables and diagrams in `docs/boards/` match the profiles | `gen_board_docs.py --check` |
@@ -663,7 +663,8 @@ stay here:
   `src/` or `include/`; a difference between platforms is an interface in
   `src/` with one implementation per platform (`PanelSize`, `PowerProbe`,
   `SystemSuspend`, `SleepPower`, `PanelArt`). `tools/check_platforms.py`
-  checks both, and that `host/CMakeLists.txt` leaves out exactly the ESP32
+  checks both, and that `host/cmake/BrainoSources.cmake` (the source list
+  every host build shares) leaves out exactly the ESP32
   implementations.
 - **A new platform call in `src/` breaks the host build until `host/shim/`
   answers it**, and a shim only answers: it never adds a request, a header or
@@ -1846,7 +1847,8 @@ host/                     src/ built unchanged as an SDL desktop program:
                           emulated FT6336U, Wi-Fi through the OS, boot
                           splash), sound/ (every cue rendered to WAV,
                           through the firmware's own synthesiser),
-                          cmake/ (aarch64 toolchain), muos/ (the
+                          cmake/ (aarch64 toolchain, the shared
+                          source list), muos/ (the
                           RG40XXV launcher and card packer), rg40xxv/ (the
                           RG40XX V's Braino-only Buildroot image: build.sh,
                           configs/, board/, package/, and rocknix/ --

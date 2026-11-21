@@ -1867,7 +1867,8 @@ host/
   src/                  window, input, NVS file, audio, emulated touch,
                         Wi-Fi through the system's network manager, the
                         boot splash
-  cmake/                the aarch64 cross toolchain, the build stamp
+  cmake/                the aarch64 cross toolchain, the build stamp,
+                        the firmware source list every host build shares
   consoles/             one profile per handheld: the controls on its case,
                         found at boot from the kernel's device tree
   muos/                 the RG40XXV launcher and the card packer
