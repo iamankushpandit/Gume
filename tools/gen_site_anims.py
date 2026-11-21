@@ -515,7 +515,7 @@ def scene_names(c, t):
 
 def scene_scores(c, t):
     c.rrect((14, 18, 360, 342), 18, PANEL, YELLOW, 2)
-    c.text((36, 54), "in its own flash", 23, YELLOW, True, anchor="lm")
+    c.text((36, 54), "on the console", 23, YELLOW, True, anchor="lm")
     players = (("Player 1", .82, YELLOW), ("Player 2", .55, TEAL),
                ("Player 3", .68, INDIGO))
     for i, (name, full, color) in enumerate(players):
@@ -869,6 +869,199 @@ def scene_battery(c, t):
            fade(YELLOW, phase(t, .2, .4)), True)
 
 
+def handheld(c, center, w=150, h=220, screen=None, k=1.0):
+    """A portrait retro handheld: screen on top, d-pad, four face buttons and a
+    stick ringed with light below. The RG40XX V's shape, drawn as an outline
+    in the page's palette rather than as a picture of it."""
+    x, y = center
+    x0, y0, x1, y1 = x - w / 2, y - h / 2, x + w / 2, y + h / 2
+    c.rrect((x0, y0, x1, y1), 16, PANEL, LINE, 2)
+    sb = (x0 + 12, y0 + 12, x1 - 12, y0 + 12 + (w - 24) * .78)
+    c.rrect(sb, 6, INK)
+    if screen == "tiles":
+        screen_tiles(c, (sb[0] + 5, sb[1] + 5, sb[2] - 5, sb[3] - 5), k)
+    elif screen:
+        c.text(((sb[0] + sb[2]) / 2, (sb[1] + sb[3]) / 2), screen, 20,
+               fade(YELLOW, k, INK), True)
+    py = sb[3] + (y1 - sb[3]) * .32
+    dx = x0 + w * .27
+    c.rrect((dx - 15, py - 5, dx + 15, py + 5), 3, LINE)
+    c.rrect((dx - 5, py - 15, dx + 5, py + 15), 3, LINE)
+    bx = x1 - w * .27
+    for (ox, oy), col in zip(((0, -11), (11, 0), (0, 11), (-11, 0)),
+                             (INDIGO, PINK, YELLOW, GREEN)):
+        c.circle((bx + ox, py + oy), 5, col)
+    sy = sb[3] + (y1 - sb[3]) * .72
+    c.circle((dx + 4, sy), 14, None, TEAL, 3)
+    c.circle((dx + 4, sy), 8, LINE)
+
+
+def sdcard(c, center, w=58, h=76, fill=SILVER, label=None):
+    """A microSD card, with its cut corner, upright."""
+    x, y = center
+    x0, y0, x1, y1 = x - w / 2, y - h / 2, x + w / 2, y + h / 2
+    cut = w * .28
+    pts = [(x0, y0 + cut), (x0 + cut, y0), (x1, y0), (x1, y1), (x0, y1)]
+    c.d.polygon([(px * S, py * S) for px, py in pts], fill=fill,
+                outline=over(INK, fill, .4))
+    for i in range(4):
+        gx = x0 + w * .22 + i * w * .17
+        c.rrect((gx, y0 + 6, gx + w * .1, y0 + 18), 1, over(INK, fill, .5))
+    if label:
+        c.rrect((x0 + 6, y + 2, x1 - 6, y1 - 8), 4, YELLOW)
+        c.text((x, (y + 2 + y1 - 8) / 2), label, 13, INK, True)
+
+
+def scene_handheld_get(c, t):
+    hk = phase(t, .2, .6)
+    handheld(c, (196, 160), screen=None, k=hk)
+    c.text((196, 300), "Anbernic RG40XX V", 21, fade(FG, phase(t, .6, .4)), True)
+    sk = phase(t, 1.6, .6)
+    if sk > 0:
+        sy = lerp(110, 150, sk)
+        sdcard(c, (452, sy), w=70, h=92)
+        c.text((452, 236), "a microSD card", 21, fade(FG, sk), True)
+        c.text((452, 264), "1 GB or more", 19, fade(MUTED, sk))
+    c.text((322, 160), "+", 34, fade(MUTED, phase(t, 1.2, .4)), True)
+    nk = phase(t, 3.2, .5)
+    if nk > 0:
+        check(c, (196, 334), 18, fade(SOFT_GREEN, nk), 4)
+        c.text((214, 334), "nothing to solder", 20,
+               fade(SOFT_GREEN, nk), True, anchor="lm")
+
+
+def scene_handheld_write(c, t):
+    laptop(c, (180, 136))
+    c.text((180, 98), "braino-rg40xxv.img", 18, YELLOW, True, mono=True)
+    c.text((180, 124), "17 MB", 18, MUTED)
+    prog = clamp((t - 1.0) / 3.0)
+    c.rrect((110, 146, 250, 160), 7, PANEL)
+    if prog > 0:
+        c.rrect((110, 146, 110 + 140 * prog, 160), 7, YELLOW)
+    c.line([(316, 150), (408, 150)], MUTED, 4)
+    for i in range(3):
+        if 0 < prog < 1:
+            pos = (t * .9 + i / 3) % 1
+            c.circle(lerp_pt((326, 150), (398, 150), pos), 6, YELLOW)
+    c.rrect((416, 104, 520, 196), 12, PANEL, LINE, 2)
+    sdcard(c, (468, 150), w=50, h=66, label="Braino" if prog >= 1 else None)
+    c.text((468, 226), "the card", 20, MUTED)
+    dk = phase(t, 4.1, .4)
+    if dk > 0:
+        check(c, (130, 226), 18, fade(SOFT_GREEN, dk), 4)
+        c.text((150, 226), "written", 21, fade(SOFT_GREEN, dk), True, anchor="lm")
+    wk = phase(t, 4.8, .5)
+    if wk > 0:
+        c.text((320, 312), "writing replaces everything on the card", 20,
+               fade(YELLOW, wk), True)
+
+
+def scene_handheld_boot(c, t):
+    ins = phase(t, .4, 1.2)
+    boot = phase(t, 2.0, .4)
+    if boot <= 0:
+        screen = None
+    elif t < 2.8:
+        screen = "Braino!"
+    else:
+        screen = "tiles"
+    # The card goes into the slot in the middle of the left edge, lying on
+    # its side, and is drawn first so that the case covers what is inside.
+    cx = lerp(150, 236, ins)
+    cy = 170
+    if ins < 1:
+        x0, y0, x1, y1 = cx - 30, cy - 22, cx + 30, cy + 22
+        cut = 12
+        pts = [(x0, y0), (x1 - cut, y0), (x1, y0 + cut), (x1, y1), (x0, y1)]
+        c.d.polygon([(px * S, py * S) for px, py in pts], fill=SILVER,
+                    outline=over(INK, SILVER, .4))
+        c.rrect((x0 + 6, y0 + 7, x0 + 40, y1 - 7), 4, YELLOW)
+        c.text((x0 + 23, cy), "Braino", 11, INK, True)
+    handheld(c, (320, 170), w=170, h=250, screen=screen,
+             k=phase(t, 2.0, .3) if t < 2.8 else phase(t, 2.8, .3))
+    c.rrect((233, 158, 237, 182), 2, INK)
+    nk = phase(t, 3.6, .5)
+    if nk > 0:
+        c.text((130, 150), "nothing on", 20, fade(MUTED, nk), True)
+        c.text((130, 176), "the screen first", 20, fade(MUTED, nk), True)
+        c.text((510, 150), "then Braino,", 20, fade(FG, nk), True)
+        c.text((510, 176), "and nothing else", 20, fade(FG, nk), True)
+        check(c, (446, 214), 16, fade(SOFT_GREEN, nk), 4)
+        c.text((464, 214), "no menu", 19, fade(SOFT_GREEN, nk), True, anchor="lm")
+
+def attaky_deck(c, center, s=1.0, screen=None, k=1.0):
+    """The Attaky Cyber Deck Plus: a screen over a gamepad over a keyboard, in
+    Attaky's yellow. s scales it; at 1 it is 144 by 250."""
+    x, y = center
+
+    def P(dx, dy):
+        return (x + dx * s, y + dy * s)
+
+    def R(a, b, r, fill, outline=None, width=2):
+        (x0, y0), (x1, y1) = P(*a), P(*b)
+        c.rrect((x0, y0, x1, y1), r * s, fill, outline, width)
+
+    deck = over(YELLOW, BG, .85)
+    R((-72, -125), (72, 125), 10, deck, over(INK, YELLOW, .3))
+    R((-60, -113), (46, -37), 5, INK)
+    for i in range(4):
+        R((52, -107 + i * 17), (64, -95 + i * 17), 3, FG)
+    sb = P(-60, -113) + P(46, -37)
+    if screen == "tiles":
+        screen_tiles(c, (sb[0] + 4 * s, sb[1] + 4 * s, sb[2] - 4 * s, sb[3] - 4 * s), k)
+    elif screen:
+        c.text(((sb[0] + sb[2]) / 2, (sb[1] + sb[3]) / 2), screen, int(16 * s) or 12,
+               fade(YELLOW, k, INK), True)
+    c.line([P(-66, -27), P(66, -27)], over(INK, YELLOW, .3), 2)
+    R((-42, -7), (-16, 1), 3, FG)
+    R((-33, -16), (-25, 10), 3, FG)
+    for ox, oy in ((0, -10), (10, 0), (0, 10), (-10, 0)):
+        c.circle(P(32 + ox, -3 + oy), 5 * s, FG)
+    c.line([P(-66, 21), P(66, 21)], over(INK, YELLOW, .3), 2)
+    for r in range(4):
+        for col in range(8):
+            R((-58 + col * 14.8, 31 + r * 22), (-46 + col * 14.8, 48 + r * 22), 3, FG)
+
+
+def scene_attaky_plug(c, t):
+    found = phase(t, 2.6, .3)
+    laptop(c, (150, 130), ["deck", "found"] if found > .5 else None, SOFT_GREEN)
+    attaky_deck(c, (530, 160), .92,
+                screen=None)
+    c.line([(260, 150), (462, 150)], SOFT_GREEN, 5)
+    for i in range(3):
+        pos = (t * .8 + i / 3) % 1
+        c.circle(lerp_pt((272, 140), (450, 140), pos), 7, YELLOW)
+        c.circle(lerp_pt((450, 160), (272, 160), pos), 7, TEAL)
+    c.text((360, 212), "data cable:", 20, SOFT_GREEN, True)
+    c.text((360, 240), "both ways", 20, SOFT_GREEN, True)
+    c.text((530, 312), "USB-C on the Core", 19, fade(MUTED, phase(t, 1.0, .4)))
+
+
+def scene_privacy_handheld(c, t):
+    # The handheld, with its card: Braino and Linux, nothing else.
+    handheld(c, (120, 165), w=150, h=230, screen="tiles", k=phase(t, .2, .4))
+    ck = phase(t, .6, .5)
+    c.text((260, 52), "on the card", 21, fade(YELLOW, ck), True, anchor="lm")
+    for i, s in enumerate(("Braino and Linux,", "nothing else")):
+        c.text((260, 84 + i * 26), s, 20, fade(FG, ck), anchor="lm")
+    sk = phase(t, 1.6, .5)
+    if sk > 0:
+        for i, s in enumerate(("no shell", "no login")):
+            struck_chip(c, (330, 160 + i * 46), s, sk)
+    lk = phase(t, 2.6, .5)
+    if lk > 0:
+        c.text((460, 52), "sealed on it", 21, fade(YELLOW, lk), True, anchor="lm")
+        for i, s in enumerate(("Wi-Fi password", "administrator PIN")):
+            c.text((460, 84 + i * 26), s, 20, fade(FG, lk), anchor="lm")
+    rk = phase(t, 3.6, .5)
+    if rk > 0:
+        c.text((460, 170), "what leaves", 21, fade(YELLOW, rk), True, anchor="lm")
+        for i, s in enumerate(("Braino’s own", "four requests,", "nothing more")):
+            c.text((460, 202 + i * 26), s, 20, fade(FG, rk), anchor="lm")
+        check(c, (440, 254), 16, fade(SOFT_GREEN, rk), 4)
+
+
 SCENES = (
     ("privacy-wifi", 9.4, scene_wifi),
     ("privacy-ble", 6.0, scene_ble),
@@ -878,12 +1071,17 @@ SCENES = (
     ("privacy-names", 6.0, scene_names),
     ("privacy-scores", 5.0, scene_scores),
     ("privacy-page", 6.0, scene_page),
+    ("privacy-handheld", 5.4, scene_privacy_handheld),
     ("start-board", 6.0, scene_board),
     ("start-plug", 7.0, scene_plug),
     ("start-install", 7.0, scene_install),
     ("start-speaker", 5.0, scene_speaker),
     ("start-case", 5.4, scene_case),
     ("start-battery", 8.0, scene_battery),
+    ("start-handheld-get", 5.0, scene_handheld_get),
+    ("start-handheld-write", 6.4, scene_handheld_write),
+    ("start-handheld-boot", 5.2, scene_handheld_boot),
+    ("start-attaky-plug", 5.0, scene_attaky_plug),
 )
 
 
