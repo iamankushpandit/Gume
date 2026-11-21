@@ -332,11 +332,12 @@ Five macros say what a board's image carries beyond the common firmware, and eve
 
 **Attaky code compiles only into the Attaky image.** That is checked, not intended: on every other product environment `xtensa-esp32-elf-nm -C` on `firmware.elf` shows none of `pollControls`, `pollTypedChar`, `typedChar`, `selectorFrame`, `Focus::`, `BoardExpander`, `sampleModuleBattery`, `Modules::`, `i2sUp`, and its RAM is `dev`'s. `python tools/check_platforms.py --elf .pio/build` reads every built image and fails on any of those names outside the Attaky image, and without `--elf` checks that the four macros are switched on in `attaky-core.h` alone. The way to keep it true is **whole files that compile to nothing** -- `#if GUME_HAS_X` round the entire body -- with the declarations they need behind the same macro, and an inline no-op in the header where shared code has to call across (`Modules::probeAll()`, `Modules::allows()`, `Modules::panelSleep()`, `Board::keepExpanderRgbDark()`, `hostTypedChar()` in `Game.h`, the `Focus::note*()` calls in `TftRenderer.h`, `SystemInfoApp::addModuleRows()`, `AboutApp::renderModules()`). A shared file that grows a scattered `#if` is the thing to avoid; a profile `if (BOARD.hasX())` is not a substitute, because both arms of it still compile and every declaration it needs stays in every class.
 
-## The Attaky Core (experimental): standing rules
+## The Attaky Core: standing rules
 
 *Moved here from the root `CLAUDE.md`'s architecture invariants, verbatim.
-The Attaky Core is `custom_env_kind = experimental`: built by CI, never
-published. `docs/boards/Attaky-Core.md` is the board itself.*
+The Attaky Core is `custom_env_kind = product`: released like every board
+and published on Attaky's firmware store. `docs/boards/Attaky-Core.md` is the
+board itself.*
 
 - **An LED can live on an I2C expander, and then it is on or off.**
   `RgbLedProfile::expander` is 0 for GPIOs (LEDC PWM, every board but one)

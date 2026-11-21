@@ -17,9 +17,10 @@ Core 1.0 in a Cyber Deck Plus".
 
 **Its version:** the same as every other board, with the device after a
 `+` -- `5.14.0+attaky` on About, System Info and the `[boot]` line. The
-environment is `custom_env_kind = experimental`: CI builds it and attaches
-the image to the run, and no release, installer or update manifest carries
-it, so it never reports a newer version to update to.
+environment is `custom_env_kind = product`: every release carries its image,
+the web installer offers it, Attaky publish it on their
+[firmware store](https://fwstore.attaky.com/en/), and the update check tells
+its owner when a newer release is out, as on every board.
 
 **Which modules this build expects:** the Core, and Media I/O on the back for
 the SD slot and the speaker. The Expand modules share their pins, so before

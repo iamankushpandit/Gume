@@ -96,8 +96,8 @@ add a second.
 ## What would help most
 
 **Board ports.** Braino ships on five ESP32 boards (the table is in
-[docs/boards/](docs/boards/README.md)), with the Attaky Core experimental and
-the Linux platform built from `host/`. The CYD family has many variants whose differences fail
+[docs/boards/](docs/boards/README.md)), and on the Attaky Core, with
+the RG40XX V's Linux platform built from `host/`. The CYD family has many variants whose differences fail
 silently — backlight on GPIO21 versus GPIO27, GPIO34 as a battery sense here
 but a light sensor on the ESP32-2432S028R. A board is described in two files
 and nowhere else — a profile header in `include/boards/` and a `[board_*]`

@@ -33,7 +33,7 @@ device:
 | Device | What it is | How to get Braino on it |
 |---|---|---|
 | **ESP32 touchscreen boards** | The Cheap Yellow Display family and its relatives, 2.8 to 4 inch, resistive or capacitive touch | [Install from the browser](https://iamankushpandit.github.io/Gume/), no toolchain. See [Which board do you have?](#which-board-do-you-have) |
-| **Attaky Cyber Deck Plus** | Attaky's handheld deck on the ESP32-S3 Attaky Core, with a keyboard and a gamepad | [Attaky's firmware store](https://fwstore.attaky.com/en/). See [the Attaky Core](docs/boards/Attaky-Core.md) |
+| **Attaky Cyber Deck Plus** | Attaky's handheld deck on the ESP32-S3 Attaky Core, with a keyboard and a gamepad | [Attaky's firmware store](https://fwstore.attaky.com/en/), or the [browser installer](https://iamankushpandit.github.io/Gume/) from 5.15.0. See [the Attaky Core](docs/boards/Attaky-Core.md) |
 | **Anbernic RG40XX V** | A handheld games console; Braino replaces its whole system | A card image that boots straight into Braino, from [the releases page](https://github.com/iamankushpandit/Gume/releases). See [the RG40XX V card](host/rg40xxv/README.md) |
 
 Everything is baked into the firmware: **no SD card, no accounts, no telemetry,
@@ -172,7 +172,7 @@ owner. Tell them apart by screen size, touch type and USB ports:
 | 2.8-inch | capacitive | one USB-C | Freenove FNK0104B, also sold as LCDWIKI ES3C28P | [FNK0104B](#freenove-fnk0104b-esp32-s3) | [LCDWIKI 2.8inch ESP32-S3](https://www.lcdwiki.com/2.8inch_ESP32-S3_Display), [Freenove](https://store.freenove.com/products/fnk0104) |
 | 2.8-inch | resistive | one USB-C | E32R28T-1 (LCDWIKI E32R28T) | [E32R28T-1](BOARD_E32R28T-1.md) | [LCDWIKI 2.8inch ESP32-32E](https://www.lcdwiki.com/2.8inch_ESP32-32E_Display) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, inverted panel -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB](#esp32-2432s028-dual-usb-inverted-panel) | none found |
-| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus -- installed from [Attaky's firmware store](https://fwstore.attaky.com/en/), not this installer | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
+| 2.0-inch | capacitive | one USB-C | Attaky Core 1.0, in the Cyber Deck Plus -- installed from [Attaky's firmware store](https://fwstore.attaky.com/en/), or from this installer | [Attaky Core](docs/boards/Attaky-Core.md) | [Attaky manual](https://manuals.attaky.com/docs/complete-builds/cyber/deck-plus) |
 | 2.8-inch | resistive | USB-C **and** micro-USB | ESP32-2432S028, ST7789 panel (the CYD2USB) -- **no battery; run it from USB power** | [ESP32-2432S028 dual-USB, ST7789](#esp32-2432s028-dual-usb-st7789-panel) | [witnessmenow CYD2USB](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display/tree/main/DisplayConfig/CYD2USB) |
 
 Every board has its own page in [docs/boards/](docs/boards/): how to

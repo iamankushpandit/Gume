@@ -50,6 +50,14 @@ the pictures are what a port is written from.
 number, so a console on this build is correctly told that nothing newer
 exists rather than being nagged all cycle to install a version it is ahead of.
 
+**The Attaky Core is a product, like every other board.** Its firmware is on
+Attaky's own firmware store, so it is no longer built and held back:
+`[env:app_attaky_core]` is `custom_env_kind = product`, every release
+attaches its image, the web installer offers it beside the ESP32 boards, and
+its update check reads the manifest's newest release as every board's does.
+It drops `-D GUME_EXPERIMENTAL=1`, which made it read only its own line. The
+`experimental` kind stays, for the next board that needs one.
+
 ## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page

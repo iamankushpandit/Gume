@@ -437,7 +437,7 @@ platform lives beside that platform, and this file points at it.
 | Platform | What it is | Built by | Its rules |
 |---|---|---|---|
 | **ESP32 boards** | The product boards: E32R28T-1, the inverted-panel ESP32-2432S028, E32R32P, E32R40T and Freenove FNK0104B. Resistive or capacitive touch, 320x240 to 480x320, all published on the web installer | PlatformIO, `custom_env_kind = product` | [src/hal/CLAUDE.md](src/hal/CLAUDE.md) (hardware notes, battery, sound, touch), [docs/PORTING.md](docs/PORTING.md), one page per board in [docs/boards/](docs/boards/) |
-| **Attaky Core** | An ESP32-S3 board with an I2C expander, keys, a clip-on keyboard and gamepad and swappable modules. Experimental: CI builds it, nothing publishes it | PlatformIO, `custom_env_kind = experimental` | [src/hal/CLAUDE.md](src/hal/CLAUDE.md#the-attaky-core-experimental-standing-rules), [docs/boards/Attaky-Core.md](docs/boards/Attaky-Core.md) |
+| **Attaky Core** | An ESP32-S3 board with an I2C expander, keys, a clip-on keyboard and gamepad and swappable modules. A product, released like the others and also published on Attaky's firmware store | PlatformIO, `custom_env_kind = experimental` | [src/hal/CLAUDE.md](src/hal/CLAUDE.md#the-attaky-core-standing-rules), [docs/boards/Attaky-Core.md](docs/boards/Attaky-Core.md) |
 | **Linux** | The same `src/` as a PC program (SDL2), and the Anbernic RG40XX V's whole-device image, which is nothing but Braino | CMake in `host/`; Buildroot in `host/rg40xxv/` | [host/CLAUDE.md](host/CLAUDE.md) |
 
 The four outbound flows (see "No data collection" above) are the same on
@@ -1065,7 +1065,7 @@ and it is the same guard, not a second one: it sleeps through the ordinary
   Expand-slot probe. The five board-header macros, the rules each part keeps
   and how the absence is measured (`nm` on every other image, which
   `tools/check_platforms.py --elf` does) are in
-  [src/hal/CLAUDE.md](src/hal/CLAUDE.md#the-attaky-core-experimental-standing-rules).
+  [src/hal/CLAUDE.md](src/hal/CLAUDE.md#the-attaky-core-standing-rules).
 
 | Layer | Where | Responsibility |
 |---|---|---|
@@ -1986,10 +1986,11 @@ beside the word: `-D GUME_EXPERIMENTAL=1`. An experimental image reads only
 the manifest line naming its own board, never the `*` line, which is the
 newest release -- a release it is not in. `envs.py` refuses an experimental
 environment without the flag and a flag on any other kind, so the two
-cannot drift. Today the one experimental environment is
-`[env:app_attaky_core]`, kept unpublished by the maintainer's decision; do
-not put it on the Experimental page or anywhere else public. Publishing it
-is the maintainer's call.
+cannot drift. Today there is no experimental environment. The Attaky Core
+was one until 5.15.0, and is a product now: its firmware is on Attaky's own
+firmware store, so it is released, offered by the installer and answered by
+the update manifest like every other board. Which board starts experimental
+and when it is published is the maintainer's call.
 
 Afterwards, open the next version on `dev` as a `-SNAPSHOT`, so a board
 flashed from `dev` cannot be mistaken for the release it is ahead of.
@@ -2000,8 +2001,8 @@ flashed from `dev` cannot be mistaken for the release it is ahead of.
 Web Serial. `.github/workflows/pages.yml` builds every product environment
 (`tools/envs.py --product`) on every push to `main`, runs `tools/gen_site.py`,
 and drops the resulting `.bin` files beside the manifest that points at them.
-It offers the ESP32 boards only: the Attaky Core is experimental and the Linux
-platform ships as a card image, not over Web Serial. Nobody regenerates it by
+It offers the ESP32 boards and the Attaky Core (which Attaky's firmware store
+also offers); the RG40XX V ships as a card image, not over Web Serial. Nobody regenerates it by
 hand, so it cannot go stale on its own — but these things break it, and all
 of them fail in someone else's browser rather than here:
 
