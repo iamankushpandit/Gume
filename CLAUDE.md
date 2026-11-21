@@ -121,6 +121,8 @@ rule; the last group is the part only reading catches.
 | Every theme's colour pairs meet the contrast floors | `check_contrast.py` |
 | No `new`/`malloc`, no `String` per frame, no `delay()` under `src/` (a ratchet: counts may only fall) | `check_frame_rules.py` |
 | No MAC address or public IP anywhere in the repository | `check_identifiers.py` |
+| Every platform the tree supports is named in the README's opening, the site and the repository's About box; the live About box matches `.github/about.json`; no topic names an age group | `check_about.py` |
+| `main` takes pull requests from `dev`, `release/<version>` or `hotfix/<topic>` only | `ci.yml`, step "main takes pull requests from..." |
 | Every file carries its licence notice | `check_licenses.py` |
 | Only the four outbound flows; the update request is anonymous; Linux adds nothing underneath; the router is told one fixed name; no rulebook miscounts the flows | `check_privacy.py` |
 | No platform `#if` or SDL include under `src/` or `include/`; every platform interface has a host implementation and `host/CMakeLists.txt` leaves out exactly the ESP32 ones; Attaky macros only in its header | `check_platforms.py` |
@@ -1866,6 +1868,18 @@ plus a single `-merged.bin` per environment, `SHA256SUMS.txt` and
 from source by whoever is holding the board.
 
 Before tagging, on `main`:
+
+0. **Everything the release is meant to carry is in it, including work that
+   was never committed.** List every linked session and every worktree
+   (`git worktree list`), and read each one's last report and `git status`.
+   Look in `braino-work/` and any local preview for drafts too. Each piece is
+   brought in or named to the maintainer -- never noted and left. 5.14.0 was
+   tagged with the owner's chosen multi-platform site sitting uncommitted in a
+   detached checkout, and the old ESP32-only site, README opening and
+   repository description went out with the release. Then look at what a
+   visitor reads first, which is not the firmware: the site as Pages will
+   build it, the README's opening and the About box. `check_about.py` catches
+   a platform missing from them; only reading catches the rest.
 
 1. `include/AppVersion.h` carries the real version -- **not** a `-SNAPSHOT`.
    The workflow refuses to publish one, because `dev` carries a snapshot

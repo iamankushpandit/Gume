@@ -169,6 +169,10 @@ jobs:
         run: pip install pillow
 
       - name: Run repository checks
+        # check_about.py compares the live About box (description, website,
+        # topics) with .github/about.json, and needs a token to read it.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python tools/check_docs.py
           python tools/check_boards.py
@@ -223,6 +227,24 @@ jobs:
       - name: main must carry a released version
         if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
         run: python tools/check_docs.py --released
+
+      # main takes pull requests from dev, from a release/<version> branch cut
+      # from dev, or from a hotfix/<topic> branch the maintainer agreed to --
+      # CONTRIBUTING.md has said so for a long time and nothing enforced it.
+      # After 5.14.0 two pull requests went into main straight from feature
+      # branches (docs/site-every-device, docs/readme-every-device): branches,
+      # reviewed and green, but past dev, which is where every change is meant
+      # to wait. A rule that only a reader enforces is a rule an agent in a
+      # hurry breaks; this makes the branch name the declaration.
+      - name: main takes pull requests from dev, release/* or hotfix/* only
+        if: github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            dev|release/*|hotfix/*) echo "main <- $HEAD_REF: allowed" ;;
+            *) echo "::error::main takes pull requests from dev, release/<version> or hotfix/<topic> only, not '$HEAD_REF'. Open this against dev."; exit 1 ;;
+          esac
 
       # Site generation is cheap -- seconds, pure standard library, no
       # PlatformIO -- and it MUST run on every pull request. Do not put this
