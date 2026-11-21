@@ -40,6 +40,7 @@ these from `host/src/`:
 | `HostI2s.cpp` (SDL audio queue) | `src/HostI2sAAudio.cpp` | AAudio, with the same ~96 ms of buffer as the codec board's DMA ring |
 | `HostMain.cpp`'s `main()` | `src/AndroidMain.cpp`'s `android_main()` | A NativeActivity has no `main()`; it calls the same `hostMain()` |
 | `HostDrm.cpp` | not built | The window is the panel here |
+| `HostDevicePose.cpp` (no sensor, or `BRAINO_POSE`) | `src/HostDevicePoseAndroid.cpp` | The accelerometer says which way up the Portal is held |
 
 Everything else in `host/src/` and `host/shim/` is the desktop's own file.
 
@@ -57,6 +58,23 @@ shape as `HostDrm`'s back buffer. An unchanged frame is not presented again.
 The emulated backlight dims the picture, because the window has no lamp of its
 own to turn down. The activity is locked to landscape: every game is authored
 against the landscape canvas.
+
+## Auto-rotate
+
+The Portal+'s stand pivots the screen, and it has an accelerometer (a
+BMA250E). The activity stays in landscape -- the window never turns, like a
+board's panel -- and `HostDevicePoseAndroid.cpp` reports which way up the
+device is held through `src/hal/DevicePose.h`. With Auto chosen in Settings,
+which is the default wherever there is a sensor, the firmware's layout and
+half-turn follow that pose: the launcher and the system screens stand up in
+portrait, games stay landscape, and everything turns over with a half turn.
+
+The sensor's queue is attached to `android_main()`'s looper, so its events
+are read in `HostAndroid::pump()` on the firmware's own thread. A pose counts
+once one edge has been lowest for half a second; flat on a table, the last
+pose stands. Each change is logged with the gravity that decided it --
+`[pose] portrait (gravity x=9.6 y=0.4)` -- which is how to check that a
+quarter turn one way is Portrait and the other Portrait 180.
 
 ## Input
 
@@ -104,3 +122,10 @@ it was.
 `$env:LOCALAPPDATA\braino\android-debug.keystore`, made on first use and
 **never committed** -- a key in a public repository signs for anyone. The same
 key across builds is what lets `adb install -r` keep the profiles and scores.
+
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: Copyright (C) 2026 iamankushpandit -->
+
+---
+
+*Part of [Braino!](https://github.com/iamankushpandit/Gume) by [iamankushpandit](https://github.com/iamankushpandit). Copyright © 2026 iamankushpandit, licensed [GPL-3.0-or-later](https://github.com/iamankushpandit/Gume/blob/main/LICENSE) alongside the code — reuse of this document, in whole or in part, must keep this attribution and stay under the same licence. See [NOTICE.md](https://github.com/iamankushpandit/Gume/blob/main/NOTICE.md).*

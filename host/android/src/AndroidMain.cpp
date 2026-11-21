@@ -77,6 +77,8 @@ void android_main(android_app* app) {
      * bar over its top row. */
     ANativeActivity_setWindowFlags(app->activity,
                                    AWINDOW_FLAG_KEEP_SCREEN_ON | AWINDOW_FLAG_FULLSCREEN, 0);
+    /* Which way up the device is held, for Auto in Settings (DevicePose). */
+    HostAndroidPose::begin();
     /* Nothing to draw on until the system hands over the window. */
     while (app->window == nullptr) {
         if (!HostAndroid::pump(-1)) return;

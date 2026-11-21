@@ -42,7 +42,7 @@ endif()
 
 include(../cmake/BrainoSources.cmake)
 
-list(FILTER HOST_SOURCES EXCLUDE REGEX "/host/src/(HostPlatform|HostI2s|HostDrm)\\.cpp$")
+list(FILTER HOST_SOURCES EXCLUDE REGEX "/host/src/(HostPlatform|HostI2s|HostDrm|HostDevicePose)\\.cpp$")
 
 # libcurl for HostNet.cpp's HTTPClient, built here because Android ships none.
 # HTTP only: the time zone lookup (ip-api.com) is plain HTTP, and the update

@@ -30,3 +30,14 @@ android_app* app();
 bool pump(int timeoutMs);
 
 }   // namespace HostAndroid
+
+/* The accelerometer behind DevicePose (HostDevicePoseAndroid.cpp). Its
+ * events come in on the looper's LOOPER_ID_USER, so pump() hands them over. */
+namespace HostAndroidPose {
+
+/* Once, on android_main()'s thread, before hostMain(). */
+void begin();
+/* From pump(), when the looper says there are sensor events. */
+void drain();
+
+}   // namespace HostAndroidPose

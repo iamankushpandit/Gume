@@ -289,7 +289,9 @@ bool pump(int timeoutMs) {
     android_poll_source* source = nullptr;
     /* Drain whatever is waiting; wait only on the first poll. */
     int wait = timeoutMs;
-    while (ALooper_pollOnce(wait, nullptr, &events, reinterpret_cast<void**>(&source)) >= 0) {
+    int ident;
+    while ((ident = ALooper_pollOnce(wait, nullptr, &events, reinterpret_cast<void**>(&source))) >= 0) {
+        if (ident == LOOPER_ID_USER) HostAndroidPose::drain();
         if (source) source->process(theApp, source);
         if (theApp->destroyRequested) quit = true;
         wait = 0;
