@@ -11,7 +11,7 @@
 """Check the rules that keep one `src/` building for every platform.
 
 Braino! runs on three kinds of platform -- the ESP32 boards, the Attaky Core
-(an experimental ESP32-S3 board with plug-in modules), and Linux (the PC
+(an ESP32-S3 board with plug-in modules, the Cyber Deck Plus), and Linux (the PC
 build and the RG40XX V image, both from `host/`). They share one `src/`, and
 CLAUDE.md states the rules that make that possible. These are the ones a
 machine can check:

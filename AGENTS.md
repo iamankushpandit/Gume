@@ -34,7 +34,7 @@ two ever differ, `CLAUDE.md` is right and this file is the defect.
 | Platform | Rules |
 |---|---|
 | ESP32 boards (the published product) | `src/hal/CLAUDE.md`, `docs/PORTING.md`, `docs/boards/` |
-| Attaky Core (ESP32-S3, experimental: built by CI, never published) | `src/hal/CLAUDE.md`, `docs/boards/Attaky-Core.md` |
+| Attaky Core (ESP32-S3, the Cyber Deck Plus; a product) | `src/hal/CLAUDE.md`, `docs/boards/Attaky-Core.md` |
 | Linux: PC build and RG40XX V image | `host/CLAUDE.md` |
 
 One `src/` builds for all three. **`host/` adapts to `src/`, never the
