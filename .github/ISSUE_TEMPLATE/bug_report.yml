@@ -8,20 +8,20 @@
 # offered. See LICENSE and NOTICE.md.
 
 name: Bug report
-description: Something the firmware does wrong on a board that is already supported.
+description: Something Braino does wrong on an ESP32 board, the Attaky Cyber Deck Plus or the Anbernic RG40XX V.
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Two things make a firmware bug report actionable, and both are easy to
-        forget: **which build** and **which board**. The `[boot]` lines on the
-        serial console answer both.
+        Two things make a bug report actionable, and both are easy to forget:
+        **which device** and **which build**. The last page of the About app
+        shows the version, branch and commit on every device.
 
-        Please redact anything personal before posting — a profile name is a
-        young player's name, and a photograph of the device shows a room in someone's
-        house. Network names are deliberately no longer printed to serial, so a
-        pasted log is safe on that count.
+        Please redact anything personal before posting -- a profile name is a
+        young player's name, and a photograph of the device shows a room in
+        someone's house. Network names are deliberately not printed to the log,
+        so a pasted log is safe on that count.
 
   - type: textarea
     id: what-happened
@@ -35,51 +35,63 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - An ESP32 board
+        - Attaky Cyber Deck Plus
+        - Anbernic RG40XX V
+    validations:
+      required: true
+
   - type: input
     id: board
     attributes:
-      label: Board
+      label: Which ESP32 board
       description: >-
-        The exact variant, not just "a CYD". These differ in ways that fail
-        silently — backlight pin and battery-sense pin especially.
+        Only for an ESP32 board. The exact variant, not just "a CYD": these
+        differ in ways that fail silently -- the backlight pin and the
+        battery-sense pin especially. The About app names the board.
       placeholder: E32R28T-1 / ESP32-32E, 2.8 inch resistive
-    validations:
-      required: true
 
   - type: textarea
     id: build
     attributes:
-      label: Firmware build
+      label: Version
       description: >-
-        Paste the `[boot]` lines from `pio device monitor`, or read
-        version / branch / commit off the last page of the About app. "Latest
-        from the installer" plus a date is fine if that is all you have.
+        The version, branch and commit from the last page of the About app,
+        or the `[boot]` lines from the serial console on an ESP32 board.
       render: text
       placeholder: |
-        [boot] board=E32R28T-1 rot=3 layout=Horizontal (landscape=3 portrait=0)
-        [boot] build=main@a1b2c3d built=Aug 26 2026 14:02:11 version=5.0.0
+        version=5.14.0+e32r28t1 build=main@a1b2c3d
     validations:
       required: true
 
   - type: dropdown
-    id: how-flashed
+    id: how-installed
     attributes:
-      label: How was it flashed?
+      label: How was it installed?
       options:
-        - The web installer
-        - pio run -t upload
-        - Someone else flashed it for me / I do not know
+        - The web installer (ESP32 board)
+        - Attaky's firmware store (Cyber Deck Plus)
+        - The card image, written to a microSD card (RG40XX V)
+        - Built from source
+        - Someone else installed it for me / I do not know
     validations:
       required: true
 
   - type: textarea
     id: serial
     attributes:
-      label: Serial log
+      label: Log
       description: >-
         Optional but usually decisive, especially for anything involving Wi-Fi,
-        sleep or a reboot. A `[watchdog]` stall line or a panic backtrace is
-        worth more than any description.
+        sleep or a restart. On an ESP32 board or the Cyber Deck Plus, the serial
+        console at 115200 baud; a `[watchdog]` stall line or a panic backtrace
+        is worth more than any description. On the RG40XX V, the log on the
+        card's BRAINO partition.
       render: text
 
   - type: checkboxes

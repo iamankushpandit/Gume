@@ -400,6 +400,16 @@ def version():
                 read("include", "AppVersion.h"), "the version").group(1)
 
 
+def card_tag(version):
+    """The tag of the RG40XX V card release for this version.
+
+    The card is built by card-image.yml, which publishes on a card-rg40xxv-*
+    tag; one is pushed beside each v* tag so the page can link to the image
+    for the version it offers rather than to whatever release is newest.
+    """
+    return "card-rg40xxv-v" + version
+
+
 def boards():
     """Every supported board, read out of platformio.ini's [board_*] sections.
 
@@ -1372,6 +1382,9 @@ def main():
     hidden_assets = raw_assets - referenced_assets(page)
     for key, value in (
         ("{{VERSION}}", release),
+        # The RG40XX V card is its own release, tagged beside every v* tag
+        # (CLAUDE.md, "Cutting a release"); the page links straight to it.
+        ("{{CARD_TAG}}", card_tag(release)),
         ("{{FLASH}}", escape(flash)),
         ("{{RAM}}", escape(ram)),
         ("{{BOARD_OPTIONS}}", board_options),
