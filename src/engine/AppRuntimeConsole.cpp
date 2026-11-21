@@ -89,7 +89,9 @@ constexpr uint32_t UNLOCK_MS = 120000;
 constexpr uint8_t PIN_TRIES = 3;
 constexpr uint32_t PIN_LOCKOUT_MS = 30000;
 constexpr size_t SSID_MAX = 32;              // 802.11
-constexpr size_t PASS_MAX = 63;              // WPA2 passphrase
+// Not PASS_MAX: POSIX reserves that name for getpass(), and Android's
+// <limits.h> defines it as a macro, which would rewrite this constant.
+constexpr size_t PASSPHRASE_MAX = 63;        // WPA2 passphrase
 
 // Changes the device, or reads player data. Device status reads are open.
 constexpr uint32_t GATED_CAPS = APP_CAP_DEVICE_SETTINGS | APP_CAP_NETWORK |
@@ -296,7 +298,7 @@ void BrainoApp::cmdWifi(int argc, char** argv, Print& out) {
     }
     const size_t ls = strlen(argv[0]);
     const size_t lp = strlen(argv[1]);
-    if (ls == 0 || ls > SSID_MAX || lp > PASS_MAX) {
+    if (ls == 0 || ls > SSID_MAX || lp > PASSPHRASE_MAX) {
         out.println("err range name 1..32 characters, password 0..63");
         return;
     }
