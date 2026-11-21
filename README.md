@@ -52,7 +52,7 @@ no data collection.** Two radios exist and both are narrow by design:
 | | |
 |---|---|
 | Games | 40 |
-| Flash | 2,706,157 / 3,145,728 bytes of the app partition (**86.0%**) |
+| Flash | 2,706,733 / 3,145,728 bytes of the app partition (**86.0%**) |
 | RAM | 95,108 / 327,680 bytes (**29.0%**) |
 | Artwork | 195 country flags, 50 state flags, 50 state outlines — about 755 KB (30% of the image) |
 
@@ -830,6 +830,17 @@ describes it; the two marked 180 are the same pictures turned half a turn, for
 an enclosure that holds the board the other way up. A case decides which way
 up a board sits, and there are far more cases for these boards than this
 project will ever draw. Touch follows the screen in all four.
+
+**A device that knows which way up it is held has a fifth: Auto.** None of
+the ESP32 boards has a motion sensor, so they never offer it. The Meta Portal+
+does -- its stand pivots the screen -- and there Auto is the default: the
+launcher and the system screens stand up when the device is turned to
+portrait, and everything turns over with a half turn, exactly as if the
+matching one of the four had been chosen. Games stay landscape in portrait,
+as they do on every board. A device carried across a room does not turn at
+every step: a pose counts once it has held for half a second, and a device
+lying flat keeps the last one. Choosing any of the four turns Auto off and
+fixes the screen there.
 
 To turn the screen for a case:
 
@@ -1762,6 +1773,7 @@ src/
     AppRuntimeSelector.cpp  the d-pad's selector, on a board with keys
     AppRuntimeScreenSaver.cpp  screen saver and panel sleep/wake
     AppRuntimeLock.cpp  hold-to-unlock guard on the way back
+    AppRuntimePose.cpp  auto-rotate: the screen turns when the device does
     AppRuntimeKeep.cpp  the game a player left, kept until switch-off
     CarryOnScreen.cpp  the Carry on? / New game question on the way back in
     AppRuntimeNotify.cpp  the notice strip: battery, update, nearby
@@ -1826,6 +1838,8 @@ src/
     PowerProbeEsp32.cpp what an ESP32 board can measure of it
     PanelSize.h         how big the panel is: every platform's own answer
     PanelSizeEsp32.cpp  a board's: the profile's panel
+    DevicePose.h        which way up the device is held, where a sensor knows
+    DevicePoseEsp32.cpp a board's: no sensor, so no Auto
     SystemSuspendEsp32.cpp  Deep sleep: a board cannot be woken from it, so no
     SleepPowerEsp32.cpp what sleep switches off: a slower clock, the station
     BoardFeedback.cpp   RGB LED, BLE and Nearby toggles

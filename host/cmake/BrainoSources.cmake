@@ -51,7 +51,7 @@ file(GLOB FIRMWARE_SOURCES CONFIGURE_DEPENDS
   "${REPO_ROOT}/src/ui/*.cpp"
   "${REPO_ROOT}/src/hal/*.cpp")
 list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX
-  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32|PanelSizeEsp32|SleepPowerEsp32)\.cpp$")
+  "/src/hal/(Watchdog|BoardAudioBackend|PowerProbeEsp32|SystemSuspendEsp32|PanelSizeEsp32|SleepPowerEsp32|DevicePoseEsp32)\.cpp$")
 list(FILTER FIRMWARE_SOURCES EXCLUDE REGEX "/src/ui/PanelArtEsp32\\.cpp$")
 list(APPEND FIRMWARE_SOURCES
   "${REPO_ROOT}/src/main.cpp"

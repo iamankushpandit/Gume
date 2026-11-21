@@ -8,6 +8,7 @@
 // offered. See LICENSE and NOTICE.md.
 
 #include "Board.h"
+#include "DevicePose.h"
 
 #include "ui/Ui.h"
 
@@ -110,8 +111,37 @@ bool Board::drawBmp(const char* path, int16_t x, int16_t y, int16_t maxW, int16_
 }
 
 /* The layout and the half-turn: how the panel is read. With the display's
- * other settings, kept here rather than in Board.cpp. */
+ * other settings, kept here rather than in Board.cpp.
+ *
+ * With Auto on and a pose settled (autoRotating()), both answer from the
+ * device's pose instead of the stored choice; the stored choice is left as it
+ * was, for when Auto is turned off. */
+bool Board::autoRotate() {
+    if (!autoRotCached_) {
+        cachedAutoRot_ = prefs_.getBool("autoRotate", true);
+        autoRotCached_ = true;
+    }
+    return cachedAutoRot_;
+}
+
+void Board::setAutoRotate(bool on) {
+    prefs_.putBool("autoRotate", on);
+    cachedAutoRot_ = on;
+    autoRotCached_ = true;
+}
+
+bool Board::autoRotating() {
+    return DevicePose::available() && autoRotate() &&
+           DevicePose::current() != DevicePose::Pose::Unknown;
+}
+
 Board::LayoutMode Board::layoutMode() {
+    if (autoRotating()) {
+        const DevicePose::Pose p = DevicePose::current();
+        return (p == DevicePose::Pose::Portrait || p == DevicePose::Pose::PortraitFlipped)
+                   ? LayoutMode::Vertical
+                   : LayoutMode::Horizontal;
+    }
     if (!layoutCached_) {
         cachedLayout_ = prefs_.getUChar("layoutMode", static_cast<uint8_t>(LayoutMode::Horizontal));
         layoutCached_ = true;
@@ -127,6 +157,10 @@ void Board::setLayoutMode(LayoutMode mode) {
 }
 
 bool Board::screenFlipped() {
+    if (autoRotating()) {
+        const DevicePose::Pose p = DevicePose::current();
+        return p == DevicePose::Pose::LandscapeFlipped || p == DevicePose::Pose::PortraitFlipped;
+    }
     if (!flipCached_) {
         cachedFlip_ = prefs_.getBool("screenFlip", false);
         flipCached_ = true;

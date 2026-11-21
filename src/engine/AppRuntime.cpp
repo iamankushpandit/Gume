@@ -152,6 +152,7 @@ void BrainoApp::begin() {
 
 void BrainoApp::loop() {
     Watchdog::feed();
+    followPose();   // auto-rotate: AppRuntimePose.cpp
     const TouchPoint rawTouch = board_.pollTouch();
     const Board::ButtonEvent boot = board_.pollBootButton();
     const FrameKeys keys = pollKeys();

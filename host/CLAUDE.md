@@ -836,6 +836,12 @@ has, that handler is where the same five-second guard belongs.
 
 Two environment variables, both off by default:
 
+- `BRAINO_POSE=landscape|landscape-180|portrait|portrait-180` gives the
+  desktop build a device pose (`src/hal/DevicePose.h`; `src/HostDevicePose.cpp`),
+  as a device with a motion sensor would report: Settings then offers Auto,
+  and with Auto chosen -- the default -- the layout follows the pose. Unset,
+  there is no sensor, as on every board. The Portal's build reads a real
+  accelerometer instead (`android/src/HostDevicePoseAndroid.cpp`).
 - `BRAINO_SHOTS="2500,5000"` saves the panel frame, at its real resolution,
   as `<data dir>/shot-<ms>.bmp` (ms zero-padded to six digits, `shot-002500.bmp`) at those milliseconds after start. F12 saves one
   on demand.

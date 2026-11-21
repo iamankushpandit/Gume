@@ -11,6 +11,7 @@
 
 #include "engine/NearbyPlay.h"
 #include "hal/Board.h"
+#include "hal/DevicePose.h"
 #include "hal/SystemSuspend.h"
 
 /* The tab bodies -- Device, Power and Sound -- and the geometry of their rows.
@@ -252,9 +253,14 @@ void SettingsApp::renderDeviceTab(GameHost& host) {
      * positions now, and the button is split so a step too far is one tap to
      * undo rather than three. It lost its "Menu:" prefix when it stopped
      * being only about the menu -- the 180 positions turn everything. */
+    /* "Auto" where the device's pose decides (a motion sensor, and Auto
+     * chosen): the four names say what the owner fixed, and with Auto they
+     * have fixed nothing. */
     snprintf(label, sizeof(label), "< %s >",
-             Ui::orientationName(board.layoutMode() == Board::LayoutMode::Vertical,
-                                 board.screenFlipped()));
+             (DevicePose::available() && board.autoRotate())
+                 ? "Auto"
+                 : Ui::orientationName(board.layoutMode() == Board::LayoutMode::Vertical,
+                                       board.screenFlipped()));
     Ui::drawButton(tft, layoutRect(), label,
                    admin ? Ui::panel() : Ui::surface(), Ui::outline(), admin ? Ui::text() : Ui::muted(), false, 2);
     snprintf(label, sizeof(label), "Light: %s", board.rgbEnabled() ? "On" : "Off");

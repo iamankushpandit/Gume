@@ -662,7 +662,7 @@ stay here:
 - **`host/` adapts to `src/`, never the reverse.** No platform `#if` under
   `src/` or `include/`; a difference between platforms is an interface in
   `src/` with one implementation per platform (`PanelSize`, `PowerProbe`,
-  `SystemSuspend`, `SleepPower`, `PanelArt`). `tools/check_platforms.py`
+  `SystemSuspend`, `SleepPower`, `PanelArt`, `DevicePose`). `tools/check_platforms.py`
   checks both, and that `host/cmake/BrainoSources.cmake` (the source list
   every host build shares) leaves out exactly the ESP32
   implementations.
@@ -815,7 +815,7 @@ The same reasoning applies to any lock PlatformIO itself leaves in `~/.platformi
 
 ### Shared budgets
 
-Flash is global and nearly the binding constraint (2,706,157 / 3,145,728 bytes,
+Flash is global and nearly the binding constraint (2,706,733 / 3,145,728 bytes,
 **86.0%**; NimBLE plus the BT controller account for ~192 KB of that). RAM sits
 at 95,108 / 327,680 (29.0%) -- higher than it was, deliberately: RowList traded
 864 bytes of static RAM for zero heap traffic and storage diagnostics keep their

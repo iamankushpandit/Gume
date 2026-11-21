@@ -34,6 +34,17 @@ no processor serial. Built with `host/android/build.ps1`; see
 The firmware's own source list is now `host/cmake/BrainoSources.cmake`,
 shared by every host build, and the boot splash no longer needs SDL.
 
+**Auto-rotate, where the device knows which way up it is.** A new
+platform interface, `DevicePose`, says how a device with a motion sensor is
+being held. The ESP32 boards have none and are unchanged. Where there is one
+-- the Meta Portal+ -- Settings' orientation button gains a fifth position,
+**Auto**, which is the default: the layout and the half turn follow the
+device, so the launcher and the system screens stand up in portrait and
+everything turns over with a half turn. Games stay landscape in portrait. A
+pose counts once it has held for half a second. `Board.cpp`'s layout and flip
+accessors moved to `BoardDisplay.cpp` first, the file having passed 600
+lines.
+
 ## 5.14.0 — 2026-11-20
 
 **Turning the launcher's page leaves nothing of the page before.** On page
