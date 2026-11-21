@@ -20,10 +20,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!--ANB--><title>Braino! &mdash; a learning console for ESP32 boards and handhelds</title><!--/ANB--><!--NOANB--><title>Braino! &mdash; a learning console for ESP32 boards and the Attaky Cyber Deck Plus</title><!--/NOANB-->
-<meta name="description" content="Braino! is an open-source learning console for ESP32 touchscreen boards, <!--ANB-->the Attaky Cyber Deck Plus and the Anbernic RG40XX V handheld: 40+<!--/ANB--><!--NOANB-->and the Attaky Cyber Deck Plus: 40+<!--/NOANB--> games that grow with each player, and more on the way, no accounts, nothing collected about the player.">
-<!--ANB--><meta property="og:title" content="Braino! &mdash; a learning console for ESP32 boards and handhelds"><!--/ANB--><!--NOANB--><meta property="og:title" content="Braino! &mdash; a learning console for ESP32 boards and the Attaky Cyber Deck Plus"><!--/NOANB-->
-<meta property="og:description" content="Open source. <!--ANB-->An ESP32 touchscreen board, an Attaky Cyber Deck Plus or a retro handheld becomes<!--/ANB--><!--NOANB-->An ESP32 touchscreen board or an Attaky Cyber Deck Plus becomes<!--/NOANB--> a learning console and nothing else. 40+ games and more on the way, no accounts, nothing collected.">
+<title>Braino! &mdash; a learning console for ESP32 boards and handhelds</title>
+<meta name="description" content="Braino! is an open-source learning console for ESP32 touchscreen boards, the Attaky Cyber Deck Plus and the Anbernic RG40XX V handheld: 40+ games that grow with each player, and more on the way, no accounts, nothing collected about the player.">
+<meta property="og:title" content="Braino! &mdash; a learning console for ESP32 boards and handhelds">
+<meta property="og:description" content="Open source. An ESP32 touchscreen board, an Attaky Cyber Deck Plus or a retro handheld becomes a learning console and nothing else. 40+ games and more on the way, no accounts, nothing collected.">
 <meta property="og:image" content="https://iamankushpandit.github.io/Gume/assets/social-preview.jpg">
 <meta name="theme-color" content="#0b0c10">
 <link rel="icon" href="assets/braino-mark.svg" type="image/svg+xml">
@@ -134,8 +134,6 @@
   .wall-still{border-radius:12px;overflow:hidden;background:#0b0f15;box-shadow:0 14px 30px rgba(0,0,0,.4)}
   .wall-still img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#0b0f15;image-rendering:pixelated}
   .wall-still figcaption{padding:6px 8px;font-size:11px;line-height:1.25;color:var(--muted);background:#101721;min-height:28px}
-  .stills-in-games{margin:34px 0 40px}
-  .stills-in-games .note{margin-top:14px;max-width:44rem;font-size:15px;color:var(--muted)}
   .stills .note{margin-top:18px;max-width:44rem;font-size:15px;color:var(--muted)}
 
 
@@ -157,19 +155,6 @@
   .videos.launch{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:var(--gutter);align-items:center}
   .videos.launch h2{font-size:clamp(36px,4.2vw,72px)}
   .launch .launch-text p{margin-top:18px;max-width:26rem;font-size:18px;color:var(--muted)}
-  .other-model{margin-top:34px;max-width:54rem;padding:20px 22px;border-radius:18px;box-shadow:inset 0 0 0 1.5px var(--line)}
-  .other-model b{display:block;font-size:19px;color:var(--yellow)}
-  .other-model p{margin-top:8px;font-size:16px;color:var(--muted)}
-  .other-model a{color:var(--yellow)}
-  .player-builds{padding:2vh var(--gutter) 12vh}
-  .player-builds h2{font-size:clamp(34px,4.6vw,68px);font-weight:900;letter-spacing:-.04em;line-height:.98}
-  .builds-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:18px;margin-top:34px}
-  .builds-grid div{border-top:4px solid var(--c);padding-top:14px}
-  .builds-grid b{display:block;font-size:22px;font-weight:900;letter-spacing:-.02em;color:var(--c)}
-  .builds-grid p{margin-top:8px;font-size:17px;color:var(--muted)}
-  .hero-video{position:relative}
-  .loop-pause{position:absolute;left:16px;bottom:16px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(11,12,16,.7);color:#fff;display:grid;place-items:center;cursor:pointer}
-  .loop-pause:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
   .launch .solo{margin-top:0;width:100%}
   @media (max-width:860px){.videos.launch{grid-template-columns:1fr}.launch .solo{margin-top:20px}}
   /* Get started: one block per kind of device */
@@ -409,7 +394,6 @@
     <li><a id="tab-privacy" href="#privacy" aria-controls="panel-privacy">Privacy</a></li>
     <li><a id="tab-community" href="#community" aria-controls="panel-community">Community</a></li>
     <li><a href="featured.html">Featured</a></li>
-    <li><a href="experimental.html">Experimental</a></li>
   </ul>
   <a class="star" href="{{REPO}}">Star on GitHub</a>
 </nav>
@@ -422,8 +406,8 @@
     <p class="lede">The console you&rsquo;re glad<br>they asked for.</p>
     <p class="sub">
       Braino! is a learning console that takes over a device entirely: an
-      <!--ANB-->ESP32 touchscreen board, the Attaky Cyber Deck Plus, or the Anbernic
-      RG40XX V handheld. 40+<!--/ANB--><!--NOANB-->ESP32 touchscreen board or the Attaky Cyber Deck Plus. 40+<!--/NOANB--> games &mdash; handwriting, maths, flags,
+      ESP32 touchscreen board, the Attaky Cyber Deck Plus, or the Anbernic
+      RG40XX V handheld. 40+ games &mdash; handwriting, maths, flags,
       the periodic table, chess across the room &mdash; with new ones on their way, and most of
       them grow with each player.
     </p>
@@ -440,24 +424,11 @@
       <video id="short" src="assets/launch-loop.mp4" autoplay muted loop playsinline poster="assets/launch-loop-poster.jpg" aria-hidden="true"></video>
       <span class="watch" title="Sound on: the full video"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0b0c10" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#0b0c10"/><path d="M17 9l5 6M22 9l-5 6"/></svg></span>
     </button>
-    <button class="loop-pause" id="loop-pause" type="button" aria-label="Pause the video" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg></button>
     <script>
       /* A reader who asks for less motion gets the still, not a loop. */
       if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
         var v = document.getElementById('short'); if (v) { v.remove(); }
-        var pb = document.getElementById('loop-pause'); if (pb) { pb.remove(); }
       }
-      /* Anything that moves for more than five seconds can be paused. */
-      (function () {
-        var v = document.getElementById('short'), b = document.getElementById('loop-pause');
-        if (!v || !b) { return; }
-        var play = '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-        var pause = b.innerHTML;
-        b.addEventListener('click', function () {
-          if (v.paused) { v.play(); b.innerHTML = pause; b.setAttribute('aria-label', 'Pause the video'); b.setAttribute('aria-pressed', 'false'); }
-          else { v.pause(); b.innerHTML = play; b.setAttribute('aria-label', 'Play the video'); b.setAttribute('aria-pressed', 'true'); }
-        });
-      })();
     </script>
   </div>
 </header>
@@ -476,27 +447,16 @@
       <b>Attaky Cyber Deck Plus</b>
       <span>An ESP32-S3 handheld with a gamepad and a keyboard. Braino installs from Attaky&rsquo;s firmware site.</span>
     </a>
-    <!--ANB--><a class="device" href="#start-handheld">
+    <a class="device" href="#start-handheld">
       <img src="assets/device-rg40xxv-on.jpg" alt="The Anbernic RG40XX V in translucent black, showing Braino's home screen" loading="lazy">
       <b>Anbernic RG40XX V</b>
       <span>A retro handheld that becomes Braino and nothing else. Write a card, put it in, switch it on. Buttons, a TV and headphones.</span>
     </a>
-<!--/ANB-->  </div>
-</section>
-
-<section class="player-builds" aria-labelledby="h-builds">
-  <h2 id="h-builds">What a player builds,<br>one game at a time.</h2>
-  <div class="builds-grid">
-    <div style="--c:var(--pink)"><b>Numbers</b><p>Counting to times tables, fractions, money and the clock.</p></div>
-    <div style="--c:var(--teal)"><b>Words</b><p>Tracing letters, joined-up handwriting and new words.</p></div>
-    <div style="--c:#7a80ff"><b>The world</b><p>Flags and capitals, the fifty states, the planets, the elements.</p></div>
-    <div style="--c:var(--green)"><b>Thinking</b><p>Memory, logic puzzles and planning moves ahead.</p></div>
-    <div style="--c:var(--amber)"><b>Playing fair</b><p>Chess, Go, Backgammon and Ludo: taking turns, winning and losing well.</p></div>
   </div>
 </section>
 
 
-<!--ANB--><section class="chapter" data-bg="#1f8a4c">
+<section class="chapter" data-bg="#1f8a4c">
   <div>
     <h2>The whole<br>handheld.</h2>
     <p class="body">On the Anbernic RG40XX V, Braino is not an app in a menu. The card holds Braino and the Linux under it, and nothing else: no menu to leave to, no other system behind it. Switch it on and the first picture is Braino.</p>
@@ -507,11 +467,10 @@
       <li>A headphone jack, for a quiet house.</li>
     </ul>
     <p class="body muted">No ROMs and no emulator. Braino lives on its own card: put the handheld&rsquo;s original card back and it is as it was.</p>
-    <p class="body muted" style="font-size:14px;opacity:.75">Photograph: Anbernic, with Braino&rsquo;s screen.</p>
   </div>
   <figure><img src="assets/device-rg40xxv-on.jpg" alt="The Anbernic RG40XX V in translucent black, showing Braino's home screen" loading="lazy"></figure>
 </section>
-<!--/ANB-->
+
 <section class="chapter flip" data-bg="#c2410c">
   <div>
     <h2>A deck with<br>a keyboard.</h2>
@@ -522,7 +481,6 @@
       <li>The battery badge reads the Power module&rsquo;s own gauge.</li>
     </ul>
     <p class="body muted">One image for every Attaky build: Braino looks at boot for the modules that are clipped on, and uses what it finds.</p>
-    <p class="body muted" style="font-size:14px;opacity:.75">Photograph: Attaky, with Braino&rsquo;s screen.</p>
     <p class="body"><a href="https://shop.attaky.com/products/attaky-cyber-deck-plus" rel="noopener" style="color:inherit">The Cyber Deck Plus</a> &middot; <a href="https://fwstore.attaky.com/en/normol_index/firmware_details/75" rel="noopener" style="color:inherit">Braino for the deck</a></p>
   </div>
   <figure><img src="assets/device-attaky-on.jpg" alt="The Attaky Cyber Deck Plus in yellow, Braino's home screen above its gamepad and keyboard" loading="lazy"></figure>
@@ -547,14 +505,14 @@
 </section>
 
 <section class="lineup" aria-label="The three kinds of device">
-  <!--ANB--><h2>Three kinds of device.<br>One console.</h2>
+  <h2>Three kinds of device.<br>One console.</h2>
   <p>
     An ESP32 touchscreen board in a case you print in any colour, the Attaky
     Cyber Deck Plus with its gamepad and keyboard, and the Anbernic RG40XX V
     handheld. The same games, the same players and the same privacy on every
     one, and every screen is the firmware's own.
   </p>
-  <div class="shot dark"><img src="assets/devices-lineup3.jpg" alt="Braino on three devices: an ESP32 board in a pink case, the orange Attaky Cyber Deck Plus and the black Anbernic RG40XX V, each on the home screen" loading="lazy"></div><!--/ANB--><!--NOANB--><h2>One console.<br>Every board.</h2><!--/NOANB-->
+  <div class="shot dark"><img src="assets/devices-lineup3.jpg" alt="Braino on three devices: an ESP32 board in a pink case, the orange Attaky Cyber Deck Plus and the black Anbernic RG40XX V, each on the home screen" loading="lazy"></div>
   <p>
     The boards come in 2.8, 3.2 and 4 inch, shown below at their true relative
     sizes &mdash; the case footprints are measured from the printable meshes in
@@ -563,6 +521,18 @@
   <div class="shot"><img src="assets/lineup.jpg" alt="Eight Braino consoles in eight filament colours across three board sizes, each running a different game" loading="lazy"></div>
 </section>
 
+<section class="stills" aria-label="What the screens look like">
+  <div class="wall-grid">
+{{STILL_WALL}}
+  </div>
+  <p class="note">
+    The board's screens, redrawn on a computer from the exact rectangles, fonts and
+    colours in the C++ source: the board does not wire the panel's MISO line,
+    so a true screenshot is not possible there. The flag artwork is the real
+    pixel data the device draws from. The handheld pictures on this
+    page are the console's own frames.
+  </p>
+</section>
 
 <section class="chapter flip" data-bg="#5b2a86">
   <div>
@@ -601,18 +571,26 @@
   <div class="cta"><a class="btn btn-ghost" href="featured.html">See all of them</a></div>
 </section>
 
+<section class="chapter amber" data-bg="#f2a900">
+  <div>
+    <h2>The board's case<br>is in the repo.</h2>
+    <p class="body">Room inside for a 3000 mAh battery and a small speaker. The lid carries the speaker grille, the embossed mark and slots that reach the BOOT and RESET buttons.</p>
+    <p class="body muted">Pink is the house colour. Print yours in anything.</p>
+  </div>
+  <figure><img src="assets/open-case.jpg" alt="An open Braino case showing the battery, speaker and board" loading="lazy"></figure>
+</section>
 
 </div>
 
 <div class="tabpanel" id="panel-start" aria-labelledby="tab-start">
 <section class="start" id="start">
   <h2>Get started.<br>Pick your device.</h2>
-  <p class="lede2">Braino runs on ESP32 touchscreen boards, <!--ANB-->the Attaky Cyber Deck Plus and the Anbernic RG40XX V. None<!--/ANB--><!--NOANB-->and the Attaky Cyber Deck Plus. None<!--/NOANB--> needs soldering, and each takes a few minutes.</p>
+  <p class="lede2">Braino runs on ESP32 touchscreen boards, the Attaky Cyber Deck Plus and the Anbernic RG40XX V. None needs soldering, and each takes a few minutes.</p>
   <nav class="devnav" aria-label="Devices">
     <a href="#start-board">A touchscreen board</a>
     <a href="#start-attaky">Attaky Cyber Deck Plus</a>
-<!--ANB-->    <a href="#start-handheld">Anbernic RG40XX V</a>
-<!--/ANB-->  </nav>
+    <a href="#start-handheld">Anbernic RG40XX V</a>
+  </nav>
 
   <h3 class="dev" id="start-board">A touchscreen board.</h3>
   <p class="lede2">
@@ -673,7 +651,7 @@
     site.
   </p>
   <ol class="how">
-    <li><picture class="anim"><img src="assets/start-attaky-get.jpg" width="1280" height="720" loading="lazy" alt="The Attaky Cyber Deck Plus in yellow, its screen off"></picture><b>Get the deck from Attaky.</b>The <a href="https://shop.attaky.com/products/attaky-cyber-deck-plus" rel="noopener">Cyber Deck Plus</a>, from Attaky. </li>
+    <li><picture class="anim"><img src="assets/start-attaky-get.jpg" width="1280" height="720" loading="lazy" alt="The Attaky Cyber Deck Plus in yellow, its screen off"></picture><b>Get the deck from Attaky.</b>The <a href="https://shop.attaky.com/products/attaky-cyber-deck-plus" rel="noopener">Cyber Deck Plus</a>, from Attaky. Attaky&rsquo;s other builds of the same Core run Braino too.</li>
     <li><picture class="anim"><source srcset="assets/start-attaky-plug.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-attaky-plug.gif" width="640" height="360" loading="lazy" alt="A data cable from a computer to the Attaky deck carries data both ways, and the computer finds the deck."></picture><b>Plug it into a computer.</b>The USB-C socket on the Core, with a cable that carries data.</li>
     <li><picture class="anim"><source srcset="assets/start-attaky-run.png" media="(prefers-reduced-motion: reduce)"><img src="assets/start-attaky-run.gif" width="640" height="360" loading="lazy" alt="The Attaky deck running Braino: the home screen, then Guess the Flag being played."></picture><b>Install Braino from Attaky&rsquo;s site.</b>Open <a href="https://fwstore.attaky.com/en/normol_index/firmware_details/75" rel="noopener">Braino! on Attaky&rsquo;s firmware site</a> and flash it.</li>
   </ol>
@@ -692,12 +670,7 @@
     <details><summary>Can I take a module off?</summary><p>Yes. Braino looks for the modules every time it starts. Take the keyboard off and the on-screen keypad comes back.</p></details>
   </div>
 
-  <div class="other-model">
-    <b>Have a different Attaky build?</b>
-    <p>Braino may also run on Attaky&rsquo;s other builds of the same Core. We have not been able to test them, because we do not have the hardware. Try it, and if anything does not work, <a href="{{REPO}}/issues">open an issue</a> saying which model you have and what you saw. We will look into it.</p>
-  </div>
-
-<!--ANB-->  <h3 class="dev" id="start-handheld">Anbernic RG40XX V.</h3>
+  <h3 class="dev" id="start-handheld">Anbernic RG40XX V.</h3>
   <p class="lede2">
     A retro handheld with a 4-inch screen, a d-pad and buttons, an HDMI output
     and a headphone jack. Braino goes on a microSD card of its own and becomes
@@ -724,19 +697,13 @@
     <details><summary>Does the sound go to the TV?</summary><p>No. Over HDMI the TV shows the picture; the sound stays on the handheld&rsquo;s speaker, or its headphones when they are plugged in.</p></details>
   </div>
 
-  <div class="other-model">
-    <b>Have a different Anbernic handheld?</b>
-    <p>Braino may also run on other Anbernic handhelds built on the same chip as the RG40XX V. We have not been able to test them, because we do not have the hardware. Try it, and if anything does not work, <a href="{{REPO}}/issues">open an issue</a> saying which model you have and what you saw. We will look into it.</p>
-  </div>
-
-<!--/ANB-->
 </section>
 </div>
 
 <div class="tabpanel" id="panel-install" aria-labelledby="tab-install">
 <section class="flash" id="flash">
   <h2>Install it.</h2>
-  <p class="lead"><!--ANB-->A board installs from this page, the Attaky deck from Attaky&rsquo;s firmware site, and the RG40XX V gets a card. <a href="#flash-attaky">The Attaky deck</a> &middot; <a href="#flash-handheld">The RG40XX V</a><!--/ANB--><!--NOANB-->A board installs from this page and the Attaky deck from Attaky&rsquo;s firmware site. <a href="#flash-attaky">The Attaky deck</a><!--/NOANB--></p>
+  <p class="lead">A board installs from this page, the Attaky deck from Attaky&rsquo;s firmware site, and the RG40XX V gets a card. <a href="#flash-attaky">The Attaky deck</a> &middot; <a href="#flash-handheld">The RG40XX V</a></p>
   <h3 class="first">A board, from your browser.</h3>
   <div class="grid">
     <div>
@@ -810,9 +777,9 @@
     <p>Braino for the Attaky Core is published on <a href="https://fwstore.attaky.com/en/normol_index/firmware_details/75" rel="noopener">Attaky&rsquo;s firmware site</a>. Plug the deck in with a data cable, open that page, and flash it from there.</p>
   </div>
 
-<!--ANB-->  <div class="method" id="flash-handheld">
+  <div class="method" id="flash-handheld">
     <h3>The RG40XX V, on a card.</h3>
-    <p>The card image is published with every release on GitHub, beside its checksums, the script that writes it from Windows, and the corresponding source of everything on the card. <a href="{{REPO}}/releases">The releases page</a></p>
+    <p>The card image is published with every release on GitHub, beside its checksums, the script that writes it from Windows, and the corresponding source of everything on the card. <a href="{{REPO}}/releases/latest">The latest release</a></p>
     <p><b>Windows.</b> Use <code>write-card.ps1</code> from the release rather than an ordinary image writer: with some card readers Windows writes over the start of a card the moment it mounts it. In PowerShell opened as administrator, in the folder with the download:</p>
     <pre class="cmd"><code>powershell -ExecutionPolicy Bypass -File write-card.ps1          # lists the cards
 powershell -ExecutionPolicy Bypass -File write-card.ps1 -Image braino-rg40xxv.img.gz -Disk 2</code></pre>
@@ -824,14 +791,14 @@ gunzip -c braino-rg40xxv.img.gz | sudo dd of=/dev/rdiskN bs=4m
 diskutil eject /dev/diskN</code></pre>
     <p>Check the download first against <code>braino-rg40xxv.sha256</code>. Writing replaces everything on the card. <a href="{{REPO}}/blob/main/host/rg40xxv/README.md">What is on the card, and how it is built</a></p>
   </div>
-<!--/ANB-->
+
 </section>
 
 <section class="firstrun">
   <h2>First run.</h2>
   <ol>
     <li>The device boots into <b>Profiles</b>. Pick a player, or Guest &mdash; Guest deliberately saves nothing.</li>
-    <li>On a board with resistive touch, calibrate once: <b>Settings &rarr; Calibrate</b>, then tap the three targets.<!--ANB--> The handheld needs nothing.</li><!--/ANB--><!--NOANB--></li><!--/NOANB-->
+    <li>On a board with resistive touch, calibrate once: <b>Settings &rarr; Calibrate</b>, then tap the three targets. The handheld needs nothing.</li>
     <li>Wi-Fi is optional: it sets the clock and checks once a day for a newer version. <b>Settings &rarr; Network</b>.</li>
     <li>Pare the launcher down to what one player needs, in <b>Profiles &rarr; Edit &rarr; Games</b>.</li>
   </ol>
@@ -840,7 +807,6 @@ diskutil eject /dev/diskN</code></pre>
 </div>
 
 <div class="tabpanel" id="panel-games" aria-labelledby="tab-games">
-
 <section class="games" id="games">
   <h2>Every game,<br>on every device.</h2>
   <p class="intro">
@@ -848,17 +814,6 @@ diskutil eject /dev/diskN</code></pre>
     are courses that keep a level for each player, and any one can be hidden
     per player. The same games are on every device.
   </p>
-  <div class="stills-in-games">
-  <div class="wall-grid">
-{{STILL_WALL}}
-  </div>
-  <p class="note">
-    The board's screens, redrawn on a computer from the exact rectangles, fonts and
-    colours in the C++ source: the board does not wire the panel's MISO line,
-    so a true screenshot is not possible there. The flag artwork is the real
-    pixel data the device draws from.
-  </p>
-  </div>
   <nav class="wall" aria-label="Jump to a game">
 {{GAME_WALL}}
   </nav>
@@ -892,22 +847,22 @@ diskutil eject /dev/diskN</code></pre>
   </div>
   <p class="muted" style="margin-top:28px;max-width:40rem;font-size:15px">
     Nothing from YouTube loads until you press play. When you do, the player comes
-    from youtube-nocookie.com. The loop at the top of the page and the one-minute
-    board clip are served from this site.
+    from youtube-nocookie.com. The one-minute video at the top of the page is served
+    from this site.
   </p>
 </section>
 
 <section class="posters" id="posters" aria-labelledby="h-posters">
   <h2 id="h-posters">Posters.</h2>
-  <!--ANB--><p class="intro">Two posters, for two different walls. Both are A2 and print-ready, with bleed and crop marks.</p><!--/ANB--><!--NOANB--><p class="intro">A poster for a makerspace wall. A2 and print-ready, with bleed and crop marks.</p><!--/NOANB-->
+  <p class="intro">Two posters, for two different walls. Both are A2 and print-ready, with bleed and crop marks.</p>
   <div class="poster-grid">
-<!--ANB-->    <div class="poster-card">
+    <div class="poster-card">
       <a href="assets/braino-poster-A2-devices.pdf"><img src="assets/poster-preview-devices.jpg" alt="The Braino! poster: Level up for real, with an ESP32 board, the Attaky Cyber Deck Plus and the Anbernic RG40XX V" loading="lazy"></a>
       <h3>For a classroom or a hallway</h3>
       <p>&ldquo;Level up for real.&rdquo; What Braino is and the three kinds of device it runs on, for parents, teachers and players. Its QR codes open this page and the repository.</p>
       <a class="btn btn-solid" href="assets/braino-poster-A2-devices.pdf" download>Download (PDF)</a>
     </div>
-<!--/ANB-->    <div class="poster-card">
+    <div class="poster-card">
       <a href="assets/braino-poster-A2-makers.pdf"><img src="assets/poster-preview-makers.jpg" alt="The Braino! makers poster: 4 MB, with ESP32 boards" loading="lazy"></a>
       <h3>For a makerspace or a maker faire</h3>
       <p>&ldquo;4 MB.&rdquo; The engineering story: a whole console in the flash of an ESP32 touchscreen board, for makers and board porters. Its QR codes open the repository and this page.</p>
@@ -935,28 +890,19 @@ diskutil eject /dev/diskN</code></pre>
     <div><picture class="anim"><source srcset="assets/privacy-names.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-names.gif" width="640" height="360" loading="lazy" alt="A label such as B7C1 = Blue case is saved on this console only; the beacon never reads it, so what goes on air is identical before and after."></picture><h3>Local names for peers</h3><p>Stay on the console that stored them. The administrator can label a tag they recognise so a poke says who rather than what; the beacon never reads that label, so what goes on air is identical whether every peer is named or none is.</p></div>
     <div><picture class="anim"><source srcset="assets/privacy-scores.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-scores.gif" width="640" height="360" loading="lazy" alt="Players' scores are saved in the console's own flash, with no connection to any account or cloud."></picture><h3>Scores and profiles</h3><p>Live on the console &mdash; in a board's own flash, or on the handheld's card &mdash; and never leave it. There is no account to make, nothing to sign in to, and no way for anybody here to see how a player plays.</p></div>
     <div><picture class="anim"><source srcset="assets/privacy-page.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-page.gif" width="640" height="360" loading="lazy" alt="The page loads from GitHub Pages and the installer from unpkg; it talks to your board over Web Serial inside your browser, with no analytics, cookies or web fonts."></picture><h3>This page</h3><p>Talks to your board over Web Serial, inside your browser; nothing about your device is sent anywhere. The firmware comes from GitHub Pages, and the Install button's code (esp-web-tools) from the unpkg CDN. Those two are the only requests this page makes on load &mdash; no analytics, no cookies, no fonts from anybody else.</p></div>
-<!--ANB-->    <div><picture class="anim"><source srcset="assets/privacy-handheld.png" media="(prefers-reduced-motion: reduce)"><img src="assets/privacy-handheld.gif" width="640" height="360" loading="lazy" alt="The handheld's card holds Braino and Linux only; the Wi-Fi password and the PIN are sealed on it, and only Braino's own four requests leave."></picture><h3>The handheld</h3><p>The card holds Braino and the Linux under it and nothing else: no shell, no login, no service listening, and no IPv6. The network is joined only when Braino starts Wi-Fi, and the only requests that leave are Braino&rsquo;s own four. The Wi-Fi password and the administrator PIN are sealed on the card with a key the card does not hold, so a laptop that reads the card cannot read them.</p></div>
-<!--/ANB-->  </div>
+    <div><h3>The handheld</h3><p>The card holds Braino and the Linux under it and nothing else: no shell, no login, no service listening, and no IPv6. The network is joined only when Braino starts Wi-Fi, and the only requests that leave are Braino&rsquo;s own four. The Wi-Fi password and the administrator PIN are sealed on the card with a key the card does not hold, so a laptop that reads the card cannot read them.</p></div>
+  </div>
 </section>
 
 </div>
 
 <div class="tabpanel" id="panel-community" aria-labelledby="tab-community">
-<section class="chapter amber" data-bg="#f2a900">
-  <div>
-    <h2>The board's case<br>is in the repo.</h2>
-    <p class="body">Room inside for a 3000 mAh battery and a small speaker. The lid carries the speaker grille, the embossed mark and slots that reach the BOOT and RESET buttons.</p>
-    <p class="body muted">Pink is the house colour. Print yours in anything.</p>
-  </div>
-  <figure><img src="assets/open-case.jpg" alt="An open Braino case showing the battery, speaker and board" loading="lazy"></figure>
-</section>
-
 <section class="builders" id="community">
   <h2>Builders wanted.</h2>
   <div class="asks">
-    <a class="g" href="{{REPO}}/blob/main/CONTRIBUTING.md"><b>Add a game.</b><p>The launcher, players, scores and courses already exist. You write the activity; Braino does the rest. Not sure yet? <b>Open a discussion</b> and think it through in the open.</p></a>
+    <a class="g" href="{{REPO}}/blob/main/CONTRIBUTING.md"><b>Add a game.</b><p>The launcher, profiles, scoring, mastery tracking and spaced repetition already exist. You write the activity; Braino does the rest. Not sure yet? <b>Open a discussion</b> and think it through in the open.</p></a>
     <a class="p" href="{{REPO}}/blob/main/docs/PORTING.md"><b>Port a device.</b><p>A new board is one header under include/boards and one section in platformio.ini; nothing under src names a GPIO. A new Linux handheld is a few lines in host/consoles naming its buttons. Braino only goes where it can be the whole device.</p></a>
-    <a class="a" href="{{REPO}}/tree/main/cases"><b>Design a case.</b><p>Most boards have a printable case in the repository; the Freenove capacitive board has none yet, and speaker and no-speaker variants are welcome. Print notes and fastener sizes are as valuable as the mesh.</p></a>
+    <a class="a" href="{{REPO}}/tree/main/cases"><b>Design a case.</b><p>The 3.2-inch and 4-inch boards would love a good enclosure, in speaker and no-speaker variants. Print notes and fastener sizes are as valuable as the mesh.</p></a>
   </div>
   <div class="ai">
     <h2>Built with AI.<br>On purpose.</h2>
