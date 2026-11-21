@@ -146,6 +146,37 @@ file; a copy of `nvs.txt` that leaves without the key opens nothing. The log
 line `[secrets] sealing with a key from the app's private storage` says which
 it was.
 
+## Making the Portal Braino's alone
+
+`build.ps1 -Install` installs Braino; it does not take the device over. That
+is three `adb` steps, done once per device, in this order -- Braino first, so
+the Portal is never left without a home screen:
+
+```powershell
+adb shell cmd package set-home-activity "io.github.iamankushpandit.braino/android.app.NativeActivity"
+```
+
+Then each of Meta's user-facing apps, and the stock ones Braino does not need,
+removed for the device's user (`pm uninstall --user 0`): the package stays in
+the system image, so nothing is destroyed.
+
+```powershell
+foreach ($p in "com.facebook.alohaapps.launcher","com.facebook.alohaapps.controlcenter","com.facebook.alohaapps.contacts","com.facebook.aloha.app.messenger","com.facebook.aloha.app.whatsapp","com.facebook.aloha.app.portalfeed","com.facebook.aloha.app.storytime","com.facebook.alohaapps.superframe","com.facebook.aloha.app.cameraeditor","com.facebook.portal.aiservice","org.chromium.chrome","com.android.camera2") { adb shell pm uninstall --user 0 $p }
+```
+
+Left alone on purpose: Meta's system services and device setup, which Android
+needs to boot; Meta's Settings app, which holds the ADB switch and is
+unreachable once its home screen and control panel are gone; and Android's
+own `com.android.settings/.FallbackHome`, which shows for a moment at boot.
+
+Any of them comes back with `adb shell cmd package install-existing <package>`,
+and a factory reset restores the lot.
+
+The boot logo is Meta's and stays Meta's: the first is the bootloader's
+`splash` partition, the animation is `/system/media/bootanimation.zip` on the
+verified, read-only system partition, and the boot animation reads no
+writable path (`/oem` is read-only too). Braino's own splash follows it.
+
 ## Signing
 
 `build.ps1` signs with a per-machine debug key at
